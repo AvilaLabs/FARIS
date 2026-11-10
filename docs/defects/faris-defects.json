@@ -896,6 +896,59 @@
       "disclosed": "2026-11-10",
       "disposition": "The ITER_1D worker supplied volumes for the full input geometry, including non-material source-geometry cells, to a preflight that requires exactly the 97 material cells. The exact-set check could reject the benchmark before OpenMC started. The worker now derives a material-cell-only volume map for coverage and tally mapping, while retaining the full geometry volume audit and source-cell volume. Five ITER risk tests passed in a75f278, including the existing exact 97-material-cell volume contract test; this commit did not add a dedicated fixture with extra non-material entries in the full geometry volume map. The change corrects input scope and does not establish a benchmark comparison or physical result.",
       "regression_test": "integrations/openmc/risk_tests/test_iter_1d_reference.py::test_input_preflight_requires_all_97_material_cells_and_analytic_volumes"
+    },
+    {
+      "id": "FARIS-069",
+      "title": "Group cross-section collapse lost small local areas to cumulative-integral cancellation",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "be9fc6f",
+      "disposition": "The collapse subtracted two large cumulative integrals to obtain a small group's local area. Floating-point cancellation could erase a positive microscopic cross section in later energy groups, including a verified Pu232 fission bin in the pinned 177-group input. The collapse now integrates local piecewise-linear segments and checks that outputs are finite and nonnegative without clamping. The regression reproduces loss of tiny positive bins after a large prefix and checks the local analytic areas; the exact pinned input was separately verified across all 177 groups.",
+      "regression_test": "integrations/openmc/risk_tests/test_r3_bounded_microxs.py::test_small_local_integral_survives_large_global_prefix"
+    },
+    {
+      "id": "FARIS-070",
+      "title": "Browser VFS helper check can report a present file as missing",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "aeca53a",
+      "disposition": "A browser positive smoke fixture was refused because helper presence used native filesystem metadata semantics (`Path::is_file`) against a browser virtual filesystem, reporting an existing batch_statistics.py as missing. The loader now uses the portable VFS file-length check. A regression packs and serializes a recorded run, then reloads/materializes it and checks the exact bound helper bytes. Browser CI for this correction is still pending; no passing browser run is claimed.",
+      "regression_test": "crates/faris-engine/src/reactor.rs::packed_run_carries_the_exact_bound_batch_statistics_helper"
+    },
+    {
+      "id": "FARIS-071",
+      "title": "Adapter health probes ignored CLI interruption and could leave descendants running",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "08238ea",
+      "disposition": "The adapters list health probe ran its child process with a fresh, uncancellable token, so interrupting the CLI did not promptly stop the probe or reap its descendant. It now uses the CLI interrupt cancellation token. A Linux regression sends SIGINT during a live probe and verifies prompt CLI completion and descendant reaping.",
+      "regression_test": "crates/faris-cli/tests/exit_codes.rs::sigint_cancels_adapter_health_probe_and_reaps_descendant_within_two_seconds"
+    },
+    {
+      "id": "FARIS-072",
+      "title": "Native report and ensemble writes lacked durable atomic publication",
+      "severity": "S2",
+      "data_loss": false,
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "c2b1de8",
+      "disposition": "The native design reports and browser-ensemble export used direct file writes without the shared writer's temporary-file, file-sync, atomic-rename and directory-sync sequence. These report paths now use the common durable writer. Its crash/reopen model checks that each modeled interruption leaves the previous complete data or the complete new data, and the production filesystem backend test checks the operation order. This is a state-machine/model result, not an end-to-end power-cut test of application report generation or storage hardware; no actual report loss is claimed.",
+      "regression_test": "crates/faris-engine/src/atomic_file.rs::writer_state_machine_crash_reopen_model_keeps_old_or_complete_new_data"
     }
   ]
 }

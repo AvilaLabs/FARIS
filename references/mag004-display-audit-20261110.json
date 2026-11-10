@@ -1,0 +1,146 @@
+{
+  "requirement": "MAG-004",
+  "recorded_status": "Met",
+  "recorded_on": "2026-11-10",
+  "acceptance_scope": {
+    "surface_count": 14,
+    "policy": "Every registered numeric margin/readout presents its typed two-sigma interval or, when no interval is stored, its reason and next step. Verdicts use the unfavourable edge. Numeric differences carry the two source bands and an overlap/separation/no-band verdict; no interval for a difference is fabricated.",
+    "explicit_exclusions": "Raw fluence timelines with service-limit reference lines and P5-P95 transport-sampling shading, plus inspector source values, do not calculate or claim a numeric margin, headroom, percent-of-limit, or verdict. Their percentile shading is not treated as a two-sigma margin.",
+    "physical_scope_limit": "This is a display-completeness finding. It does not qualify transport convergence, physical accuracy, service life, or any underlying model."
+  },
+  "registry": {
+    "path": "docs/requirements/mag004-margin-displays.json",
+    "sha256": "f8d3e2629fc4bb8d79ce4b2eb83572264c1b0bf0aa1e7a5eace7595184ae114e"
+  },
+  "freshness_check": {
+    "path": "runs/continuation/checks/mag-display-registry-v101.log",
+    "sha256": "9623a2d11b7f814f3db0a4a77cac7ac3ed5ba5104241a4c1a7491ecbf21a911c"
+  },
+  "fixture_run_evidence": [
+    {
+      "suite": "engine transport, life, brief, and history margin fixtures",
+      "result": "All recorded targeted tests pass.",
+      "files": [
+        {
+          "path": "runs/continuation/checks/native-engine-mag-margin-v96.log",
+          "sha256": "0b2749afc72e83c43fc23536d3838fbb31264ce641593768247dcb10cba1d340"
+        },
+        {
+          "path": "runs/continuation/checks/native-engine-life-margin-v96.log",
+          "sha256": "1c03d6e5e53a3cd0c474b03fe9cc8217c934202ce29b0855a2dc45159dde9a98"
+        },
+        {
+          "path": "runs/continuation/checks/native-engine-brief-margin-v96.log",
+          "sha256": "c544b0d63e3dec820eebc5ba1184a6362f7796efadcef0f1baaeb38e4813bea0"
+        },
+        {
+          "path": "runs/continuation/checks/native-engine-trip-margin-v96.log",
+          "sha256": "66a6dcf3f41b3fa57a9bb95fdc492755d9de9db35df2474c39f765ba9b2f2cc8"
+        }
+      ]
+    },
+    {
+      "suite": "app rendered MAG-004 fixtures",
+      "result": "The MAG-004 fixtures in the full app run pass. The full v97 run had one unrelated texture-delta teardown failure; the isolated cancellation test was rerun and passed in v99.",
+      "files": [
+        {
+          "path": "runs/continuation/checks/native-app-all-v97.log",
+          "sha256": "2b12f9de63d5142547df0677adbe048d40453a26d6d2be4b00ac25d5e4674551"
+        },
+        {
+          "path": "runs/continuation/checks/native-cancel-feedback-v99.log",
+          "sha256": "97d95591bbfd3373828f3d43965046d7dacef608a8c46b268833a54903489e24"
+        }
+      ]
+    },
+    {
+      "suite": "report fixtures",
+      "result": "63 report tests pass in v99; focused PDF margin fixtures: 7 pass; report chart fixtures: 8 pass.",
+      "files": [
+        {
+          "path": "runs/continuation/checks/native-report-v99.log",
+          "sha256": "13746e67e569e2f6f67fc04b496a7a47ad87e90e503ecb05a2f7eb5e136f41c3"
+        },
+        {
+          "path": "runs/continuation/checks/native-report-pdf-margin-v100.log",
+          "sha256": "ff3479ca05fa3fb7cbdc069d83a4783b81d89f56306cbf25cb2f5cee2094e347"
+        },
+        {
+          "path": "runs/continuation/checks/native-report-charts-v100.log",
+          "sha256": "cc5e837e3f33d2658934895060120fc45ce73714ed176dc3c855d7401d530829"
+        }
+      ]
+    }
+  ],
+  "visual_review": {
+    "review_status": "Coordinator reviewed the normal and ensemble comparison PDFs and accepted the 14-surface numerical-margin scope.",
+    "artifacts": [
+      {
+        "path": "runs/continuation/unc080-pdf-v1/visual-v100/normal/Demountable magnets-export/summary.pdf",
+        "sha256": "65fa0fccc6f63ad84319c40e8697d2bf47609f9c9aa4a7fd9a13e967e3d0c092"
+      },
+      {
+        "path": "runs/continuation/unc080-pdf-v1/visual-v100/ensemble/with-ensembles/Demountable magnets-export/summary.pdf",
+        "sha256": "14f84847882ca51eae28a4aa524b1df1832ae7afff0cdc4dd6a6f9f7b89aa126"
+      }
+    ]
+  },
+  "production_sources": [
+    {
+      "path": "crates/faris-engine/src/design/transport.rs",
+      "sha256": "c53b17f3cb4ef510476cba9885b0dc51449a78b25554ff258a78c14152527c9a"
+    },
+    {
+      "path": "crates/faris-engine/src/design/life.rs",
+      "sha256": "30b56ff089e773052063b83a00a79d696f3f3e9c166967f6ffd33d4de5c0fda5"
+    },
+    {
+      "path": "crates/faris-engine/src/brief.rs",
+      "sha256": "d0fc1b451d16468f812aaa85702a3a4f73f00a15087b64947cdefb5346193465"
+    },
+    {
+      "path": "crates/faris-engine/src/history.rs",
+      "sha256": "f15d7bb966a6f9d556370e068adc3631fd6dc1f835ed6aecee0bec3893f84b17"
+    },
+    {
+      "path": "crates/faris-app/src/design_transport_panel.rs",
+      "sha256": "8f13bcc1f7bca5c928f368fa5632ecbb79ddb5d543852a1e6f6bafee8c6e9932"
+    },
+    {
+      "path": "crates/faris-app/src/design_transport_result.rs",
+      "sha256": "cdde6be7a5202b1568a4e3ad313cd59fe0a1f2b6febd74eed53718c38dde0e0e"
+    },
+    {
+      "path": "crates/faris-app/src/history_panel.rs",
+      "sha256": "ab736b6b236a7d0dd57cbe3a4dcbdffbb96ef9233ae5a279339514bba59f2bdb"
+    },
+    {
+      "path": "crates/faris-app/src/compare_panel.rs",
+      "sha256": "f47e97ec4a85c58e2532b02444eb6e8c500ec40c4ef83e31f5e2046d02be0861"
+    },
+    {
+      "path": "crates/faris-app/src/sweep_panel.rs",
+      "sha256": "681c64e0de1b5c1024198ba2d42551cc12f534d990af30dcf0e141485cdba09f"
+    },
+    {
+      "path": "crates/faris-report/src/pdf.rs",
+      "sha256": "9236aacad25742ed31fe4eb351535308c632edede78a95cc60b7bb14de7c6bc1"
+    },
+    {
+      "path": "crates/faris-report/src/tables.rs",
+      "sha256": "e65a7a0ef39b64719435f5b483879a49ec272a29ed0795b6b571d373e0b9debc"
+    },
+    {
+      "path": "crates/faris-report/src/charts.rs",
+      "sha256": "c316426c5ec1bb98141059633173a7199ff26666645ea6edefd179c9a6c02d40"
+    }
+  ],
+  "requirement_record": {
+    "path": "docs/requirements/04-plant-systems.md",
+    "sha256": "7fd9ece768e6833b74c64fc114eb5788acd8bf0b250d22105256a4cd6201ea65"
+  },
+  "audit_script": {
+    "path": "scripts/mag004_display_audit.py",
+    "sha256": "b98df9aca2e4afc172d338d1f1dec4b4fc48e7f7557e3001d73f489c1fbfa9f5"
+  }
+}

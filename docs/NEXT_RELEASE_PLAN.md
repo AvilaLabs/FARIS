@@ -14,7 +14,9 @@ At this baseline, the requirement tables recorded 14 of the 44 release-gate IDs
 as Met. SRC-002 source-power bookkeeping, NUC-053 seed separation, NUC-050
 replicated fast-flux performance, MAG-003 peak-density/volume display,
 SEC-001 file-opening controls, and OPS-031/032 duration sensitivity and cited
-presets now meet their written criteria, bringing the recorded count to 21 of 44. This is recorded evidence, not a fresh release-gate
+presets and A11Y-001 keyboard operation now meet their written criteria. MAG-004's
+registered numeric margin displays also meet their written criterion, bringing
+the recorded count to 24 of 44. GEO-012 also meets its stated corpus volume/default-tolerance criterion ([receipt](../references/geo012-default-tolerance-corpus-control-20261110.json)). This is recorded evidence, not a fresh release-gate
 pass or physical qualification. The NUC-053 control does not assert formal PRNG
 stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The
@@ -34,6 +36,17 @@ an explicitly authored density normalization that closes at 525 MW. It does
 not evaluate CAD or transport. The [97-cell ITER diagnostic](../references/iter-1d-normal-source-control-20261110.json)
 completed one million histories; its normal-versus-Muir source-law mismatch
 prevents claiming agreement for matching sources or changing the validation status.
+The [native keyboard control](../references/native-demo-checks/2026-11-10/native-keyboard-control-20261110.json)
+completes the T1–T5 workflow, including verified Save and Export, with the registry
+and rendered focus checks. This meets A11Y-001's stated keyboard target; broader
+accessibility and platform checks keep their separate status.
+The [port-free cold-reference heating control](../references/port-free-particle-heating-control-20261110.json)
+records a fixed 90,000-history run with the five whole-model heating scopes. It is
+not the defined one-port RM-S case. The conservative marginal-error screen passes,
+while the strict aligned-batch 3-SE residual check fails; NUC-013 remains Partial
+and scientific qualification stays NOT_EVALUATED. Its shared-host elapsed time is
+not PERF-025 evidence. Two earlier preflight failures are retained separately with
+the control run.
 Code already includes CAD import/check/transport, native design windows,
 activation, replacement groups and remote-handling calculations. Research
 results count toward product completion only when the required product path
@@ -42,7 +55,7 @@ and its checks exist.
 | Stage | Current boundary | Remaining exit work |
 | --- | --- | --- |
 | S0 | Feasibility and streaming controls recorded; replicated inboard fast-flux performance passes the 100× lower-bound target (186.41×), bias and tail checks | Finish the RM-M preview timing and remaining data/method prerequisites; retain the distinct runtimes and data limitations |
-| S1 | The synthetic four-torus CAD control passes all nine native import checks, including proven whole-facet bounds at 0.1 mm; a fresh native three-torus conversion passes all nine checks at 1 mm; RM-M v3 conversion and strict mesh audit are complete. Its 2026-11-10 acceptance control passes all 30 volume checks (worst 0.008524%), 0/1,000,000 particle losses and 200,000/200,000 source sites both free and plasma-cell constrained; see [the acceptance receipt](../references/rm-m-v3-acceptance-control-20261110.json). This remains unqualified composite physical coverage. | Finish the resumed default-tolerance port corpus. Completed port volume checks pass, while their global deviation proofs remain unresolved; an exhausted proof budget is not a demonstrated geometry violation. Establish integrated volume and bounded refinement across the required cases; retain the original corpus conversion's genuine 1.18 mm deviation failure |
+| S1 | GEO-012 is Met for its stated 24-case conversion-volume/default-tolerance criterion: all 24 retained cases record the null/default tolerance, all selected candidates stay within 0.1% per-cell volume error (worst 0.082862%), and selected whole-facet bounds are established within their chord. Tori-7 refined from 1 mm to 0.5 mm. The hash-bound [corpus receipt](../references/geo012-default-tolerance-corpus-control-20261110.json) preserves all attempt, input and report hashes. This does not claim a full import or physical qualification; separate integrity/source/transport gates retain their own status. Historical synthetic-torus and RM-M controls remain separately scoped, not GEO-012 corpus evidence. | Continue the remaining S1 requirements and separate integrity/source gates; preserve the original 1.179573542 mm tori-7 corpus failure as historical evidence |
 | S2 | Sources, target-error runs, windows and peak-flux paths implemented in part; coupled winding-pack heating is integrated for native checks | Qualify heating, complete product integration and void controls, and measure the native RM-M preview and production paths |
 | S3 | Actual checked-CAD transport completed 30,000 histories and native invalid-map Run refusal passes; dose preparation and the 709-group neutron stage succeed, but ACTINV reports incomplete activation data and the whole-plant source is refused; a 50,000-history heating run remains INCONCLUSIVE on energy closure. The added 36-zone ACTINV capture retains raw gaps; all 36 zones remain LOWER_BOUND ([evidence](../references/actinv-remaining36-control-20261110.json)). | Resolve the activation data gaps; complete the actual CAD transport-to-dose control, heat-to-energy validation and native interaction checks; validate the event-dose worker and its data, source-resolution convergence and D1S/R2S comparison |
 | S4 | Validation registry, scoring and report generation implemented; FNS iron decay heat retains all 20 points, INCONCLUSIVE with unknown covariance; the twelve-response AIM vacuum control passes verification; the actual native FARIS lifecycle control passes all seven control checks, while PROCESS and bluemira retain a pulse-discretization disagreement | Produce the remaining sealed case runs; retain the unresolved Fe-5 source-support limit and peer agreement failure; complete validation-state presentation and remaining benchmark translations |

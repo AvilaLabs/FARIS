@@ -65,13 +65,20 @@ radius or used to bypass the finite-volume convergence gate. The converter
 itself states it has not had
 methodical verification; its exact installed code identity is sealed in the
 run record. The upstream converter is MIT-licensed and remains an external
-dependency; no converter source is vendored. An
-independent MCNP/OpenMC geometry/material equivalence review has not been
-completed. Surface-boundary and sampled detector-containment checks are
-necessary guards, not converter verification. Input translation and
-finite-volume qualification do not establish physical validation; the case
-manifest marks converter verification `NOT_EVALUATED` and the shared scoring
-gate keeps verdicts `INCONCLUSIVE` while measurement covariance is unknown.
+dependency; no converter source is vendored. An independent structural and
+analytic comparison has now been completed for
+the Fe-5 deck and the adapter-prepared OpenMC model. It checked the base
+surfaces, transformed collimator-cylinder axes and radii, material density and
+elemental atom-density totals, source position and histogram normalization,
+response tallies, and adapter source/containment guards. The hashed
+[Fe-5 translation control](../../../references/fns-fe5-translation-control-20261110.json)
+binds the deck, converter, and generated XML. These checks do not provide a
+formal proof of all geometry/material equivalence or methodical verification
+of the converter. No transport was run. Physical transport equivalence,
+experimental high-energy support, and the CSV uncertainty meaning/covariance
+remain `NOT_EVALUATED`; input translation and finite-volume qualification do
+not establish physical validation, and the shared scoring verdict remains
+`INCONCLUSIVE` while measurement covariance is unknown.
 The required converter source is pinned to commit
 `80fda5abeed22502e2f6e19e57a9b2a8762844a8` (MIT, distribution version `0.1.0`,
 Python source tree SHA256

@@ -797,48 +797,308 @@
     ]
   },
   "native_product_case": {
-    "status": "prepared_not_run_v96_binary_pending",
-    "binary_path": "runs/continuation/native-target-v33/debug/faris",
-    "design_sidecar": "runs/continuation/geo012-port-adaptive-same-step-v1/geometry-control.faris-design.json",
-    "design_sidecar_sha256": "ec2c4e6960e47dd423615e2328c50ef015bd0fc9dd5367adda3db936e50c015b",
-    "report_output": "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-import-report.json",
-    "work_output": "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-work",
-    "argv": [
-      "runs/continuation/native-target-v33/debug/faris",
-      "design",
-      "check",
-      "runs/continuation/geo012-port-adaptive-same-step-v1/geometry-control.faris-design.json",
-      "--report",
-      "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-import-report.json",
-      "--work-dir",
-      "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-work",
-      "--no-reuse",
-      "--threads",
-      "1",
-      "--imprint-threads",
-      "1",
-      "--cad-reader",
-      "native",
-      "--cad-python",
-      "/home/connoravila/.cache/avila-night/envs/c2d-0143/bin/python"
-    ],
-    "constraints": [
-      "Keep design.cad.faceting_tolerance_m null to exercise the native default adaptive path.",
-      "Do not launch until the v96 binary has finished building.",
-      "Geometry-only control; copied materials, roles, and history are scaffolding.",
-      "Do not modify query/depth defaults."
-    ],
-    "must_review": [
-      "geometry.adaptive_chord.was_default",
-      "geometry.adaptive_chord.attempt_records",
-      "geometry.deviation.solids[].global_bound_status",
-      "checks[8].status",
-      "checks[8].sub_checks"
-    ]
+    "status": "run_completed_geometry_controls_certified_import_incomplete",
+    "binary": {
+      "original_path": "runs/continuation/native-target-v33/debug/faris",
+      "stable_copy_path": "runs/continuation/cad-port-global-bound-native-20261110/bin/faris-v96-cad-control",
+      "sha256": "c5afe8dc79ae02fa954863f540544d469ababb2320f0aafe59cf1f1f79e7bb21",
+      "copied_sha256": "c5afe8dc79ae02fa954863f540544d469ababb2320f0aafe59cf1f1f79e7bb21"
+    },
+    "resource_limits": {
+      "cpu_quota": "100% (one CPU)",
+      "memory_max_bytes": 4294967296,
+      "memory_swap_max_bytes": 0,
+      "runtime_timeout_seconds": 600,
+      "helper_memory_cap_mb": 2048
+    },
+    "resolved_cad_backend": {
+      "requested_reader": "auto",
+      "actual_reader": "python",
+      "worker_sha256": null,
+      "reason": "The copied candidate binary had no faris-occt-worker adjacent to it; auto reader selected configured Python CAD helper.",
+      "cad_python": "/home/connoravila/.cache/avila-night/envs/c2d-0143/bin/python",
+      "cadquery": "2.8.0",
+      "ocp": "7.9.3.1",
+      "occt": "7.9",
+      "helper_version": "3",
+      "helper_sha256": "6751166310b3b0440e6c499b5e9b8aac393e34de8fab3e7cdbf603ee7d767f0b"
+    },
+    "port0_default_case": {
+      "design_sidecar": "runs/continuation/geo012-port-adaptive-same-step-v1/geometry-control.faris-design.json",
+      "design_sidecar_sha256": "ec2c4e6960e47dd423615e2328c50ef015bd0fc9dd5367adda3db936e50c015b",
+      "step_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-0/clean-port-0.step",
+      "step_sha256": "59ce39a6e3419ecc7b50647b397545555f974bb3739365c5732b5b7ec1d0811c",
+      "report_path": "runs/continuation/geo012-port-adaptive-same-step-v1/v96-port0-native-report.json",
+      "report_sha256": "613fa0b15c0591fbffdb2184e1d87eaae4006ba966355071a29a0e8f8479bece",
+      "checks": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "NOT_EVALUATED",
+        "PASS",
+        "NOT_EVALUATED",
+        "NOT_EVALUATED",
+        "NOT_EVALUATED"
+      ],
+      "evaluated_checks_pass": true,
+      "import_complete": false,
+      "was_default": true,
+      "initial_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "attempt_count": 1,
+      "attempt_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "h5m_sha256": "1a8a85e1b2b2123d4782dbf63a34292b30cd39eb206b54c6bb1aa39a6dcaf0ea",
+      "facets_sha256": "83a34eb9cccef5143b75904552a6e3593a83898650ad5f7ac6e220b717c7c518",
+      "deviation_report_path": "runs/continuation/geo012-port-adaptive-same-step-v1/v96-port0-native-work/convert/attempt-01/deviation/deviation.json",
+      "deviation_report_sha256": "8924468699055fa1c46a405728b9e9c60e5403929437dc4d6ee3f74a569e12bd",
+      "solids": [
+        {
+          "volume": 1,
+          "global_bound_status": "certified",
+          "global_upper_bound_m": 2.616726164090382e-05,
+          "global_bound_queries": 0,
+          "sampled_max_distance_m": 1.8649079951032378e-05
+        },
+        {
+          "volume": 2,
+          "global_bound_status": "certified",
+          "global_upper_bound_m": 2.6167261650166213e-05,
+          "global_bound_queries": 0,
+          "sampled_max_distance_m": 1.8649079951032378e-05
+        },
+        {
+          "volume": 3,
+          "global_bound_status": "certified",
+          "global_upper_bound_m": 1.0000348165940525e-09,
+          "global_bound_queries": 0,
+          "sampled_max_distance_m": 0.0
+        }
+      ],
+      "argv": [
+        "runs/continuation/cad-port-global-bound-native-20261110/bin/faris-v96-cad-control",
+        "design",
+        "check",
+        "runs/continuation/geo012-port-adaptive-same-step-v1/geometry-control.faris-design.json",
+        "--report",
+        "runs/continuation/geo012-port-adaptive-same-step-v1/v96-port0-native-report.json",
+        "--work-dir",
+        "runs/continuation/geo012-port-adaptive-same-step-v1/v96-port0-native-work",
+        "--no-reuse",
+        "--threads",
+        "1",
+        "--imprint-threads",
+        "1",
+        "--cad-reader",
+        "auto",
+        "--cad-python",
+        "/home/connoravila/.cache/avila-night/envs/c2d-0143/bin/python"
+      ],
+      "result_boundary": "Default 1mm candidate and global facet proof certified; original facets unchanged so no refinement was triggered. OpenMC-dependent checks 5, 7, 8 and 9 are NOT_EVALUATED; this is not a complete import."
+    },
+    "tori7_default_case": {
+      "design_sidecar": "runs/continuation/default-tori7-native-control-20261110-v1/tori7.native-default.retry2.faris-design.json",
+      "design_sidecar_sha256": "d767de6f0aaeb7fe90fc609568c069f885d081e8d570d377ce414714a06ec523",
+      "step_path": "runs/continuation/default-tori7-native-control-20261110-v1/../geo012-default-qual-20261110-v1-work/clean-tori-7/clean-tori-7.step",
+      "step_sha256": "f0ed6fe06979d8ef059ab078a519edb786a6be3622555c14b04d9b88597de1cf",
+      "report_path": "runs/continuation/default-tori7-native-control-20261110-v1/native-default-report.v96.json",
+      "report_sha256": "225f9c7c4e83270c06fb60f8a5af71c77648f196bf1d61add9dafec4de06c8fe",
+      "checks": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "NOT_EVALUATED",
+        "PASS",
+        "NOT_EVALUATED",
+        "NOT_EVALUATED",
+        "NOT_EVALUATED"
+      ],
+      "evaluated_checks_pass": true,
+      "import_complete": false,
+      "was_default": true,
+      "initial_chord_m": 0.001,
+      "selected_chord_m": 0.0005,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "exhausted": false,
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "REFINEMENT_REQUIRED",
+          "h5m_sha256": "fc871f8c104da9f8d5aa8b202e1cb3ddffd932c49c1ca30e4306d9a1a29e6c37",
+          "facets_sha256": "57a4c28fead02165642768ae7af1546d101afc26bd8aec57a6c6bd7602f2b9d5",
+          "conversion_report_sha256": "27a578aa89c82af94c7dc2c363bb327a9f2ee21203b9df03bad35f10077c7142",
+          "deviation_report_path": "runs/continuation/default-tori7-native-control-20261110-v1/native-default-work.v96/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "57760ff50ffd439a522361667741713a1fa44900e36eddc287702c1481e749c6",
+          "solids": [
+            {
+              "volume": 1,
+              "step_index": 0,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009853505412834949,
+              "sampled_max_distance_m": 0.0005927885806001996,
+              "global_bound_queries": 0,
+              "points": 90720,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "step_index": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009853505412834949,
+              "sampled_max_distance_m": 0.000685630219397126,
+              "global_bound_queries": 0,
+              "points": 187740,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "step_index": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0035096113378282473,
+              "sampled_max_distance_m": 0.0011795735420579375,
+              "global_bound_queries": 0,
+              "points": 200335,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        },
+        {
+          "attempt": 2,
+          "chord_m": 0.0005,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "h5m_sha256": "111b8c28e3e3f9a3c9e8bbd74f7013d65fbb0b182d54b82604708ccb661412cb",
+          "facets_sha256": "7496d58f7b4e44a793037a56d63db921047ac082e406d52d670842c1622220ac",
+          "conversion_report_sha256": "3238cf460cc83c3170abcc02bf6bfe35056b6c72cf24cd6155a54c0520271ae4",
+          "deviation_report_path": "runs/continuation/default-tori7-native-control-20261110-v1/native-default-work.v96/convert/attempt-02/deviation/deviation.json",
+          "deviation_report_sha256": "6fe54dff0729d891170bcee1f4d3ede07862348af98a663ce5b94c67697a7435",
+          "solids": [
+            {
+              "volume": 1,
+              "step_index": 0,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0004998025905028589,
+              "sampled_max_distance_m": 0.0003421577469217709,
+              "global_bound_queries": 0,
+              "points": 128520,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "step_index": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0004998025905028589,
+              "sampled_max_distance_m": 0.0004355817363345977,
+              "global_bound_queries": 0,
+              "points": 265860,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "step_index": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0004999692558080646,
+              "sampled_max_distance_m": 0.0004969100115589526,
+              "global_bound_queries": 0,
+              "points": 292110,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ],
+      "argv": [
+        "runs/continuation/cad-port-global-bound-native-20261110/bin/faris-v96-cad-control",
+        "design",
+        "check",
+        "runs/continuation/default-tori7-native-control-20261110-v1/tori7.native-default.retry2.faris-design.json",
+        "--report",
+        "runs/continuation/default-tori7-native-control-20261110-v1/native-default-report.v96.json",
+        "--work-dir",
+        "runs/continuation/default-tori7-native-control-20261110-v1/native-default-work.v96",
+        "--no-reuse",
+        "--threads",
+        "1",
+        "--imprint-threads",
+        "1",
+        "--cad-reader",
+        "auto",
+        "--cad-python",
+        "/home/connoravila/.cache/avila-night/envs/c2d-0143/bin/python"
+      ],
+      "result_boundary": "Default 1mm attempt required refinement because the frame whole-facet upper bound was 3.509611mm; the 0.5mm retry certified all three solids below 0.5mm. OpenMC-dependent checks 5, 7, 8 and 9 are NOT_EVALUATED; do not label the overall tori-7 case PASS."
+    }
   },
   "remaining_boundary": [
-    "GEO-012 is not yet recorded Met. The Python canonical proof now certifies retained port-0..7 facets; native v96 default adaptive/product integration still needs an actual port case run and review.",
-    "Run an actual native adaptive tori-7 case; no tori-7 pass is claimed here.",
-    "Preserve the original corpus conversion deviation failure/witness (1.17957 mm) as distinct from this same-step Python proof."
-  ]
+    "GEO-012 is Met against its stated 24-case per-cell volume/default-tolerance criterion; the tracked corpus receipt is references/geo012-default-tolerance-corpus-control-20261110.json.",
+    "OpenMC-dependent checks remain NOT_EVALUATED as separate gates and do not change the GEO-012 status.",
+    "Preserve the original 1.179573542 mm clean-tori-7 corpus failure as historical evidence separate from the fresh default adaptive retry.",
+    "Historical RM-M v3 and synthetic torus controls remain separately scoped and do not substitute for these 24 corpus results."
+  ],
+  "native_corpus": {
+    "status": "Met for the stated GEO-012 per-cell volume/default-tolerance criterion",
+    "summary_path": "runs/continuation/geo012-native-corpus-v96-20261110/native-corpus-summary.json",
+    "summary_sha256": "906c28b9642a0f22c80d5c58d58628a28579dc2cd577cfbdba430fcd3407af5f",
+    "input_manifest_path": "runs/continuation/geo012-native-corpus-v96-20261110/input-manifest.json",
+    "input_manifest_sha256": "a97549ac94f0317d7af4e5d482e70706cb2c8950ba4c3dbda83f5d3660a74a1e",
+    "case_breakdown": {
+      "boxes": 8,
+      "tori": 8,
+      "ports": 8,
+      "total": 24
+    },
+    "criteria": {
+      "per_cell_volume_relative_error_max": 0.001,
+      "recorded_default_tolerance_field": null,
+      "was_default_count": 24,
+      "per_cell_volume_pass_count": 24,
+      "candidate_volume_and_binding_pass_count": 24,
+      "selected_candidate_global_bound_certified_within_selected_chord_count": 24,
+      "all_attempt_solid_bound_statuses_certified": true,
+      "global_bound_queries_total": 0,
+      "thresholds_unchanged": true
+    },
+    "outcomes": {
+      "maximum_final_per_cell_volume_error_fraction": 0.0008286166087781988,
+      "maximum_final_per_cell_volume_error_percent": 0.08286166087781988,
+      "maximum_error_case": "clean-tori-1",
+      "selected_chord_counts_m": {
+        "0.001": 23,
+        "0.0005": 1
+      },
+      "largest_selected_candidate_global_upper_bound_m": 0.0009995137406854646,
+      "largest_selected_candidate_bound_case": "clean-tori-5",
+      "largest_selected_candidate_bound_volume": 3,
+      "largest_global_upper_bound_across_all_attempts_m": 0.0035096113378282473,
+      "largest_all_attempt_bound_case": "clean-tori-7",
+      "attempts_total": 25,
+      "selected_solid_bound_records": 72,
+      "attempt_solid_bound_records": 75
+    },
+    "binary_sha256": "c5afe8dc79ae02fa954863f540544d469ababb2320f0aafe59cf1f1f79e7bb21",
+    "reader": "--cad-reader auto resolved to configured Python CAD helper (CadQuery 2.8.0, OCP 7.9.3.1, OCCT 7.9), because no faris-occt-worker was present adjacent to the preserved CLI binary.",
+    "limitations": [
+      "Geometry-only design sidecars carry scaffolding material/role/history values. Each sidecar uses the retained STEP hash, STEP-ordered solid IDs and the retained CAD volume fingerprints.",
+      "The check 3 sidecar-order rejection for the first port attempt was preserved under attempt-01-port-order-mismatch; corrected STEP-order sidecars were used for the final 8 port reports.",
+      "OpenMC-dependent CLI checks 5, 7, 8 and 9 were NOT_EVALUATED and remain separate gates; they are not included in the exact GEO-012 volume criterion.",
+      "The original clean-tori-7 corpus failure with sampled 1.179573542 mm deviation and 3.509611338 mm certified bound remains separately preserved in the source qualification; the new default refinement result does not replace it."
+    ],
+    "original_tori7_failure": {
+      "source_qualification": "runs/continuation/geo012-default-qual-resumed-20261110-v1/qualification.json",
+      "qualification_sha256": "84d2bb81c17dff2c2f4028d100eacb0d7e4a2cc23c30d809bc86d356b2a2b79d",
+      "case": "clean-tori-7",
+      "historical_status": "FAIL",
+      "historical_deviation_report_path": "clean-tori-7/convert/deviation.json",
+      "historical_deviation_report_sha256": "33c3c76b748e4362c4e865eb8c91d8eef218d0c759eecb8959ddc0c09e1a42ca",
+      "sampled_max_distance_volume3_m": 0.0011795735420579375,
+      "global_upper_bound_volume3_m": 0.0035096113378282473
+    },
+    "gate_boundary": "Coordinator accepted GEO-012 Met against its exact 24-case default-tolerance and per-cell volume criterion. This does not promote full-import, integrity, source, transport, or physical-qualification gates."
+  }
 }

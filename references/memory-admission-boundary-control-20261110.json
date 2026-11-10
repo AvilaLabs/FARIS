@@ -1,0 +1,223 @@
+{
+  "schema": "faris-perf041-default-size-and-admission-control/v1",
+  "observed_utc": "2026-11-10T19:34:07Z",
+  "status": "partial_default_solver_peak_not_evaluated_realistic_admission_controls_passed",
+  "requirement": "PERF-041",
+  "default_size_definition": {
+    "basis": "crates/faris-cli/src/reactor.rs shipped clap defaults: 100 batches x 10,000 particles per batch = 1,000,000 histories per new transport run; one thread; coarse mesh. docs/DEMO_WALKTHROUGH.md describes the demo campaign as four million-history coupled runs.",
+    "source_hashes_sha256": {
+      "crates/faris-cli/src/reactor.rs": "fc29675784bdc9007f349fe9cbcaaad3dcc3c8795b44ed50c2d0d35fa89007bf",
+      "docs/DEMO_WALKTHROUGH.md": "ebf12107d91160f26bbc34495e57b5664d23af5ed80ee58dc786687144a736bc",
+      "docs/guide/platforms.md": "a7febe034f5b7129def619bac553c7fc3620cdd541d16e1920a2fe99c06ce0f0"
+    },
+    "interpretation": "The exact default-size solver operation is a fresh one-million-history transport run (with four such runs in the standard demo campaign); this differs from opening and recalculating histories in a saved recorded-results study.",
+    "v14_gui_scope_assessment": {
+      "observation_json": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/observation.json",
+      "observation_sha256": "e21c295931530f56b9faf6e8d04d7f278476fc08d1275e2bebbde7c81b62d267",
+      "app_binary_sha256": "846c069b7b23e6d86a05d3adec9e7cf77dc4b6e44788d6d44ef647fb250d5391",
+      "operation": "Private-Xvfb GUI loading actual one-million-history recorded bundles, recomputing authored 30-year histories, saving a study and exporting its files; no new OpenMC solver run occurred.",
+      "elapsed_seconds": 60.944021312003315,
+      "cgroup_memory_peak_bytes": 852824064,
+      "cgroup_memory_max_bytes": 6442450944,
+      "cgroup_oom_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0,
+        "sock_throttled": 0
+      },
+      "can_satisfy_default_solver_peak_target": false,
+      "reason": "This is measured recorded-study UI/recomputation/save/export scope; it does not measure fresh default one-thread OpenMC solver memory. Retain default solver peak as NOT_EVALUATED."
+    }
+  },
+  "memory_admission": {
+    "binary_path": "runs/continuation/perf041-default-memory-control-20261110-v1/bin/faris-v97",
+    "binary_sha256": "c5afe8dc79ae02fa954863f540544d469ababb2320f0aafe59cf1f1f79e7bb21",
+    "binary_identity_note": "Parent confirmed this is the current v97 CLI binary; native-target-v33 is the shared-cache directory name, not build age.",
+    "actual_cli_path": "faris adapters list -> faris_engine::jobs::run_job for each explicit PATH tool --version probe; three visibly labeled disposable stubs; no reactor solver, physics or FARIS app launched.",
+    "cgroup": {
+      "MemoryMax_bytes": 5502926848,
+      "MemoryMax_GiB": 5.125,
+      "MemorySwapMax_bytes": 0,
+      "CPUQuota_percent": 100,
+      "scope_result": "each transient scope exited success"
+    },
+    "admit": {
+      "cap_bytes": 4294967296,
+      "cap_mb": 4096,
+      "margin_bytes": 1000341504,
+      "margin_mb": 954,
+      "headroom_before_cli_bytes": 5497229312,
+      "host_mem_available_bytes": 26687610880,
+      "cgroup_memory_current_bytes_before_cli": 5697536,
+      "cgroup_headroom_bytes_before_cli": 5497229312,
+      "slack_bytes": 201920512,
+      "cli_exit_code": 0,
+      "tool_health": [
+        "OK",
+        "OK",
+        "OK"
+      ],
+      "child_invocations_observed": 3,
+      "solver_launched": false,
+      "preflight_file": "runs/continuation/perf041-default-memory-control-20261110-v1/admit-preflight.json",
+      "cli_output": "runs/continuation/perf041-default-memory-control-20261110-v1/admit-cli.json",
+      "projected_reservation_bytes": 5295308800,
+      "preflight_file_sha256": "79e7bc866a3290b1bcb7bdd69109ad467524a7414201e83c258ecb9df0508461",
+      "cli_output_sha256": "6ba326202196e384a5bf783649ebfaad0cbd1e525c6b01d2017a776b1d773d0e"
+    },
+    "refuse": {
+      "cap_bytes": 4294967296,
+      "cap_mb": 4096,
+      "margin_bytes": 1402994688,
+      "margin_mb": 1338,
+      "headroom_before_cli_bytes": 5497393152,
+      "host_mem_available_bytes": 26678820864,
+      "cgroup_memory_current_bytes_before_cli": 5533696,
+      "cgroup_headroom_bytes_before_cli": 5497393152,
+      "over_threshold_bytes": 200568832,
+      "cli_exit_code": 0,
+      "tool_health": [
+        "FAILED",
+        "FAILED",
+        "FAILED"
+      ],
+      "reason": "not started: this job may use up to 4.0 GiB (its projected memory reservation), but only 5.1 GiB of memory is free and 1.3 GiB is kept in reserve. Close other programs and run it again, or, if the job is known to be small, lower the cap with FARIS_MEMORY_CAP_MB.; workload dimensions unavailable; using hard cap 4.00 GiB",
+      "child_invocations_observed": 0,
+      "solver_launched": false,
+      "preflight_file": "runs/continuation/perf041-default-memory-control-20261110-v1/refuse-preflight.json",
+      "cli_output": "runs/continuation/perf041-default-memory-control-20261110-v1/refuse-cli.json",
+      "projected_reservation_bytes": 5697961984,
+      "preflight_file_sha256": "4e7b71e14a653de3f527d0bd35eb4b39d9a1a0dcad967527a91f61a59be9af96",
+      "cli_output_sha256": "7347079fff58e282bca7aff7c42c8f5de2031de086cd2a7341ca8bcc81c1c980"
+    },
+    "lowered_cap_alternative": {
+      "same_reserved_margin_mb_as_refusal": 1338,
+      "cap_mb": 256,
+      "cap_bytes": 268435456,
+      "headroom_before_cli_bytes": 5497503744,
+      "host_mem_available_bytes": 26531672064,
+      "cgroup_memory_current_bytes_before_cli": 5423104,
+      "cgroup_headroom_bytes_before_cli": 5497503744,
+      "slack_bytes": 3826073600,
+      "cli_exit_code": 0,
+      "tool_health": [
+        "OK",
+        "OK",
+        "OK"
+      ],
+      "child_invocations_observed": 3,
+      "solver_launched": false,
+      "interpretation": "With the same 1,338MiB reserve that refused the 4GiB request, lowering cap to 256MiB admitted all three probes; confirms the documented remedy works through the CLI setting.",
+      "preflight_file": "runs/continuation/perf041-default-memory-control-20261110-v1/lowered-cap-control/preflight.json",
+      "cli_output": "runs/continuation/perf041-default-memory-control-20261110-v1/lowered-cap-control/cli.json",
+      "margin_mb": 1338,
+      "margin_bytes": 1402994688,
+      "projected_reservation_bytes": 1671430144,
+      "scope_memory_max_bytes": 5502926848,
+      "slack_mib": 3648.828125,
+      "preflight_file_sha256": "559dbbf98a453f83a54aff173f7a1d5b1a596d7d2b248be64fd6db9cd4067b11",
+      "invocation_marker_count": 3,
+      "child_invocation_markers": "runs/continuation/perf041-default-memory-control-20261110-v1/lowered-cap-control/invocations.txt",
+      "cli_stderr_file": "runs/continuation/perf041-default-memory-control-20261110-v1/lowered-cap-control/cli.stderr",
+      "cli_output_sha256": "57b3b464589f937c39949dec7de894a949ccf8c52210f2d0ff71c71c5cd5f629"
+    },
+    "default_size_transport_records": [
+      {
+        "case": "port-reference",
+        "run_json": "runs/continuation/native-keyboard-os-recipe-v1/fresh-ux010-three-case-20261110/port-reference/run.json",
+        "run_json_sha256": "ef1f5800f590351fa49f5991dd7d0fbf7cd9b103ccc8417089d8a9e84a72fae0",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "input_sha256": "1aa23216e50b9008bf0700ffd1b1f5571d98c461acae3929b281c4e6ebb5b7ad",
+        "histories": 1000000,
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "threads": 4,
+        "mesh_dimensions": [
+          24,
+          12,
+          24
+        ],
+        "elapsed_seconds": 281.45330763,
+        "runner_process_group_peak_bytes": 550133760,
+        "memory_check": "PASS: projected 4.0 GiB (the cap), free 25.0 GiB, reserve 1.0 GiB",
+        "lost_particle_events": 0,
+        "cgroup_peak_recorded_in_run_json": false
+      },
+      {
+        "case": "port-breeder-emphasis",
+        "run_json": "runs/continuation/native-keyboard-os-recipe-v1/fresh-ux010-three-case-20261110/port-breeder-emphasis/run.json",
+        "run_json_sha256": "27160a8c77e7b61c234b0c85bb993c4faa74fcbd0b8fc00c0db8316ed27ffe26",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "input_sha256": "809a42f649dfad201d689ecc44aae8d78b95f3e5eafc54ecab8400d454274b69",
+        "histories": 1000000,
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "threads": 4,
+        "mesh_dimensions": [
+          24,
+          12,
+          24
+        ],
+        "elapsed_seconds": 277.571612008,
+        "runner_process_group_peak_bytes": 549531648,
+        "memory_check": "PASS: projected 4.0 GiB (the cap), free 25.3 GiB, reserve 1.0 GiB",
+        "lost_particle_events": 0,
+        "cgroup_peak_recorded_in_run_json": false
+      },
+      {
+        "case": "no-port-reference",
+        "run_json": "runs/continuation/native-keyboard-os-recipe-v1/fresh-ux010-three-case-20261110/no-port-reference/run.json",
+        "run_json_sha256": "7a5973bfc566e07d3f53367dbb3c8eaff7f570ec6cfaeaee931b4beb315b4996",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "input_sha256": "165615d2488721d682875058d0fc1d7d6e23c260f675eb773faafe77f0c72579",
+        "histories": 1000000,
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "threads": 4,
+        "mesh_dimensions": [
+          24,
+          12,
+          24
+        ],
+        "elapsed_seconds": 195.291678052,
+        "runner_process_group_peak_bytes": 549937152,
+        "memory_check": "PASS: projected 4.0 GiB (the cap), free 25.3 GiB, reserve 1.0 GiB",
+        "lost_particle_events": 0,
+        "cgroup_peak_recorded_in_run_json": false
+      }
+    ],
+    "configuration_path_review": {
+      "settings": "crates/faris-cli/src/config.rs::startup applies resolved --setting/environment cap to MemoryPolicy.",
+      "job": "crates/faris-engine/src/jobs.rs::run_job applies effective_address_space to ResourceLimits::default (4GiB) before admission.",
+      "policy": "crates/faris-engine/src/memory.rs::decide admits iff requested/effective cap + reserve <= available.",
+      "limitation": "Probe reason reports the suggested lower cap variable; low-cap test confirms CLI setting routes through policy. No configurability defect identified."
+    }
+  },
+  "limitations": [
+    "The three UX-010 records are genuine one-million-history runs but each used four OpenMP threads and a 24x12x24 local mesh, while the shipped CLI defaults to one thread and coarse mesh; the records report runner process-group peaks, not per-run cgroup high-water marks. They are supporting bounds, not exact one-thread default-size calibration.",
+    "The 30,000-history cgroup control remains the only direct transport cgroup peak measurement in references/memory-admission-control-20261110.json; it is not the default-size stress test.",
+    "The near-boundary CLI admission jobs are harmless `--version` stubs. They validate cap admission/refusal and that refusal occurs before child launch; they do not measure solver allocation."
+  ],
+  "evidence_file_hashes_sha256": {
+    "admit_cli": "6ba326202196e384a5bf783649ebfaad0cbd1e525c6b01d2017a776b1d773d0e",
+    "refuse_cli": "7347079fff58e282bca7aff7c42c8f5de2031de086cd2a7341ca8bcc81c1c980",
+    "lower_cap_cli": "57b3b464589f937c39949dec7de894a949ccf8c52210f2d0ff71c71c5cd5f629",
+    "lower_cap_invocations": "8f6872dd4ee758500dc193dc6838e033ccd95896f595b7eeb23fa3ad6c0f90ea",
+    "v14_saved_study": "ffbbbfd2e45c3ab390f9f3f0f7eab5ea196df87c54237d7258e7b11d7cac352f",
+    "v14_export_manifest": "ea74992180a4cfbae0843b3b2bbb92499915fe4533e827315c21fccaafdfd295",
+    "lower_cap_preflight": "559dbbf98a453f83a54aff173f7a1d5b1a596d7d2b248be64fd6db9cd4067b11"
+  },
+  "v14_saved_study": {
+    "path": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/keyboard-study.faris",
+    "sha256": "ffbbbfd2e45c3ab390f9f3f0f7eab5ea196df87c54237d7258e7b11d7cac352f",
+    "bytes": 2136873
+  },
+  "v14_export_manifest": {
+    "path": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/exports/keyboard-study-export/export-manifest.json",
+    "sha256": "ea74992180a4cfbae0843b3b2bbb92499915fe4533e827315c21fccaafdfd295",
+    "entry_count": 16
+  }
+}

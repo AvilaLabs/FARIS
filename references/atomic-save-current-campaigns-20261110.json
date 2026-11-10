@@ -1,0 +1,133 @@
+{
+  "schema_version": "faris-rel010-current-save-campaigns/v0.1",
+  "status": "PARTIAL",
+  "recorded_at": "2026-11-10",
+  "run_id": "faris-rel010-current-sigkill-20261110-v2",
+  "requirement": {
+    "id": "REL-010",
+    "target": "0 damaged files in 10,000 randomized kill-during-save trials, including power-loss emulation; previous file intact on every failure.",
+    "review_state": "Partial for a concrete remaining guarantee gap: when directory fsync fails after replacement rename, the writer returns Err but the previous destination has already been replaced; its durability is unconfirmed and there is no durable rollback copy. Resolve this protocol edge and rerun focused failure-injection/power-loss validation before claiming the previous file intact on every failure."
+  },
+  "production_writer": {
+    "path": "crates/faris-engine/src/atomic_file.rs",
+    "sha256": "b6b6962a6647f7aa21355586c98baf09696af60ac3ed5536fe3eb91dbab33a94",
+    "description": "Same-directory temporary write, file fsync, atomic rename, directory fsync on Unix. Both SIGKILL campaigns and the QEMU guest writer used this source revision."
+  },
+  "randomized_sigkill_campaigns": {
+    "filesystem": "Local ext4 under runs/continuation; the two writer campaigns ran sequentially.",
+    "execution_limits": {
+      "command_configuration": {
+        "systemd_user_service": true,
+        "cpu_quota": "100%",
+        "memory_max": "2G",
+        "memory_swap_max": "0",
+        "runtime_max": "3600s per writer service",
+        "tasks_max": 128,
+        "cpu_affinity": "CPU 0",
+        "nice": 10
+      },
+      "verification_note": "The recorded runner script passes the listed limits to systemd-run --user; the two services completed successfully. Their transient unit files were collected after exit, and no independent active-time ceiling snapshot was retained, so the post-run show defaults are not used as evidence of the live limits.",
+      "runner_script": {
+        "path": "runs/continuation/rel010-current-sigkill-20261110-v2/kit/run-campaigns.sh",
+        "bytes": 2407,
+        "sha256": "a3894da65854e2b9223250c56ed857357d029e13cf65baf34da1d741bca0c4ed"
+      }
+    },
+    "shared_atomic_writer": {
+      "test": "full_kill_during_save_campaign_finds_no_damaged_file",
+      "test_source": {
+        "path": "crates/faris-engine/tests/kill_during_save.rs",
+        "sha256": "7a90d2729f7a8b774389bb45e9eb826aa5eb254ac4435c498aa4fd4ed4f64a60"
+      },
+      "test_binary": {
+        "path": "runs/continuation/native-target-v33/debug/deps/kill_during_save-6ebacee9bd3768e5",
+        "sha256": "fa27ae3ab667045d22eeb28a31570be1ac4c43aa71c20793c74ab646cadf93fd"
+      },
+      "log": {
+        "path": "runs/continuation/checks/rel010-shared-sigkill-current-v2.log",
+        "bytes": 282,
+        "sha256": "274554091b5d71b73d249666a84b6c8276e158a2c5721df96e2ae12485485db9"
+      },
+      "systemd_unit": "rel010-shared-sigkill-20261110-v2.service",
+      "seed": 20261013,
+      "trials": 10000,
+      "previous_complete": 2964,
+      "new_complete": 7036,
+      "damaged": 0,
+      "not_run": 0,
+      "leftover_temporaries": 1643,
+      "test_result": "PASS",
+      "elapsed_seconds": 1072.86
+    },
+    "real_study_writer": {
+      "test": "kill_tests::full_study_kill_during_save_campaign_finds_no_damaged_file",
+      "test_source": {
+        "path": "crates/faris-study/src/kill_tests.rs",
+        "sha256": "efef85d8333ab744a2197d986bafdf302f2829ce26cac3bf6434d34360eefb78"
+      },
+      "test_binary": {
+        "path": "runs/continuation/native-target-v33/debug/deps/faris_study-54f554b51e8b84ff",
+        "sha256": "6a067ac46234eae1484c5be528ba84d0b2136065f562ac03cc5be7656bb91d31"
+      },
+      "log": {
+        "path": "runs/continuation/checks/rel010-study-sigkill-current-v2.log",
+        "bytes": 307,
+        "sha256": "3456d195660b65d76e81594ab674bc851a9c695c23902204be56c808bfd2bda0"
+      },
+      "systemd_unit": "rel010-study-sigkill-20261110-v2.service",
+      "seed": 20261014,
+      "trials": 10000,
+      "previous_complete": 8446,
+      "new_complete": 1554,
+      "damaged": 0,
+      "not_run": 0,
+      "leftover_temporaries": 5345,
+      "test_result": "PASS",
+      "elapsed_seconds": 1370.72
+    }
+  },
+  "power_loss_emulation": {
+    "receipt_path": "references/atomic-powerloss-control-20261110.json",
+    "receipt_sha256": "b99e55822e7d08e24e276e69aeb7fcdef6fccfff2bacf52648e0d12475a3fd60",
+    "candidate_check_result": "PASS",
+    "platform_scope": "One QEMU TCG Linux guest on ext4 over virtio-blk with dm-log-writes; one fixed cut at each named production-writer boundary; log prefixes replayed on a pristine baseline and mounted for recovery.",
+    "controls_completed": 5,
+    "repetitions_per_boundary": 1,
+    "boundaries": [
+      {
+        "cut_after": "CreateTemporary",
+        "recovered": "OLD",
+        "checksum_fnv64": "08895d9ddfcd46a1"
+      },
+      {
+        "cut_after": "WriteData",
+        "recovered": "OLD",
+        "checksum_fnv64": "08895d9ddfcd46a1"
+      },
+      {
+        "cut_after": "FsyncFile",
+        "recovered": "OLD",
+        "checksum_fnv64": "08895d9ddfcd46a1"
+      },
+      {
+        "cut_after": "Rename",
+        "recovered": "OLD",
+        "checksum_fnv64": "08895d9ddfcd46a1"
+      },
+      {
+        "cut_after": "FsyncDirectory",
+        "recovered": "NEW",
+        "checksum_fnv64": "693f6d9257be1c15"
+      }
+    ],
+    "scope_note": "These five fixed-cut power-loss controls are separate from, and not counted among, the two 10,000-trial randomized SIGKILL campaigns. Rename permits either complete old or new content; OLD was observed."
+  },
+  "interpretation": {
+    "data_integrity": "Both current-writer randomized campaigns completed 10,000 trials with 0 damaged files and 0 not-run trials. All five fixed QEMU power-loss controls recovered a fully checksummed OLD or NEW payload.",
+    "temporary_cleanup": "SIGKILL campaigns reported leftover temporary files (1,643 shared writer; 5,345 study writer). This is a cleanup concern, separate from whether the destination file was damaged; the campaigns classified 0 damaged destination files.",
+    "other_write_paths": "Evidence-store blobs and interface-check/extraction streaming writes remain separate non-atomic scratch or materialization paths and are not covered by these save-destination campaigns.",
+    "criterion_scope": "The written target does not require 10,000 separate VM cuts or repetitions on every OS. Evidence consists of two current-writer 10,000-trial randomized SIGKILL campaigns on local ext4 and five fixed QEMU power-loss cuts across the writer boundaries in one guest/filesystem/device setup. The concrete remaining gap is the destination state after a post-rename directory-sync error: the call returns an error after replacing the old name, but the writer keeps no durable previous version and does not attempt rollback. This violates the explicit previous-file-intact-on-every-failure clause; REL-010 remains Partial for that reason.",
+    "post_rename_failure": "On Existing::Replace, a failure from sync_directory after rename returns Err while the new complete file may occupy the destination and old bytes are unavailable. The protocol has no durable backup or rollback. This is not a damaged/partial destination in the campaign tally, but it does fail the requirement that the previous file remain intact on every failure.",
+    "next_protocol": "Make a same-directory previous-version copy durable before replacement; on the post-rename sync error, attempt a durable rollback while keeping the backup name. If rollback fails, return an error that names the retained recovery copy. Preserve no-clobber for Existing::Refuse and stream the copy with bounded memory."
+  }
+}

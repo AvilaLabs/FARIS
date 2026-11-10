@@ -1,0 +1,376 @@
+{
+  "execution": {
+    "argv": [
+      "faris-v95",
+      "reactor",
+      "run",
+      "--scenario",
+      "scenarios/arc-inspired/cold-reference.scenario.json",
+      "--physics",
+      "scenarios/arc-inspired/cold-reference.reference.physics.json",
+      "--audit",
+      "references/openmc-library-audit.json",
+      "--cross-sections",
+      "data/raw/combined-fendl32-endfbvii1/cross_sections.xml",
+      "--python",
+      "/home/connoravila/micromamba/envs/openmc0153dd/bin/python",
+      "--openmc",
+      "/home/connoravila/micromamba/envs/openmc0153dd/bin/openmc",
+      "--output",
+      "runs/continuation/nuc013-rms-preview-v96/rm-s-90k-cap768-final",
+      "--batches",
+      "100",
+      "--particles",
+      "900",
+      "--seed",
+      "20261110",
+      "--threads",
+      "1",
+      "--timeout-seconds",
+      "600",
+      "--mesh-preset",
+      "coarse"
+    ],
+    "batches": 100,
+    "cli": {
+      "path": "runs/continuation/nuc013-rms-preview-v96/faris-v95",
+      "sha256": "8e172d82c3c98936904c140984194558bb73f6f42576804af2d6726ec07102ca",
+      "version": "faris 0.0.1"
+    },
+    "elapsed_seconds_recorded_by_faris": 115.514023461,
+    "elapsed_time_note": "Recorded on a shared host; not used as PERF-025 timing evidence",
+    "exit_code": 0,
+    "faris_environment": {
+      "FARIS_MEMORY_CAP_MB": 768
+    },
+    "faris_recorded_resource_limits": {
+      "address_space_bytes": 805306368,
+      "artifact_file_count": 2048,
+      "artifact_total_bytes": 536870912,
+      "single_file_bytes": 268435456
+    },
+    "histories": 90000,
+    "memory_admission": "PASS: projected reservation 0.8 GiB, free 1.8 GiB, reserve 1.0 GiB; known workload lower bound 0.00 GiB (1152 mesh-bin scalars; 46 ordinary response scalars; 100 batches; 0 triangles; 297770 request/input bytes recorded for context but not counted as resident); solver/runtime overhead is unknown, hard cap 0.75 GiB",
+    "outer_limits": {
+      "memory_max_bytes": 2147483648,
+      "memory_swap_max_bytes": 0,
+      "runtime_max_seconds": 600,
+      "stop_grace_seconds": 15,
+      "systemd_cpu_quota_percent": 100
+    },
+    "particles_per_batch": 900,
+    "peak_memory_bytes_recorded": 543092736,
+    "seed": 20261110,
+    "status": "SUCCEEDED",
+    "systemd_unit": "faris-nuc013-rms-preview-v95-final.service",
+    "threads": 1
+  },
+  "hashes": {
+    "audit_copy_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+    "batch_statistics_helper_sha256": "ccb944072e979b08c18f09eec13509ac78ef719042f402a6b625c02cf9e5e13c",
+    "batch_statistics_sha256": "ccb944072e979b08c18f09eec13509ac78ef719042f402a6b625c02cf9e5e13c",
+    "copied_adapter_sha256": "6b5b85a11fa1a308e7cde354ff9f26c86179755a807358863a857caf7d1b75d5",
+    "generated_solver_xml_sha256": {
+      "geometry.xml": "678a0b7c4f9b22d0a56394c93b8a468e108d89056be49ce8a641c67ba363feea",
+      "materials.xml": "75b5fe367bf748c87b96b8feffae965b11c177f380973459df1798a4fb6ed2ae",
+      "settings.xml": "7e13508e2652534de12c8ffb3d99f184a36dcb9634014317e02c39ed30f3a9a9",
+      "tallies.xml": "b4f02419caeab0f0e951f8b26be11fbf7e491fb6eae82830d8db71ebb5527f10"
+    },
+    "input_json_sha256": "93213d210bd830e2a3fddb54ad618c1902ac891c5a7c041d858fcbdb27cc17bb",
+    "openmc_stderr_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "openmc_stdout_log_sha256": "f205c7dc3bb751fc8807be014ca23c884aa3a932466a80f22070b00308b8c6b8",
+    "run_record_sha256": "ec69dfc363c09488ded8a135f5ef26cfc8e1094ec0ddb836e29ecad5de34c2bf",
+    "scenario_copy_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+    "statepoint_sha256": "7320e2eff1c11ff458a0148a1b596b23919ea42e1ea68ff24c3d4e76af02ff26",
+    "transport_artifact_sha256": "76edcc7dc02cd4550660737880506ae77ea7ce6d6386365edc5dd2ba9e46ec02",
+    "transport_batch_values_sha256": "f4513051ee53c1010afda0e194014277769467f6f168ff5739f65a4739b54303",
+    "worker_result_sha256": "8b36cc439e586bcc818fbed2d695bba083072385b4285019e381309b75d4a5f7"
+  },
+  "limitations": [
+    "The required one-port RM-S particle-heating run was not performed; this is the port-free cold-reference control.",
+    "The exact written NUC-013 strict aligned-batch 3-SE target is not met by this run; do not promote NUC-013.",
+    "The conservative marginal-error plus 1e-6 screen is a separate, looser control result and does not replace the written strict result.",
+    "The base PhysicsCase assumption text says coupled photons are absent, while this adapter run enabled photon transport with LED atomic relaxation to score the heating family; reconcile this scope before promoting capability.",
+    "This is numerical response-scoring evidence for a cold-data surrogate. It is not benchmark validation, a reactor qualification, or a physical-design claim.",
+    "The particle scope is recorded in response IDs and score metadata; user-facing partial labelling and exclusion from all verdict paths are not fully audited here.",
+    "The v95 fixed-count run is 90,000 histories, comparable to preview size; shared-host elapsed time is not a PERF-025 measurement."
+  ],
+  "metrics": {
+    "all_particle_total_mean": 16501626.043772476,
+    "conservative_marginal_screen": {
+      "absolute_floor_ev_per_source_neutron": 1e-06,
+      "pass": true,
+      "rule": "absolute difference <= 3 * sum of all five reported marginal standard errors + 1e-6 eV/source-neutron; existing Li-6 control screen, reported separately from the strict paired-batch rule",
+      "three_sigma_bound_ev_per_source_neutron": 205473.93858191493,
+      "total_tolerance_ev_per_source_neutron": 205473.93858291494
+    },
+    "four_scope_minus_total_mean": 7.152557373046875e-07,
+    "four_scope_sum_mean": 16501626.043773191,
+    "photon_only_fraction_of_total": 0.00018136347178966206,
+    "strict_aligned_batch_screen": {
+      "batch_count": 100,
+      "pass": false,
+      "residual_mean_ev_per_source_neutron": 7.164664566516876e-07,
+      "residual_standard_error_ev_per_source_neutron": 2.5373392808198324e-08,
+      "rule": "absolute mean residual of same-batch (neutron + photon + electron + positron - total) <= 3 * sample standard error of that batch residual; no additive tolerance",
+      "three_sigma_ev_per_source_neutron": 7.612017842459496e-08
+    }
+  },
+  "model": {
+    "atomic_relaxation": true,
+    "canonical_physics_sha256": "a7cd0cb3f04739d6dbb006bb3098922535a204217b31931bab26b2b8c372eff6",
+    "description": "ARC-inspired full-torus, port-free cold-data control with a radial build; it does not include the outboard port required by the documented RM-S definition and is not an ARC reproduction or operational model",
+    "electron_treatment": "led",
+    "photon_physics_capability_by_element": {
+      "Be": {
+        "atomic_relaxation_shell_count": 2,
+        "photoelectric_shell_count": 2,
+        "shell_map_complete": true,
+        "transition_shell_count": 0
+      },
+      "Cu": {
+        "atomic_relaxation_shell_count": 10,
+        "photoelectric_shell_count": 10,
+        "shell_map_complete": true,
+        "transition_shell_count": 7
+      },
+      "F": {
+        "atomic_relaxation_shell_count": 4,
+        "photoelectric_shell_count": 4,
+        "shell_map_complete": true,
+        "transition_shell_count": 1
+      },
+      "Fe": {
+        "atomic_relaxation_shell_count": 10,
+        "photoelectric_shell_count": 10,
+        "shell_map_complete": true,
+        "transition_shell_count": 7
+      },
+      "H": {
+        "atomic_relaxation_shell_count": 1,
+        "photoelectric_shell_count": 1,
+        "shell_map_complete": true,
+        "transition_shell_count": 0
+      },
+      "Li": {
+        "atomic_relaxation_shell_count": 2,
+        "photoelectric_shell_count": 2,
+        "shell_map_complete": true,
+        "transition_shell_count": 0
+      },
+      "Ti": {
+        "atomic_relaxation_shell_count": 10,
+        "photoelectric_shell_count": 10,
+        "shell_map_complete": true,
+        "transition_shell_count": 7
+      },
+      "W": {
+        "atomic_relaxation_shell_count": 22,
+        "photoelectric_shell_count": 22,
+        "shell_map_complete": true,
+        "transition_shell_count": 17
+      }
+    },
+    "photon_transport": true,
+    "physics_path": "scenarios/arc-inspired/cold-reference.reference.physics.json",
+    "scenario_id": "arc-cold-reference-001",
+    "scenario_path": "scenarios/arc-inspired/cold-reference.scenario.json",
+    "scenario_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+    "source": {
+      "distribution": "idealized-uniform-circular-plasma-torus-isotropic-monoenergetic/v1",
+      "fusion_power_mw": 525.0,
+      "neutron_energy_ev": 14100000.0
+    },
+    "variant_id": "reference"
+  },
+  "preflight_failures": [
+    {
+      "path": "runs/continuation/nuc013-rms-preview-v96/rm-s-90k/run.json",
+      "reason": "FARIS admission refused default 4 GiB projected address-space reservation with 1.8 GiB free and 1 GiB reserve",
+      "run_record_sha256": "55cfd0aeaff41709b68b6b96952c7ee851fb0d873947bd3ed722c11e98f8b690",
+      "status": "NOT_STARTED"
+    },
+    {
+      "path": "runs/continuation/nuc013-rms-preview-v96/rm-s-90k-cap768/run.json",
+      "reason": "outer systemd LimitFSIZE=32 MiB prevented FARIS child pre-exec from setting its declared single-file limit",
+      "run_record_sha256": "8587ab4f4c571ce709299ae3b1168a7fea49b69c6776aade8e809a613bcdb855",
+      "status": "FAILED_BEFORE_SOLVER"
+    }
+  ],
+  "requirement_id": "NUC-013",
+  "responses_ev_per_source_neutron": {
+    "heating-electron-whole-model": {
+      "mean": 5267619.883848502,
+      "standard_error": 12846.653066598077,
+      "unit": "ev_per_source"
+    },
+    "heating-neutron-whole-model": {
+      "mean": 10963984.114898495,
+      "standard_error": 24345.095585933235,
+      "unit": "ev_per_source"
+    },
+    "heating-photon-whole-model": {
+      "mean": 2992.792189473282,
+      "standard_error": 20.6395831759059,
+      "unit": "ev_per_source"
+    },
+    "heating-positron-whole-model": {
+      "mean": 267029.25283672067,
+      "standard_error": 2360.1369442802957,
+      "unit": "ev_per_source"
+    },
+    "heating-total-whole-model": {
+      "mean": 16501626.043772476,
+      "standard_error": 28918.787680650803,
+      "unit": "ev_per_source"
+    }
+  },
+  "runtime": {
+    "adapter_path": "runs/continuation/nuc013-rms-preview-v96/rm-s-90k-cap768-final/reactor_transport.py",
+    "adapter_sha256": "6b5b85a11fa1a308e7cde354ff9f26c86179755a807358863a857caf7d1b75d5",
+    "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+    "combined_nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+    "cross_sections_xml_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "neutron_hdf5_files_used": {
+      "Be9": {
+        "path": "neutron/Be9.h5",
+        "sha256": "9ace52e0be2788fffe42d6aa69a285835377c06e0b1c571687c78aa07a1830b9"
+      },
+      "Cu63": {
+        "path": "neutron/Cu63.h5",
+        "sha256": "d820c6aadc32aafd3dd0d6b0152b47488f089e6b3fd020627664c0d9518ca9a6"
+      },
+      "Cu65": {
+        "path": "neutron/Cu65.h5",
+        "sha256": "ab3f675628090f45869f101b3b41f1f7d9f5460931fd96eeea2adcd0f8dee1da"
+      },
+      "F19": {
+        "path": "neutron/F19.h5",
+        "sha256": "6fa9f0b30487886660b8edc5705d0c426694225c8d0cc992ec7360cd3068f814"
+      },
+      "Fe54": {
+        "path": "neutron/Fe54.h5",
+        "sha256": "abc528ee420a3210600b1479a0903ee2afb8dfcf3e9d57c4789919db3812c13e"
+      },
+      "Fe56": {
+        "path": "neutron/Fe56.h5",
+        "sha256": "2c7eedbb5474ffe9cd1576d378d6fa61c5a1d3b8fb1e52bb88c2c255f85b2bf1"
+      },
+      "Fe57": {
+        "path": "neutron/Fe57.h5",
+        "sha256": "a53b71466fdc4e54673d46ff09be21222fbdd2e323638ace133b26d0c9ba18f1"
+      },
+      "Fe58": {
+        "path": "neutron/Fe58.h5",
+        "sha256": "b91c20113f8b8d650a15cb6cf965845b4f6811b770f2739fffab0375e6db2750"
+      },
+      "H1": {
+        "path": "neutron/H1.h5",
+        "sha256": "2bf2db322a188e5c435675cd732dd36b10b995e8cc6e7d6bd55d6aaf712f9b4d"
+      },
+      "H2": {
+        "path": "neutron/H2.h5",
+        "sha256": "57b09c44bfd8a696e46e864dce689afa380555c3a35841c1da92dbc009ce5890"
+      },
+      "Li6": {
+        "path": "neutron/Li6.h5",
+        "sha256": "dd7d7da85120448fa874f10e157bc33e8effcc3dab019bb148505ecff0381543"
+      },
+      "Li7": {
+        "path": "neutron/Li7.h5",
+        "sha256": "f261968904018a39f45f4fecc2d803ac3eae6f6f73cf3ec90756f52d669dce3f"
+      },
+      "Ti46": {
+        "path": "neutron/Ti46.h5",
+        "sha256": "15b133f092ef7a4c3fc7f2a3eac9eb84f88d7bb654e297b72e1539eb9f1e3e97"
+      },
+      "Ti47": {
+        "path": "neutron/Ti47.h5",
+        "sha256": "d07521b91122995fdbb15e696ebd60b239b958c952228b029de5e29e0a863c27"
+      },
+      "Ti48": {
+        "path": "neutron/Ti48.h5",
+        "sha256": "b8d9e45186e6c6c68d9a1ede56241da34b44b17f4cc9ce617c4b03bf2d7ad9e1"
+      },
+      "Ti49": {
+        "path": "neutron/Ti49.h5",
+        "sha256": "15d8a11a4fb4d23e91edcf9a636dc6a967e06e4525ce84b5c22a840b240cad50"
+      },
+      "Ti50": {
+        "path": "neutron/Ti50.h5",
+        "sha256": "9ce3687eab95d64bfd2aa8eca7a73cbd4cbf61da9534c3d49bce22da47b80e90"
+      },
+      "W180": {
+        "path": "neutron/W180.h5",
+        "sha256": "8c9956abbfd3ee3c73d8e365ade84f15bfb50fc1ff2cf77376664cc0ddf69cc8"
+      },
+      "W182": {
+        "path": "neutron/W182.h5",
+        "sha256": "a9ed604c3d3fb2af18853fc84099b5d0168fe7daefc4fbf5e559ab29f10858c7"
+      },
+      "W183": {
+        "path": "neutron/W183.h5",
+        "sha256": "081faaf8dc723014ac3f554b4ed48c0149d2db959660a32f6b9c349a1b7d7275"
+      },
+      "W184": {
+        "path": "neutron/W184.h5",
+        "sha256": "e46f1e4d8a6da833aa2cfff6776ec96ab95f31b35eb04e94cb9f65578acfbafe"
+      },
+      "W186": {
+        "path": "neutron/W186.h5",
+        "sha256": "9ce5829d0228ac2c5e8a2f6cc8b88ab00fbad029a163db9cf1eb9cf4100c3e3f"
+      }
+    },
+    "openmc": {
+      "commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+      "executable_sha256": "01493915fc795da2973d55d5fca680ccbfb067f4e415c0842b67e8589829d06f",
+      "version": "0.15.3"
+    },
+    "openmc_c_api_library": {
+      "path": "/home/connoravila/micromamba/envs/openmc0153dd/lib/libopenmc.so",
+      "sha256": "6633dcd0d05d0aa6e0193e45241b46e49261d3f79ed35944f31e0b936a5bd4b0"
+    },
+    "photon_hdf5_files_used": {
+      "Be": {
+        "path": "photon/Be.h5",
+        "sha256": "3b409a84f9990af784a4c55501ca3d895f6987c11fbcea8b63b04dd07560ed0c"
+      },
+      "Cu": {
+        "path": "photon/Cu.h5",
+        "sha256": "395ab30f4ae0c9355665d67247c6414b902cfc0b4fb5b35ff92cafd20d66658d"
+      },
+      "F": {
+        "path": "photon/F.h5",
+        "sha256": "88456408959ef502c3a8ebcfffb1e1a1e863c855be8260124d367665fbb196a9"
+      },
+      "Fe": {
+        "path": "photon/Fe.h5",
+        "sha256": "d002ede63442cbf95160e8116100684cb08889b83f83d4a64ec3ff7bb8d71359"
+      },
+      "H": {
+        "path": "photon/H.h5",
+        "sha256": "ef96dc1ea9880195e2df0a72e4185f5db38758c4c8ef3acb3e1671ea0d157d52"
+      },
+      "Li": {
+        "path": "photon/Li.h5",
+        "sha256": "6b7c68df6c2fd84cd0e58febd6058900c7bcdd7dbbfea79e9197aaec6afd7c04"
+      },
+      "Ti": {
+        "path": "photon/Ti.h5",
+        "sha256": "89b80f3711ab00e91ebbfbb8c86ec09983e5831943b26767ed9b6deca81038ac"
+      },
+      "W": {
+        "path": "photon/W.h5",
+        "sha256": "76364fb3da0de1defe9fafe4d6f95949624fb3950c7bc694419b42d99ca3bc5a"
+      }
+    },
+    "python": {
+      "executable_sha256": "254873b41e0fbfb6bb08ea3e9aee6e14b32cb1111cfc1c5e01dd41ef8f981f20",
+      "path": "/home/connoravila/micromamba/envs/openmc0153dd/bin/python"
+    }
+  },
+  "schema": "faris-rm-s-particle-heating-control/v1",
+  "scientific_qualification": "NOT_EVALUATED",
+  "scope": "Port-free cold-reference particle-heating control; the documented one-port RM-S case was not run",
+  "status_decision": "NUC-013 remains Partial: this run is not the defined one-port RM-S case, and its strict aligned-batch 3-SE screen fails"
+}

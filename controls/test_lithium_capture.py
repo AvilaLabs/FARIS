@@ -44,6 +44,35 @@ class LithiumCaptureControlTests(unittest.TestCase):
             {"Li6_n_t_ENDF_Q_eV": 4_783_800.0, "Li6_n_gamma_ENDF_Q_eV": 7_250_600.0},
         )
         self.assertEqual(result["status"], "PASS")
+        # The photon-filtered tally is only a tiny part of the all-particle
+        # deposition for this control. Keep it from silently becoming the
+        # reported total if a caller wires the wrong response into that slot.
+        self.assertLess(responses["heating_photon"]["mean"] / responses["heating_total"]["mean"], 1.0e-4)
+
+    # Verifies: NUC-013
+    def test_photon_filtered_heating_cannot_substitute_for_total(self):
+        responses = {
+            "h3_production": {"mean": 0.999, "standard_error": 0.001},
+            "n_t_reactions": {"mean": 0.999, "standard_error": 0.001},
+            "n_gamma_reactions": {"mean": 0.00004, "standard_error": 0.000001},
+            "neutron_absorption": {"mean": 0.99904, "standard_error": 0.001},
+            # Simulate wiring the photon-only value into the total response.
+            "heating_total": {"mean": 0.2, "standard_error": 0.01},
+            "heating_neutron": {"mean": 4_780_000.0, "standard_error": 1000.0},
+            "heating_photon": {"mean": 0.2, "standard_error": 0.01},
+            "heating_electron": {"mean": 0.3, "standard_error": 0.01},
+            "heating_positron": {"mean": 0.0, "standard_error": 0.0},
+        }
+        result = CONTROL.validate_responses(
+            responses,
+            {"Li6_n_t_ENDF_Q_eV": 4_783_800.0, "Li6_n_gamma_ENDF_Q_eV": 7_250_600.0},
+        )
+        self.assertEqual(result["status"], "FAIL")
+        self.assertFalse(
+            result["checks"][
+                "all_particle_heating_equals_neutron_photon_electron_and_positron_components"
+            ]["within_heuristic"]
+        )
 
     # Verifies: NUC-013
     def test_response_screen_rejects_inconsistent_h3_or_heat(self):

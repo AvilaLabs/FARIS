@@ -1,0 +1,1580 @@
+{
+  "schema": "faris-geo012-default-corpus-control/v1",
+  "recorded_date": "2026-11-10",
+  "status": "Met for the stated GEO-012 conversion-volume/default-tolerance criterion",
+  "scope": "Geometry and conversion evidence for the 24 retained clean STEP corpus models. This is not a full import, integrity, source, transport, dose, or physical-qualification receipt.",
+  "requirement_target": {
+    "criterion": "Default chord deviation is selected to keep every per-cell faceted-volume relative error at or below 0.1%; the user/default tolerance is recorded.",
+    "volume_relative_error_limit_fraction": 0.001,
+    "input_tolerance_recording": "faceting_tolerance_m is null in each design sidecar; every native report records was_default=true, initial default chord, selected chord and all attempts."
+  },
+  "native_cli": {
+    "binary_path": "runs/continuation/cad-port-global-bound-native-20261110/bin/faris-v96-cad-control",
+    "binary_sha256": "c5afe8dc79ae02fa954863f540544d469ababb2320f0aafe59cf1f1f79e7bb21",
+    "reader_requested": "auto",
+    "reader_resolved": "python",
+    "reader_description": "No faris-occt-worker was present adjacent to the preserved binary; automatic reader selected the configured CAD Python helper.",
+    "cad_python": "/home/connoravila/.cache/avila-night/envs/c2d-0143/bin/python",
+    "cadquery": "2.8.0",
+    "ocp": "7.9.3.1",
+    "occt": "7.9",
+    "helper_version": "3",
+    "faris_cad_py_sha256": "6751166310b3b0440e6c499b5e9b8aac393e34de8fab3e7cdbf603ee7d767f0b",
+    "faris_deviation_py_sha256": "7d3bba7b88b8db4d74a0089dddc073192af016f2b64b820d5f0c6b541285fc71",
+    "workers": 1,
+    "imprint_threads": 1,
+    "deviation_queries_per_solid_cap": 100000,
+    "deviation_depth_cap": 18
+  },
+  "source_qualification": {
+    "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1/qualification.json",
+    "sha256": "84d2bb81c17dff2c2f4028d100eacb0d7e4a2cc23c30d809bc86d356b2a2b79d"
+  },
+  "input_manifest": {
+    "path": "runs/continuation/geo012-native-corpus-v96-20261110/input-manifest.json",
+    "sha256": "a97549ac94f0317d7af4e5d482e70706cb2c8950ba4c3dbda83f5d3660a74a1e"
+  },
+  "resource_limits": {
+    "one_cpu": true,
+    "memory_max_bytes": 4294967296,
+    "memory_swap_max_bytes": 0,
+    "helper_memory_cap_mb": 2048,
+    "per_case_timeout_seconds": [
+      300,
+      180
+    ],
+    "aggregate_timeout_seconds": [
+      1800,
+      900
+    ]
+  },
+  "aggregate": {
+    "cases_total": 24,
+    "category_counts": {
+      "boxes": 8,
+      "tori": 8,
+      "ports": 8
+    },
+    "cases_with_default_tolerance_recorded": 24,
+    "candidate_volume_and_binding_gate_pass_count": 24,
+    "per_cell_volume_limit_pass_count": 24,
+    "selected_whole_facet_bounds_certified_within_selected_chord_count": 24,
+    "all_attempt_bounds_certified": true,
+    "global_bound_queries_total": 0,
+    "attempt_count_total": 25,
+    "attempt_solid_bounds_total": 75,
+    "selected_chord_counts_m": {
+      "0.001": 23,
+      "0.0005": 1
+    },
+    "maximum_final_per_cell_volume_error_fraction": 0.0008286166087781988,
+    "maximum_final_per_cell_volume_error_percent": 0.08286166087781988,
+    "maximum_volume_error_case": "clean-tori-1",
+    "largest_selected_bound_m": 0.0009995137406854646,
+    "largest_selected_bound_case": "clean-tori-5",
+    "largest_selected_bound_volume": 3,
+    "all_thresholds_unchanged": true
+  },
+  "historical_original_tori7_failure": {
+    "status": "FAIL",
+    "deviation_report_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-7/convert/deviation.json",
+    "deviation_report_sha256": "33c3c76b748e4362c4e865eb8c91d8eef218d0c759eecb8959ddc0c09e1a42ca",
+    "sampled_volume3_max_distance_m": 0.0011795735420579375,
+    "volume3_certified_upper_bound_m": 0.0035096113378282473,
+    "note": "Preserved as the original corpus conversion result. The fresh adaptive conversion does not erase or replace this historical failure."
+  },
+  "separate_gates": {
+    "openmc_checks": [
+      "5",
+      "7",
+      "8",
+      "9"
+    ],
+    "status": "NOT_EVALUATED",
+    "note": "These checks are not prerequisites for the stated GEO-012 volume/default-tolerance criterion and are not claimed as passed."
+  },
+  "sidecar_order_recovery": "An initial port harness pass supplied dictionary-order fingerprints; check 3 rejected those controls before conversion. The eight port sidecars were rebuilt in STEP volume order. Attempt-01 inputs/reports/logs are preserved separately and are not counted as pass evidence.",
+  "detailed_run_summary": {
+    "path": "runs/continuation/geo012-native-corpus-v96-20261110/native-corpus-summary.json",
+    "sha256": "906c28b9642a0f22c80d5c58d58628a28579dc2cd577cfbdba430fcd3407af5f"
+  },
+  "cases": [
+    {
+      "id": "clean-boxes-0",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-0/clean-boxes-0.step",
+      "step_sha256": "09b2bbf2db967551923b39aab8d59e132c0e4142b338285e9316c4ec71915e05",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-0.faris-design.json",
+      "design_sidecar_sha256": "6134ec741ddbf83aec92563b7e26f9beb160ab4af9c98ba5e48d264f727d4940",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 5.551115123125783e-16,
+      "largest_final_per_cell_volume_error_percent": 5.551115123125783e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-0.json",
+      "native_cli_report_sha256": "c02d1bcf8e8ac6cf4f1b78a827cfa0a134ffcb15266ea2aa7e13c56b64625e81",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 5.551115123125783e-16,
+          "largest_per_cell_volume_error_percent": 5.551115123125783e-14,
+          "h5m_sha256": "6dee21c1c859be90a683f1c5dadef690fb37eeeb63eaa7802f0b9039b07e43fb",
+          "facets_sha256": "fdce0b84ca7900e7a596122fa32b2734a301ff0486387f2ab454d38f42444d35",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-0/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "94f576cc5f087f284ddd064ccd13fd13f8cd596a14705723ce7de0f9300890f1",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000007105427357e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000014210854715e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000021316282073e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-boxes-1",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-1/clean-boxes-1.step",
+      "step_sha256": "1b9261416f2bc91cd4179a766ee35845aee34d030232afaf542a3c20cbb82850",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-1.faris-design.json",
+      "design_sidecar_sha256": "480222cd0a9bf6d4f98213b10e9cb0ab1de52bfb188febe9a19d04b58f0c4a8d",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 4.440892098500626e-16,
+      "largest_final_per_cell_volume_error_percent": 4.440892098500626e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-1.json",
+      "native_cli_report_sha256": "46bcb49e024e2e2f9a3f6690fcc14d60fdac37c4f07438b254ca319aa2bad56e",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 4.440892098500626e-16,
+          "largest_per_cell_volume_error_percent": 4.440892098500626e-14,
+          "h5m_sha256": "d2857b11da3b30870343362570aee22025f257ad2f1defe28954456c8e47690d",
+          "facets_sha256": "0298491aad70b39773eb8d513f7f26a74c51e764315343cdeacb2c3816c63f8c",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-1/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "33c16bbfd8ca3b83f23a0c66d9ba274e94f7f5ed0d69b857d40e2d4b3e1b642d",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000008171241461e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000016342482922e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000024797941478e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-boxes-2",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-2/clean-boxes-2.step",
+      "step_sha256": "84c79328a4665c5f372e8247f5388e79ef1ca48a33feaec4afbf8f2126e74f65",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-2.faris-design.json",
+      "design_sidecar_sha256": "2d7251978ff0d04b81e94cc95cc542ff8ee9b954427dbba1df3d0dc864724011",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 4.440892098500626e-16,
+      "largest_final_per_cell_volume_error_percent": 4.440892098500626e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-2.json",
+      "native_cli_report_sha256": "43a81730809c1a7ec1cc24c0575ee40d9518e1b637d3ab9381d81ce9d404aec4",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 4.440892098500626e-16,
+          "largest_per_cell_volume_error_percent": 4.440892098500626e-14,
+          "h5m_sha256": "f06730142b3ac3a1df6d2c47a13d1d4c32cc78ee5bb22187b11f16b3f85390ac",
+          "facets_sha256": "87fc1799632b586e86f5bf9bbdb13883cf8915fcefd82134b1e96e7a208cfafb",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-2/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "c595cc0a17cbd810dd60aaf624fa0c127a6172e6fcd4eba337329a26f90d7fa8",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000009237055564e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.000001847411113e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000027711166694e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-boxes-3",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-3/clean-boxes-3.step",
+      "step_sha256": "c5d7385fd4accb5b3b3237585eb52d32b1bc142cd2a9502c2e1530a571ee042c",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-3.faris-design.json",
+      "design_sidecar_sha256": "2cc2441959b9b2d66b9caf2464f672331cf92e5144c28f6df2f2850a41639e33",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 1.1102230246251565e-16,
+      "largest_final_per_cell_volume_error_percent": 1.1102230246251565e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-3.json",
+      "native_cli_report_sha256": "f8ee1065e2221a04dac2378df437a77023798a85bfd80b513433b6d8ffda3393",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 1.1102230246251565e-16,
+          "largest_per_cell_volume_error_percent": 1.1102230246251565e-14,
+          "h5m_sha256": "4b357efd001536480ea38bd345ab31806e5c1f553d586841c346f1a5b0facaf8",
+          "facets_sha256": "ded758d1fe62e40def78342f40c723c7f4053d3031cdce1ae1083792c39b2267",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-3/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "5051b44559ae6911b5052d0002c65f3eb8068a952994f01b28b70ff118dbc1eb",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000010658141037e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000021316282073e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000031974423109e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-boxes-4",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-4/clean-boxes-4.step",
+      "step_sha256": "ed7d8da8b4c9dc7b32af8d0f36940724f0023e875962a6534f6395ae81d368cb",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-4.faris-design.json",
+      "design_sidecar_sha256": "606f347228db0c4d201b22b39da69fdc0c1783ac2772355419f31b014107a16a",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 6.661338147750939e-16,
+      "largest_final_per_cell_volume_error_percent": 6.661338147750939e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-4.json",
+      "native_cli_report_sha256": "9cfe8e3aeb689ec5e07402f13292eb41ba8eeda3895a3879c19b043128b602f5",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 6.661338147750939e-16,
+          "largest_per_cell_volume_error_percent": 6.661338147750939e-14,
+          "h5m_sha256": "3a0088b035b7844483c6050c0ee5623a35346c7ff9737d75283a75232d83da6e",
+          "facets_sha256": "0b1acf6ab7c9236910c217c6b01ee48f4c42751bdb54e8ad764aea3498796a13",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-4/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "e1d6141d162d3398ad847ed573dc8e636ae52caa3211e7decdb437675b0ee9d4",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000012079226507e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000024158453016e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000036237679523e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-boxes-5",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-5/clean-boxes-5.step",
+      "step_sha256": "fc053e4b3cb7b1da41b25dd504df7a7c2d071ea6d0e6fa74579fcc64361464fa",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-5.faris-design.json",
+      "design_sidecar_sha256": "0e81e82022098d629a247befbf7c50507c8526dbc0cf5406b5fef2c104bcffb4",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 5.551115123125783e-16,
+      "largest_final_per_cell_volume_error_percent": 5.551115123125783e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-5.json",
+      "native_cli_report_sha256": "17b8df103cc46498ac77a282750257b07a5fabf9cff0f2fd6004494001ce99cc",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 5.551115123125783e-16,
+          "largest_per_cell_volume_error_percent": 5.551115123125783e-14,
+          "h5m_sha256": "06746f90d4d792a4cab488deb9a0cb8d69dfdbb3921f73114cd509cf0b5797c4",
+          "facets_sha256": "88e78fc0c3c05747c57460efbc4fbfa327fd38c36a6fd90b42e97f8cf7093483",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-5/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "5f7ceb060825d99023b44eef9e399a0027029e6023726f2520f42e3a9553c0a2",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000014210854715e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.000002842170943e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000042632564145e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-boxes-6",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-6/clean-boxes-6.step",
+      "step_sha256": "57c0671ceab5b6d3c11253c38dd2a72fa2ba5872678a1303928092e507bc05dd",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-6.faris-design.json",
+      "design_sidecar_sha256": "71b19564e4e6d6cd90346e1fa44f955f96a2cba83e217e4f7a2250d63a444d83",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 4.440892098500626e-16,
+      "largest_final_per_cell_volume_error_percent": 4.440892098500626e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-6.json",
+      "native_cli_report_sha256": "79c8957e3d17059f83a0af38115e6fd2ebbeffcee04f6591e911158dd2569fed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 4.440892098500626e-16,
+          "largest_per_cell_volume_error_percent": 4.440892098500626e-14,
+          "h5m_sha256": "75c397cc2c648b6733a6e999efa7332b2bf26e656ef5b53042cc0571c9651a4e",
+          "facets_sha256": "d24a7079cc53e04f8dbc1f4052dd158a807aeba2cd8eaa72ade3373d2b098577",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-6/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "81e4e5ae698d4ae2f14ec1f95f576d1196ed0fce328d3cd40a07a45d7851ada7",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000017053025658e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000034106051316e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000051159076975e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-boxes-7",
+      "category": "boxes",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-boxes-7/clean-boxes-7.step",
+      "step_sha256": "1167e37893a91e24a2880f49ac639ce044f24e058b8f75cafbcdcabc79cbc7b6",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-boxes-7.faris-design.json",
+      "design_sidecar_sha256": "7dfa83b12648a43f9bacf8b2b97b5b8807065ba73e6cc02d7ade4e6d79001b00",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 1.1102230246251565e-16,
+      "largest_final_per_cell_volume_error_percent": 1.1102230246251565e-14,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-boxes-7.json",
+      "native_cli_report_sha256": "e704b79fb2dc64f6585fbb1c6707d5beb0de74aedd1b123d4e5a148debf4ad28",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 1.1102230246251565e-16,
+          "largest_per_cell_volume_error_percent": 1.1102230246251565e-14,
+          "h5m_sha256": "3eb836866cf4d8bf0477a04ec2b08da2ad060e6553e2f8b9baa2a683144af0c1",
+          "facets_sha256": "edd27223d003cb93ea43746b8532ff01150ba574cf90f0635933b7df94c2980e",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-boxes-7/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "c538d9ffa3d2c35582d4158026679b8d1b56180221c792e763820b8d9a820742",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000021316282073e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000042632564145e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000063948846219e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-0",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-0/clean-tori-0.step",
+      "step_sha256": "894d8b4477d81de0332bad36e887864bb0d7a66d58b57af52a8d9afbda8188e8",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-0.faris-design.json",
+      "design_sidecar_sha256": "ed5982dd6895a135adb75cb8502a01564d6b0bfbfe021aa54147d1636aa0f6b3",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0008286164379464056,
+      "largest_final_per_cell_volume_error_percent": 0.08286164379464056,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-0.json",
+      "native_cli_report_sha256": "999ae44ba2be5cfdb8344e715a313003861d08fd4e7d4e84e75423a2ce640b2d",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0008286164379464056,
+          "largest_per_cell_volume_error_percent": 0.08286164379464056,
+          "h5m_sha256": "7f00aaa4254b359004b98c0237572f9d0f77a803e489fa729bc99d90eff04b89",
+          "facets_sha256": "4a2ded6e0191b0c77af2551e89dd6c60dbdc0a44aee841d81b40b7b630012791",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-0/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "18fba1622c5cdb71e175df925bb90a4ba3e6238d53c8c653f0c988663ec3909a",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0008791481990835263,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009837820690994366,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009904788604448696,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-1",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-1/clean-tori-1.step",
+      "step_sha256": "3bf60cc90e0f43b1bde9a179c91503747978ca5a41f03181d4b3f99fdc9eaa26",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-1.faris-design.json",
+      "design_sidecar_sha256": "fc777afb39e3e34b786dd6e17a59d6d276c40820a547b5115d96e29153e47ef9",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0008286166087781988,
+      "largest_final_per_cell_volume_error_percent": 0.08286166087781988,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-1.json",
+      "native_cli_report_sha256": "fef26da73a3a4092e6f3448696be153f277dea49fd8753fb7f20f64cc5ea942e",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0008286166087781988,
+          "largest_per_cell_volume_error_percent": 0.08286166087781988,
+          "h5m_sha256": "32c891700ce3fa772eae5a8d5a8b3daab1b7d2ddaf67987257498af29c518bdb",
+          "facets_sha256": "9a9fca0b7f41691606ff58c02da6c31ea427e9fb9942366ca65075d0ad15a205",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-1/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "ab86d899d5a9e385eb13346f0ed6e5b3514f51a40ab889afc48732ad25ecba8a",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009983420516335314,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009983420516335314,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009903436086565812,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-2",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-2/clean-tori-2.step",
+      "step_sha256": "968be29cbc435a48ee6ca25abaffcb53e6421ca2ff7ebccf5f117394ca700be7",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-2.faris-design.json",
+      "design_sidecar_sha256": "db0e719ed950561d41f3bb34e597320a76cab3c232f968481fd882580a01b553",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0008286165316491179,
+      "largest_final_per_cell_volume_error_percent": 0.08286165316491179,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-2.json",
+      "native_cli_report_sha256": "a34ffbe7ed79a502ffedc978a1685de3f8bbb09643d7b4b2fb3741dc09250bd3",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0008286165316491179,
+          "largest_per_cell_volume_error_percent": 0.08286165316491179,
+          "h5m_sha256": "187b0498630744d1f1886216dc287d77624eb226433b3f441936423508f8ec1d",
+          "facets_sha256": "161850b9f971d6e016f608e3f9f9b21cad6bbdc4affdf6f41f7582413c799684",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-2/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "a457870abfaac8a5bbc1e4c814ea287e9b39031499332574ee1defae9cd544c6",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009909594927073368,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009909594927073368,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009884527705512215,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-3",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-3/clean-tori-3.step",
+      "step_sha256": "20e2ce4b6494c1a137ee0e9621f04c93bc4150779bb9e1011c66341607faf916",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-3.faris-design.json",
+      "design_sidecar_sha256": "66524a03e00bfd9130d824fc9d6893b586def181bc73153b323841ecc7ebfe43",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0008286164562315568,
+      "largest_final_per_cell_volume_error_percent": 0.08286164562315568,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-3.json",
+      "native_cli_report_sha256": "b8c29b0072566645c00e4f4308f801f6015520ee9d70a05f9432f788be2600d1",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0008286164562315568,
+          "largest_per_cell_volume_error_percent": 0.08286164562315568,
+          "h5m_sha256": "daef2ba0d4dbf9d3672fa7ae5bdca6369312fa8c7e4578738126fee5168b605d",
+          "facets_sha256": "ddd06463fa52c6e92082ac5c8b8d7061b7376d66e643fe230ea4f839e0565807",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-3/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "adf7b8408f11c605407ee4e0f926fd02f5934a2e7517136c91714f65c3d248d0",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009900749514604875,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009928195381823076,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009928195381823076,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-4",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-4/clean-tori-4.step",
+      "step_sha256": "7aaa82b1f369691743089bbb3fc64c0e610dda5ed599fa70d49ea0d74c1032ed",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-4.faris-design.json",
+      "design_sidecar_sha256": "4ff11133a752ab04549ede4c67d63685d0066e503606319ae6fbb909dd1801f4",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0008286160752724037,
+      "largest_final_per_cell_volume_error_percent": 0.08286160752724037,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-4.json",
+      "native_cli_report_sha256": "c908b3f480c5530ac6eee05c700ccfabbeecc3fdfaa7b901d02769394333faac",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0008286160752724037,
+          "largest_per_cell_volume_error_percent": 0.08286160752724037,
+          "h5m_sha256": "ee4c4c0f2568a2b05f7f24af0b73b045995e19948f7e01f7898c107126c17365",
+          "facets_sha256": "3a6930836cb55191a6ea924a66d40af35c39ebfc231aa91c660ee118543f503d",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-4/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "e9884da32f5af631ed01fb8a2d0df1692b0ee22829e0e72e6053caa40ec8644d",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.000987543365084954,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009918921930694399,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009932936518803278,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-5",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-5/clean-tori-5.step",
+      "step_sha256": "83f598ed7c7e04a79e017d3c767dd76d244cc72deaf0081d8535a17a375eaaef",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-5.faris-design.json",
+      "design_sidecar_sha256": "d3a8efeb0c18c15512d5f37f21f6426e201734fcb59595813e545df1ac13fd6a",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.000828616298314655,
+      "largest_final_per_cell_volume_error_percent": 0.0828616298314655,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-5.json",
+      "native_cli_report_sha256": "2e958074031ded0f3c06082821e62f14e0603da9fd7a4594185356af20f1d5c6",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.000828616298314655,
+          "largest_per_cell_volume_error_percent": 0.0828616298314655,
+          "h5m_sha256": "5be5d378b6c75d8ee25f8f5f59575520ba1da5c5e6dd3fc400cd2616c9eb208a",
+          "facets_sha256": "86a9ff60e74d59cc97ee9eaf0b9d0c39fa170b232db71d2fcb5c7929ea81aac1",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-5/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "7c3844216fe04d17e7ed63336f5d71810179acfc9c1889c8be9b152d67dd44fb",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009981972606546354,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009995137406854646,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009995137406854646,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-6",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-6/clean-tori-6.step",
+      "step_sha256": "c32505ac6c7753c905146d50f04c3fc0b0b28f26be995db47999e7486a704959",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-6.faris-design.json",
+      "design_sidecar_sha256": "5eba8bac4befa5642d3d1867f0f1e9958df9e524c2c46a3aa6c7729c91075d23",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0008095760887104619,
+      "largest_final_per_cell_volume_error_percent": 0.0809576088710462,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-6.json",
+      "native_cli_report_sha256": "e436befa53e39d73ad38058b1842157b67a8abc9b4d6bb52506e85df8c9d97ad",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0008095760887104619,
+          "largest_per_cell_volume_error_percent": 0.0809576088710462,
+          "h5m_sha256": "0aedaef0704ff7cea876fd72cb9cbeec7809e9b1b40a681f613a914673a215c0",
+          "facets_sha256": "0585d2b6733e4db68d013c346545238d22b4048825d6de50e6e554eef6041c8b",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-6/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "669935f8881ab32e47de6638d0acc89c603aa0177d557606c937e07b03e5b8ed",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.000987357727075415,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009932850978079462,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009932850978079462,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-tori-7",
+      "category": "tori",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-tori-7/clean-tori-7.step",
+      "step_sha256": "f0ed6fe06979d8ef059ab078a519edb786a6be3622555c14b04d9b88597de1cf",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-tori-7.faris-design.json",
+      "design_sidecar_sha256": "892ef086daecb6fd8730f8560936ccb272706d6db6e9b305375e4db154d639c2",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.0005,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 2,
+      "largest_final_per_cell_volume_error_fraction": 0.000572426421324046,
+      "largest_final_per_cell_volume_error_percent": 0.0572426421324046,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-tori-7.json",
+      "native_cli_report_sha256": "226a9d07c66828f781dda243ff05d0789f6a361e4f96d4b77a07fee3441f5fb1",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "REFINEMENT_REQUIRED",
+          "largest_per_cell_volume_error_fraction": 0.0007315416344028103,
+          "largest_per_cell_volume_error_percent": 0.07315416344028103,
+          "h5m_sha256": "9d80e6c44e5d870606b76add7fb95d726114229ca3d3809d99de1388ffd58146",
+          "facets_sha256": "57a4c28fead02165642768ae7af1546d101afc26bd8aec57a6c6bd7602f2b9d5",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-7/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "836a608989015a8bbf1f2740cab42b1e7bd5b8738640cbdf1b85df94951997b6",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009853505412834949,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0009853505412834949,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0035096113378282473,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        },
+        {
+          "attempt": 2,
+          "chord_m": 0.0005,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.000572426421324046,
+          "largest_per_cell_volume_error_percent": 0.0572426421324046,
+          "h5m_sha256": "421c28416f18411f2c2489d9fbc8fd1c4fba6651e29ee9ac9cc2fa5159ba5dfa",
+          "facets_sha256": "7496d58f7b4e44a793037a56d63db921047ac082e406d52d670842c1622220ac",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-tori-7/convert/attempt-02/deviation/deviation.json",
+          "deviation_report_sha256": "a9878e50f0ec9a89bfc9855fc57b7c67a195316255020e09afbbe62b730b24f5",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0004998025905028589,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0004998025905028589,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 0.0004999692558080646,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-0",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-0/clean-port-0.step",
+      "step_sha256": "59ce39a6e3419ecc7b50647b397545555f974bb3739365c5732b5b7ec1d0811c",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-0.faris-design.json",
+      "design_sidecar_sha256": "3112a1df6b15a87f23f86e1d3a5003b2fa73eeca39d76d4993b639697b84b4eb",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0004143959671087938,
+      "largest_final_per_cell_volume_error_percent": 0.04143959671087938,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-0.json",
+      "native_cli_report_sha256": "50505c62abc8dee0eab451c44d6a956ed3dface67efd0424d6702fff87abf805",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0004143959671087938,
+          "largest_per_cell_volume_error_percent": 0.04143959671087938,
+          "h5m_sha256": "1df81c3b97cf55fc3b5f7fcc2f19c1829def586a36a22d153c715f5cc1a5e76d",
+          "facets_sha256": "83a34eb9cccef5143b75904552a6e3593a83898650ad5f7ac6e220b717c7c518",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-0/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "ceeeca11c4ac9ce2b6655ea9982bc3af2cb43b0b9f0c4e99ed5ab8d8893c77d8",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 2.616726164090382e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 2.6167261650166213e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000348165940525e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-1",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-1/clean-port-1.step",
+      "step_sha256": "89e79917d9ef3b085c14e254cb9e2df69721f558a7d282df82b123fd1f9ca58c",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-1.faris-design.json",
+      "design_sidecar_sha256": "0b2ac564209357c63988cc47510381bc59424d18928694622669429c93b10106",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.00041439124759823365,
+      "largest_final_per_cell_volume_error_percent": 0.041439124759823365,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-1.json",
+      "native_cli_report_sha256": "7aaca1ef6caf550f8985fd686fe6295eb5384ef5e74d94406fe8985fc9455380",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.00041439124759823365,
+          "largest_per_cell_volume_error_percent": 0.041439124759823365,
+          "h5m_sha256": "7f585c1e870c2f1cb8cd8e637452638878c9be5f443f5e80f397430b1a4659a1",
+          "facets_sha256": "4ccb29fff336f6a20f2437c00b81679c8e1e43323962a68943fe94327555d7ce",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-1/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "33a0d80f8152a39f1dcfc6b2bbd834ca829f47fb3bca5cac33a5d25a4b2d72d5",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 3.009220088709587e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 3.0092200897747615e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000400390831602e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-2",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-2/clean-port-2.step",
+      "step_sha256": "dd818bb123527ca30a93c17c894ce346fc1f0058b6826a46f2a59d44572f3ead",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-2.faris-design.json",
+      "design_sidecar_sha256": "e2ffe6e406dda8a36871bf690be5063316231ec94b561054b051275f548cf10e",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.00041439451734293087,
+      "largest_final_per_cell_volume_error_percent": 0.04143945173429309,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-2.json",
+      "native_cli_report_sha256": "ce45119d340a692465835b3cba61ea886f68f1a9fb28bf44b925001d0024951d",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.00041439451734293087,
+          "largest_per_cell_volume_error_percent": 0.04143945173429309,
+          "h5m_sha256": "968de151aa76833b7ad51c0ea5ec4e525fc197a309a085df3a898874f6efade1",
+          "facets_sha256": "efc96ddbead59e3a9a90b10e25274227a7a126b0e6eb9857403637ec19e2a772",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-2/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "c8124a08a9c85d323dff51e69b85840e60599dd19957ae308532e28c0abed4e3",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 3.40171401333172e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 3.4017140145358314e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000452615722682e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-3",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-3/clean-port-3.step",
+      "step_sha256": "a033bb0e9cf374e48ab2b3f0c119f301d1b8e768f276646750c0d4bdd94fafe7",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-3.faris-design.json",
+      "design_sidecar_sha256": "1478fc5950ad9effa47c096c641fbe05d7d0af16be303aa43d50748df943ddd1",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0004143935807029431,
+      "largest_final_per_cell_volume_error_percent": 0.04143935807029431,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-3.json",
+      "native_cli_report_sha256": "5945bac1d89348c3b89e31b949dbe8cecfc086982105dcac501820e595f9d50d",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0004143935807029431,
+          "largest_per_cell_volume_error_percent": 0.04143935807029431,
+          "h5m_sha256": "39b64a6a89806d87aebd330ee9df4f9a9743859349c285c5aeb62714bb707b8a",
+          "facets_sha256": "581ee2fd747f61d145c9b58cc5e15ca674abc823ea7c6369c4ad24a0e835161e",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-3/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "e66451c29cc71bf657b7697f75b17e17ec5be74db74acb7900d819fc75190279",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 3.925039246160315e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 3.925039247549674e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000522248910785e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-4",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-4/clean-port-4.step",
+      "step_sha256": "85269dd4243bfab9262635ec17c30ed4b988cfd8586719fa90b1b4ff39987b9e",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-4.faris-design.json",
+      "design_sidecar_sha256": "1d3a1deb73d91d863462a96b8c1c19ef832c8ad5e070871aa03cc6d04939d7f1",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0004143945374044389,
+      "largest_final_per_cell_volume_error_percent": 0.04143945374044389,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-4.json",
+      "native_cli_report_sha256": "e7beb711a3f98b746af8adca3ceab4106016980ea496c7ccf3ed7f282be5adc3",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0004143945374044389,
+          "largest_per_cell_volume_error_percent": 0.04143945374044389,
+          "h5m_sha256": "b0d8f14ac143b7e0a5cd6215f4b0ad6ab7944b23d92c423b1b93a5047ddb38ed",
+          "facets_sha256": "555065b704ff2fb393aea54cf45357b080b1f38fa087dcfad1704e6d968b1db7",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-4/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "daa88fd5f9d61d0f27840cb9676859a374f7ad98080b9725913fdaa49ed18445",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 4.44836447899588e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 4.448364480570487e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.000059188209889e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-5",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-5/clean-port-5.step",
+      "step_sha256": "7219e5a9bdb15ce9bdda08550bfe8cf326d5c95e056a65dccf090a6839ad8e33",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-5.faris-design.json",
+      "design_sidecar_sha256": "033d6bed4fcdf3513d084d068a9d12c3a6ba6755e2c294b333d73d33833c460c",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.00041439337437199075,
+      "largest_final_per_cell_volume_error_percent": 0.041439337437199075,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-5.json",
+      "native_cli_report_sha256": "a9365ab310fa2f1d385ac3bd40072b533d19c3c142382cccaab30fc165087f41",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.00041439337437199075,
+          "largest_per_cell_volume_error_percent": 0.041439337437199075,
+          "h5m_sha256": "a9e2852b5f4f4031a63cff418f0b99b6143ff5664ef0c43c43e61c5f3ebfd029",
+          "facets_sha256": "8b563188c29fe8ef4e667851120442a58485dc6d59bb61d2ae385e59d1770b75",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-5/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "c9c4db4b2e456d4df7a7b50d39257c9afa55e9779e555ca20155a918eed9b007",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 5.233352328248599e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 5.2333523301010775e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000696331881047e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-6",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-6/clean-port-6.step",
+      "step_sha256": "d9fbb4b1b297b223cbac85791008b5af45423580ef2abe4f710d5d77a629eadc",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-6.faris-design.json",
+      "design_sidecar_sha256": "94db4823262df87973d9c58fca65eb73b1390635614918cb0e5f4360d1363f6e",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.00041439345706106856,
+      "largest_final_per_cell_volume_error_percent": 0.041439345706106856,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-6.json",
+      "native_cli_report_sha256": "c46d1a728e4eb45cd8a037f5891fcf22264dd99cb9ef671fe6bcc313f71fac71",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.00041439345706106856,
+          "largest_per_cell_volume_error_percent": 0.041439345706106856,
+          "h5m_sha256": "961e158f3496ed9d4e73c9d021a1d3c45dd805588f6fb0aaceb513154dfb097b",
+          "facets_sha256": "bda38896b1ddb834ecbe3ce71263a0b9269997d3d6e614e0917559cc2d0c430a",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-6/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "e844e5a3bdfab8cd6dfd9d8660faab0978d790534b1243fc38b5b6add4c407bc",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 6.280002793930336e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 6.28000279615331e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0000835598257255e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "clean-port-7",
+      "category": "port",
+      "step_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-7/clean-port-7.step",
+      "step_sha256": "c83ba6fad13d712d7363a90da25a698614d54fc66ed8ec811df3b398591afe1e",
+      "design_sidecar_path": "runs/continuation/geo012-native-corpus-v96-20261110/designs/clean-port-7.faris-design.json",
+      "design_sidecar_sha256": "293ef38719a4e1fc18fb456bd6a8a0d301a48913821c7b6a2121064a60c65246",
+      "user_tolerance_field_m": null,
+      "was_default": true,
+      "initial_default_chord_m": 0.001,
+      "selected_chord_m": 0.001,
+      "candidate_status": "VOLUME_AND_BINDING_GATES_PASSED",
+      "attempt_count": 1,
+      "largest_final_per_cell_volume_error_fraction": 0.0004143937083955773,
+      "largest_final_per_cell_volume_error_percent": 0.04143937083955773,
+      "volume_gate_limit_fraction": 0.001,
+      "volume_gate_pass": true,
+      "selected_candidate_bounds_pass": true,
+      "native_cli_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/reports/clean-port-7.json",
+      "native_cli_report_sha256": "2561e0d5c52d1492f4b6fa4840ea6d6f66627956a1c7a2f9cc5170d02073e432",
+      "attempts": [
+        {
+          "attempt": 1,
+          "chord_m": 0.001,
+          "status": "VOLUME_AND_BINDING_GATES_PASSED",
+          "largest_per_cell_volume_error_fraction": 0.0004143937083955773,
+          "largest_per_cell_volume_error_percent": 0.04143937083955773,
+          "h5m_sha256": "52f2754187da2464cf516a00ef52d936791d4b4cc85acbc80917dcc4b4713307",
+          "facets_sha256": "01cab99e4b28c740eba61c93d8de7487f827cc9cc48447234aeb9f55718b824f",
+          "deviation_report_path": "runs/continuation/geo012-native-corpus-v96-20261110/work/clean-port-7/convert/attempt-01/deviation/deviation.json",
+          "deviation_report_sha256": "e7af3fb0a2f987302445e61dc81f7c3d90de0dac6f88d46da9698daf05b947b5",
+          "solid_bounds": [
+            {
+              "volume": 1,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 7.849978492473259e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 2,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 7.849978495251977e-05,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            },
+            {
+              "volume": 3,
+              "global_bound_status": "certified",
+              "global_upper_bound_m": 1.0001044497821569e-09,
+              "global_bound_queries": 0,
+              "global_bound_max_queries": 100000,
+              "global_bound_max_depth": 18
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

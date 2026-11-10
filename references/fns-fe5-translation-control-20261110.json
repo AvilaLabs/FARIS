@@ -1,0 +1,76 @@
+{
+  "schema": "faris.fns-fe5-translation-control/1.0.0",
+  "case_id": "fns-tof-fe-5",
+  "reviewed_date": "2026-11-10",
+  "scope": "Structural and analytic checks of the adapter-prepared OpenMC model against the pinned MCNP deck. No transport was run.",
+  "source": {
+    "repository": "https://github.com/IAEA-NDS/open-benchmarks",
+    "manifest_claimed_commit": "24b9efe3f2084a51eb1e83d9a08823ada5b9fe02",
+    "cached_checkout_commit": "1d9855b00e05c5d5e25a11026ac56940dc75b516",
+    "pinned_deck_path": "jade_open_benchmarks/inputs/FNS-TOF/FNS-TOF_Fe-5/mcnp/FNS-TOF_Fe-5.i",
+    "pinned_deck_sha256": "ab8427a7df40eae83434cbd4adfaa93fc038b2e603717c6f76e7f6360f4a2acd",
+    "all_manifest_external_file_hashes_verified": true,
+    "case_manifest_path": "validation/cases/fns-tof-fe-5/manifest.json",
+    "case_manifest_sha256": "4aa2d1d6308b769d2fa2fa497d85886f083bb411cd7805d12dd515be5b220ef7"
+  },
+  "converter": {
+    "repository": "https://github.com/openmc-dev/openmc_mcnp_adapter",
+    "commit": "80fda5abeed22502e2f6e19e57a9b2a8762844a8",
+    "python_source_tree_sha256": "a48ac7dede3729d6695f0848d15b2ddb43a9c0f1487be617cd70d0961ce633c1",
+    "conversion_path": "validation/cases/fns-tof-jade-v1/run_case.py:model_for_radius",
+    "openmc_version": "0.15.3",
+    "conversion_radius_cm": 2.5,
+    "transport_executed": false
+  },
+  "generated_xml": {
+    "directory": "runs/continuation/fns-fe5-primary-support-v1/adapter-model-v1",
+    "geometry.xml": "bbf64bc12071f5222b46ee3ca3cd6db73a2537973d45dd0707c09b41ecbab004",
+    "materials.xml": "89f27304c5d6ad3eea603d83b0f85bb8007ca9dffa0b32f9c2fa9204504f0906",
+    "settings.xml": "996bc4edc4031ea13c7b510ce94e783501e32894991eca9364497625d7316925",
+    "tallies.xml": "012cd1f03f66c806d7ee5431c55cd373308dfe64f87f8813f98ed643b714ffae"
+  },
+  "checks": {
+    "status": "PASS",
+    "geometry": {
+      "exact_base_surfaces": [1, 2, 3, 4, 5, 10],
+      "transformed_cylinders": [
+        {"surface_id": 6, "axis_deg": 12.2, "radius_cm": 5.235, "axis_residual_max": 1.6e-16},
+        {"surface_id": 7, "axis_deg": 24.9, "radius_cm": 5.242, "axis_residual_max": 9.6e-17},
+        {"surface_id": 8, "axis_deg": 41.8, "radius_cm": 5.270, "axis_residual_max": 1.8e-16},
+        {"surface_id": 9, "axis_deg": 66.8, "radius_cm": 5.332, "axis_residual_max": 6.4e-17}
+      ],
+      "quadric_eigenvalues": "each approximately (0, 1, 1), maximum observed deviation below 2.3e-16",
+      "radius_absolute_tolerance_cm": 1e-12,
+      "cell_surface_count": {"cells": 8, "surfaces": 14},
+      "adapter_guards": [
+        "source point lies in a positive-importance cell",
+        "all four detector centers map to vacuum hosts",
+        "all four 2.5-cm sphere volumes pass deterministic host-containment checks"
+      ]
+    },
+    "material": {
+      "density_atom_per_b_cm": 0.0852309,
+      "density_absolute_tolerance": 0.0,
+      "expanded_elemental_atom_density_max_abs_difference_atom_per_b_cm": 1.4e-17
+    },
+    "source": {
+      "position_cm": [0.0, 0.0, -25.0],
+      "angular_distribution": "isotropic",
+      "energy_interpolation": "histogram",
+      "support_mev": [0.063656, 18.097],
+      "integrated_probability": 0.9999999999999991,
+      "normalization_absolute_tolerance": 1e-11
+    },
+    "responses": {
+      "fine_and_coarse_tallies": 8,
+      "reference_energy_support_max_mev": 20.464,
+      "all_manifest_response_rows_retained": true
+    }
+  },
+  "not_evaluated": {
+    "formal_full_geometry_material_equivalence": "These checks do not prove equivalence for every point or establish methodical verification of the converter.",
+    "physical_transport_equivalence": "No OpenMC transport was run and no MCNP/OpenMC result comparison was performed.",
+    "experimental_high_energy_support": "Eight nonzero Fe-5 reference rows lie above the 18.097-MeV source maximum. The Fe-specific JAERI-M 94-014 pp.126-216 or original FNS-TOF2/FE processing package has not been inspected; no source, detector-resolution, or time-of-flight explanation is established.",
+    "measurement_uncertainty_and_covariance": "The published CSV error meaning and cross-bin covariance remain unspecified; compatibility verdict stays INCONCLUSIVE."
+  }
+}

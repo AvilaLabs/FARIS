@@ -42,7 +42,7 @@ these files say how good it has to be. The finished demo keeps its own
 | Verification | The test, benchmark, audit or study that decides pass or fail. |
 | Basis | Why this number. **[V]** the number was read in a primary source (linked). **[U]** unverified: snippet, recall or paywalled source; a [U] basis cannot support a hard gate until checked. **FARIS choice**: our own decision, no outside reference. **[internal]**: an Avila Labs lesson. |
 | Phase | The roadmap phase that must meet the target: F1 reusable study platform, F2 radiation and evolving material state, F3 component multiphysics, F4 plant operation and life, F5 plasma and source coupling, F6 design and research workflows, F7 broader 3D plant environment. |
-| Now | **Met** (with evidence), **Partial** (what exists, what is missing), **No**, or **Unmeasured** (something exists but has not been measured against the target). Recorded 2026-10-05 against main. |
+| Now | **Met** (with evidence), **Partial** (what exists, what is missing), **No**, or **Unmeasured** (something exists but has not been measured against the target). Recorded 2026-11-10. |
 
 ## Reference hardware and models
 
@@ -112,10 +112,10 @@ Its main gaps against these targets:
 <!-- counts:start -->
 | File | Prefixes | Requirements | Met | Partial | Unmeasured | No |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 4 | 41 | 1 | 27 |
+| [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 5 | 40 | 1 | 27 |
 | [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 12 | 45 | 2 | 48 |
 | [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 20 | 40 | 0 | 37 |
-| [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 5 | 19 | 0 | 75 |
+| [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 6 | 18 | 0 | 75 |
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 5 | 7 | 0 | 33 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 13 | 27 | 0 | 32 |
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 22 | 0 | 37 |
@@ -135,9 +135,9 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 12 | 29 | 1 | 35 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 3 | 24 | 1 | 17 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 8 | 18 | 2 | 8 |
-| **Total** | | **1419** | **130** | **570** | **34** | **685** |
+| **Total** | | **1419** | **132** | **568** | **34** | **685** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 130 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 132 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control
