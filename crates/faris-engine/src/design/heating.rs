@@ -2831,6 +2831,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn heating_worker_accepts_flat_row_major_four_response_covariance() {
+        let response: HistoryEnergyResponse = serde_json::from_str(include_str!(
+            "../../tests/fixtures/heating-history-response.json"
+        ))
+        .unwrap();
+        assert_eq!(response.status, "INCONCLUSIVE");
+        assert!(!response.target_reached);
+        assert_eq!(response.covariance_of_mean_ev2.len(), 16);
+        assert_ne!(response.covariance_of_mean_ev2[1], 0.0);
+        assert_ne!(response.covariance_of_mean_ev2[4], 0.0);
+        let request = HistoryEnergyRequest {
+            component_map: response.component_map.clone(),
+            source_definition_sha256: response.source_definition_sha256.clone(),
+            design_sha256: "b".repeat(64),
+            check_report_sha256: "c".repeat(64),
+            h5m_sha256: "d".repeat(64),
+            h5m_path: "/data/model.h5m".into(),
+            cross_sections_sha256: "e".repeat(64),
+            cross_sections_path: "/data/cross_sections.xml".into(),
+            source_kernel_path: response.source_kernel_path.clone(),
+            source_kernel_sha256: response.source_kernel_sha256.clone(),
+        };
+        assert!(history_energy_response_valid(
+            &response,
+            &request,
+            response.histories,
+            response.batches,
+            response.target_relative_error
+        ));
+    }
+
+    #[test]
     fn whole_model_energy_response_requires_same_batch_partition_covariance() {
         let component_map = BTreeMap::from([("blanket".into(), vec!["blanket-cell".into()])]);
         let context = HistoryEnergyRequest {

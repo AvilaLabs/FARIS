@@ -665,6 +665,17 @@ class PeakTest(unittest.TestCase):
         self.assertFalse(DT.heating_closure_quality(1.0, 0.0, 10.0)["within_3se"])
         self.assertTrue(DT.heating_closure_quality(0.3, 0.1, 10.0)["within_3se"])
 
+    def test_history_energy_covariance_serializes_flat_row_major_with_off_diagonals(self):
+        import numpy as np
+
+        matrix = np.arange(16, dtype=float).reshape(4, 4)
+        encoded = DT.covariance_row_major(matrix)
+        self.assertEqual(encoded, list(map(float, range(16))))
+        self.assertEqual(encoded[1], matrix[0, 1])
+        self.assertEqual(encoded[4], matrix[1, 0])
+        with self.assertRaisesRegex(ValueError, "square matrix"):
+            DT.covariance_row_major(np.zeros((3, 4)))
+
     def test_peak_quality_rejects_zero_and_relative_error_over_ten_percent(self):
         self.assertEqual(DT.heating_peak_quality(0.0, 0.0),
                          (False, "The sampled peak response is zero; relative heating uncertainty is unavailable."))
@@ -957,16 +968,21 @@ class PeakTest(unittest.TestCase):
         self.assertEqual(result[6:9], (30, "target_reached", 1))
         energy = result[9]
         self.assertEqual(energy["status"], "CALCULATED")
+        self.assertEqual(set(energy), set(json.loads(
+            (Path(__file__).resolve().parents[3] / "crates" / "faris-engine" / "tests" / "fixtures"
+             / "heating-history-response.json").read_text())))
+        self.assertIn("closure_residual", energy)
+        self.assertNotIn("closure_residual_ev_per_source", energy)
         observed = np.array([[10.0 + (1.0 if i % 2 == 0 else -1.0),
                               4.0 + (0.4 if i % 2 == 0 else -0.4),
                               6.0 + (0.6 if i % 2 == 0 else -0.6)] for i in range(30)])
         expected_covariance = np.cov(observed, rowvar=False, ddof=1) / len(observed)
-        np.testing.assert_allclose(energy["covariance_of_mean_ev2"], expected_covariance, rtol=1e-12, atol=1e-14)
-        self.assertAlmostEqual(energy["closure_residual_ev_per_source"]["mean"], 0.0)
-        self.assertTrue(energy["closure_residual_ev_per_source"]["within_3se"])
+        np.testing.assert_allclose(energy["covariance_of_mean_ev2"], expected_covariance.reshape(-1),
+                                   rtol=1e-12, atol=1e-14)
+        self.assertAlmostEqual(energy["closure_residual"]["mean"], 0.0)
+        self.assertTrue(energy["closure_residual"]["within_3se"])
         self.assertEqual(energy["cross_run_covariance"], "unknown_to_flux_and_breeder_H3")
-        self.assertEqual(len(energy["covariance_of_mean_ev2"]), 3)
-        self.assertTrue(all(len(row) == 3 for row in energy["covariance_of_mean_ev2"]))
+        self.assertEqual(len(energy["covariance_of_mean_ev2"]), 9)
 
     def test_heating_target_stops_early_only_with_reliable_mean_peak_and_vov(self):
         import numpy as np

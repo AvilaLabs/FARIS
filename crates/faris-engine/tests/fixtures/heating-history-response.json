@@ -1,0 +1,76 @@
+{
+  "status": "INCONCLUSIVE",
+  "source_definition_sha256": "941fcbf0d64acda6f41941cb68ffaddad042c7823ab9451055c7afa4a321e3b2",
+  "source_kernel_path": "/home/connoravila/.cache/avila-night/cad-integrity/pylib/openmc_plasma_source/tokamak_source.py",
+  "source_kernel_sha256": "b5e7f3d33daea4383ceef02f70877a81438f083a76cf61ab9cb5acfd7e6fa72b",
+  "component_map": {
+    "blanket": [
+      "blanket"
+    ],
+    "first-wall": [
+      "first-wall"
+    ],
+    "tf-coil": [
+      "tf-winding-pack"
+    ]
+  },
+  "component_map_sha256": "c80a73132653ee41551b32a05108d87919b774801541fe2dce5c1fc60fb6b378",
+  "normalization": "eV_per_unit_source_neutron",
+  "domain": "unfiltered_whole_model_all_material_bearing_solids",
+  "source_strength_normalized_to": "one_source_neutron",
+  "batches": 50,
+  "histories": 50000,
+  "target_relative_error": 0.5,
+  "target_reached": false,
+  "variance_of_variance": 0.022382397477390053,
+  "whole_model": {
+    "mean_ev_per_source": 4790392.628453756,
+    "standard_error_ev_per_source": 21993.25673014931
+  },
+  "components": {
+    "blanket": {
+      "mean_ev_per_source": 2760122.6331260065,
+      "standard_error_ev_per_source": 15334.140993230796
+    },
+    "first-wall": {
+      "mean_ev_per_source": 1044938.3206644877,
+      "standard_error_ev_per_source": 7543.61945499905
+    },
+    "tf-coil": {
+      "mean_ev_per_source": 985331.674663528,
+      "standard_error_ev_per_source": 7142.007462616624
+    }
+  },
+  "response_ids": [
+    "whole-model-heating",
+    "component-heating:blanket",
+    "component-heating:first-wall",
+    "component-heating:tf-coil"
+  ],
+  "covariance_of_mean_ev2": [
+    483703341.598258,
+    286962996.72559017,
+    113618929.80936864,
+    83121415.06327596,
+    286962996.72559017,
+    235135880.00028116,
+    38213353.79280968,
+    13613762.932477748,
+    113618929.8093687,
+    38213353.79280961,
+    56906194.48184016,
+    18499381.53472209,
+    83121415.06327598,
+    13613762.932477746,
+    18499381.534722086,
+    51008270.596071556
+  ],
+  "covariance_method": "same-run-independent-batch-covariance-of-mean",
+  "cross_run_covariance": "unknown_to_flux_and_breeder_H3",
+  "closure_residual": {
+    "mean": -2.6643276214599613e-07,
+    "standard_error": 4.5213623846496745e-09,
+    "within_3se": false,
+    "roundoff_tolerance": 1.3615114734346574e-07
+  }
+}

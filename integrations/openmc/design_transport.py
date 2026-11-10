@@ -1290,6 +1290,16 @@ def heating_closure_quality(mean: float, standard_error: float, component_scale:
     return {"within_3se": within, "roundoff_tolerance_ev_per_source": tolerance}
 
 
+def covariance_row_major(covariance):
+    """Serialize a square covariance matrix in the engine's flat row-major contract."""
+    import numpy as np
+
+    matrix = np.asarray(covariance)
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError("history-energy covariance must be a square matrix")
+    return matrix.reshape(-1).tolist()
+
+
 def heating_peak_quality(mean: float, standard_error: float | None) -> tuple[bool, str | None]:
     """Require a positive peak with a reported relative Monte Carlo error no greater than 10%."""
     if not math.isfinite(mean) or mean <= 0.0:
@@ -1598,10 +1608,10 @@ def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count
                               "standard_error_ev_per_source": float(math.sqrt(max(float(covariance[index + 1, index + 1]), 0.0)))}
                        for index, name in enumerate(history_names)},
         "response_ids": ["whole-model-heating"] + [f"component-heating:{name}" for name in history_names],
-        "covariance_of_mean_ev2": covariance.tolist(),
+        "covariance_of_mean_ev2": covariance_row_major(covariance),
         "covariance_method": "same-run-independent-batch-covariance-of-mean",
-        "closure_residual_ev_per_source": {"mean": float(history_closure.mean), "standard_error": closure_se,
-                                           "within_3se": closure_ok, "roundoff_tolerance": roundoff},
+        "closure_residual": {"mean": float(history_closure.mean), "standard_error": closure_se,
+                              "within_3se": closure_ok, "roundoff_tolerance": roundoff},
         "cross_run_covariance": "unknown_to_flux_and_breeder_H3",
     }
     return (*result, history_result)
