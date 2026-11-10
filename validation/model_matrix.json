@@ -1515,9 +1515,9 @@
       "source_sha256": {
         "crates/faris-engine/src/maintenance.rs": "876fcef8869f7c0ed7257143113d608710055cc1b4ae4bcb18fc3a1d20326d93",
         "crates/faris-engine/src/maintenance/actinv.rs": "80698befe7a9c8fe9ce3b4bf10aff999dcfe3905cff4f78cf1087dd33f76f50f",
-        "crates/faris-engine/src/maintenance/files.rs": "4eb83ea0a24b5f9a8cdf40457dde7d9249ff9aafe50fb0280f059885aeeb8a4a",
+        "crates/faris-engine/src/maintenance/files.rs": "96ef52ccecef4aeece051949dd81d31950ada0e1a6486682e541f695e1427d93",
         "crates/faris-engine/src/maintenance/spatial_dose.rs": "bc1ce825dc611eef091dd24492051d23309db7c9383be7b78b96407822a61362",
-        "crates/faris-engine/src/maintenance/spatial_dose_worker.rs": "134f60660610ce9e88166aa8949878ed9d78389e10985b9a0208593d40f27730",
+        "crates/faris-engine/src/maintenance/spatial_dose_worker.rs": "d94ef0d4214485b313b64b84a5424435a9543debf31ecc1e421919beb199e51b",
         "integrations/openmc/maintenance_709_response.py": "9f78f7c4b835a7aac69678ad1e784449e11f66c3aa5e4f165332640023873c3b",
         "integrations/openmc/maintenance_event_r2s.py": "43b1684e10cff3d6582142dc42ac75fb003fd3727e307703c2b557d9895183d3"
       },
@@ -2068,7 +2068,7 @@
       ],
       "source_sha256": {
         "controls/photon_energy_closure.py": "499ec945b24a7d5fb2418ccdd688aa76d9d03e5560b302bcc7d3eb90f094a82d",
-        "crates/faris-engine/src/design/heating.rs": "fe05f10e65db4328b9f1fbbf72efd36e198ffbb954d88c5c315424397b852efe",
+        "crates/faris-engine/src/design/heating.rs": "9ff2f127ad9503ee9c1e0b1d03c532e391492df18a7b8280e59d53fa618c7e4f",
         "integrations/openmc/design_transport.py": "271d0ab9c6b9f5e134bede6236599e72d228de30de0ca4e4cfb1b8e5a2503358"
       },
       "status": "not validated",

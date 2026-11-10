@@ -390,6 +390,8 @@ Options:
           faris-maintenance-designs/v0.1 inputs or faris-maintenance-cad-dose-designs/v0.2 with the checked CAD design, CAD history-rate record, optional history-assumptions override, and dose_physics manifest. The scenario-bound CAD v0.1 format is also supported
       --assumptions <ASSUMPTIONS>
           faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes
+      --actinv <ACTINV>
+          The explicitly selected `actinv` executable for decay-heat execution
       --spatial-dose-curves <SPATIAL_DOSE_CURVES>
           Optional hash-verified faris-maintenance-spatial-dose-curves/v0.2 cache
       --python <PYTHON>
@@ -419,6 +421,7 @@ Usage: faris maintenance dose-prepare [OPTIONS] --config <CONFIG>
 
 Options:
       --config <CONFIG>      faris-maintenance-dose-cad-config/v0.1 preparation request
+      --actinv <ACTINV>      The explicitly selected `actinv` executable for decay-heat execution
       --python <PYTHON>      Python interpreter with the validated OpenMC runtime and plasma-source package [default: python3]
       --worker <WORKER>      Event-dose worker [default: installed worker]
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
