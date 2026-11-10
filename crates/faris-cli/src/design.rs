@@ -481,6 +481,26 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 design_heating(&design, &tool_paths, &options)?
             };
+            if history_rates.is_some()
+                && let Some(path) = report.as_deref()
+                && let Some(name) = path.file_name()
+                && path
+                    .parent()
+                    .filter(|parent| !parent.as_os_str().is_empty())
+                    .unwrap_or_else(|| Path::new("."))
+                    .canonicalize()
+                    .ok()
+                    .is_some_and(|parent| {
+                        run_dir.canonicalize().ok().is_some_and(|run| {
+                            parent.join(name) == run.join("history-energy-rates.json")
+                        })
+                    })
+            {
+                return Err(
+                    "--report cannot overwrite the generated history-energy-rates.json sidecar"
+                        .into(),
+                );
+            }
             print!("{}", render_design_heating_text(&result));
             if let Some(base_path) = history_rates.as_deref()
                 && result
