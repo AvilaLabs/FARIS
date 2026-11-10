@@ -611,15 +611,9 @@ pub fn default_check_runner() -> CheckRunner {
 
 /// Writes the report to a path that must not exist yet, as the command line does.
 fn save_report(path: &Path, report: &ImportReport) -> Result<PathBuf, String> {
-    use std::io::Write;
     let mut bytes = serde_json::to_vec_pretty(report).map_err(|e| e.to_string())?;
     bytes.push(b'\n');
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
-    file.write_all(&bytes)
+    faris_engine::atomic_file::write_new(path, &bytes)
         .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     Ok(path.to_path_buf())
 }

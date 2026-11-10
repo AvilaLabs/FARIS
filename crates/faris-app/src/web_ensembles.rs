@@ -81,7 +81,7 @@ pub(crate) fn write(
         schema: browser::ENSEMBLES_SCHEMA.into(),
         ensembles,
     };
-    std::fs::write(out, serde_json::to_vec(&file)?)?;
+    faris_engine::atomic_file::write_atomic(out, &serde_json::to_vec(&file)?)?;
     eprintln!("wrote {}", out.display());
     Ok(())
 }

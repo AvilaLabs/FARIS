@@ -543,16 +543,10 @@ pub struct Job {
 
 /// Writes the report to a path that must not exist yet.
 fn save_report(dir: &Path, report: &DesignTransportReport) -> Result<PathBuf, String> {
-    use std::io::Write;
     let path = dir.join(REPORT_NAME);
     let mut bytes = serde_json::to_vec_pretty(report).map_err(|e| e.to_string())?;
     bytes.push(b'\n');
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-        .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
-    file.write_all(&bytes)
+    faris_engine::atomic_file::write_new(&path, &bytes)
         .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     Ok(path)
 }
