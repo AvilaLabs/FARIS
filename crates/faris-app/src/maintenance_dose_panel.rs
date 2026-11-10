@@ -50,9 +50,10 @@ pub struct MaintenanceDosePanel {
     cad_dose_physics: String,
     cad_design_file: String,
     cad_designs_inputs: Option<(String, String, String)>,
+    last_run_inputs: Option<DoseInputs>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct DoseInputs {
     designs: String,
     assumptions: String,
@@ -64,6 +65,7 @@ struct DoseRunState {
     cancel: Cancellation,
     receiver: Receiver<Result<(PathBuf, DoseMaintenanceResult), String>>,
     progress: Arc<std::sync::Mutex<Option<String>>>,
+    inputs: DoseInputs,
 }
 
 struct DosePrepareState {
@@ -105,6 +107,7 @@ impl Default for MaintenanceDosePanel {
             cad_dose_physics: String::new(),
             cad_design_file: String::new(),
             cad_designs_inputs: None,
+            last_run_inputs: None,
         }
     }
 }
@@ -130,6 +133,10 @@ fn load(path: PathBuf) -> Result<DoseMaintenanceResult, String> {
     parse_result(&bytes)
 }
 
+fn run_inputs_changed(snapshot: Option<&DoseInputs>, current: &DoseInputs) -> bool {
+    snapshot.is_some_and(|snapshot| snapshot != current)
+}
+
 impl MaintenanceDosePanel {
     pub fn prefill_cad_history(&mut self, context: CadHistoryContext) -> Result<(), String> {
         if self.is_pending() {
@@ -152,6 +159,7 @@ impl MaintenanceDosePanel {
         self.prepare_message = None;
         self.inputs.designs.clear();
         self.cad_designs_inputs = None;
+        self.last_run_inputs = None;
         self.file_name.clear();
         self.selected_design = None;
         self.state = LoadState::Empty;
@@ -211,6 +219,7 @@ impl MaintenanceDosePanel {
             })),
             "cad_design_file_created": self.cad_designs_inputs.is_some(),
             "cad_design_inputs_current": cad_designs_inputs_current,
+            "result_inputs_changed_since_run": run_inputs_changed(self.last_run_inputs.as_ref(), &self.inputs),
             "result_state": result_state,
             "error": error,
         })
@@ -357,6 +366,7 @@ impl MaintenanceDosePanel {
                             DoseField::Result => {
                                 self.cad_context = None;
                                 self.cad_designs_inputs = None;
+                                self.last_run_inputs = None;
                                 let name = path.file_name().map_or_else(
                                     || path.display().to_string(),
                                     |n| n.to_string_lossy().into_owned(),
@@ -427,6 +437,7 @@ impl MaintenanceDosePanel {
                 Ok(Ok((output, result))) => {
                     self.file_name = output.display().to_string();
                     self.selected_design = result.designs.keys().next().cloned();
+                    self.last_run_inputs = self.run.as_ref().map(|run| run.inputs.clone());
                     self.state = LoadState::Ready(result);
                     self.run = None;
                 }
@@ -468,7 +479,9 @@ impl MaintenanceDosePanel {
             if !crate::browser::IS_BROWSER {
                 ui.collapsing("Run dose-governed maintenance", |ui| {
                     ui.label("Prepare dose physics from a passing checked CAD Design and ImportReport. The preparation config authors the solid-to-history-component map and spatial inputs; FARIS clones materials per solid and builds the full-geometry model.");
-                    path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog, &mut self.dialog_error);
+                    ui.add_enabled_ui(self.prepare.is_none(), |ui| {
+                        path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog, &mut self.dialog_error);
+                    });
                     ui.horizontal(|ui| {
                         if self.prepare.is_none() && ui.button("Prepare CAD dose physics").clicked() {
                             match start_dose_prepare(&self.prepare_config, self.cad_context.clone()) {
@@ -497,6 +510,7 @@ impl MaintenanceDosePanel {
                         for (component, solids) in &context.history_components {
                             ui.label(format!("{component}: {}", solids.join(", ")));
                         }
+                        ui.add_enabled_ui(self.prepare.is_none() && self.run.is_none(), |ui| {
                         path_row(ui, "History assumptions override (optional)", &mut self.cad_history_assumptions, DoseField::CadHistoryAssumptions, &mut self.dialog, &mut self.dialog_error);
                         path_row(ui, "Prepared dose-physics manifest", &mut self.cad_dose_physics, DoseField::CadDosePhysics, &mut self.dialog, &mut self.dialog_error);
                         path_row(ui, "New CAD designs file", &mut self.cad_design_file, DoseField::CadDesignFile, &mut self.dialog, &mut self.dialog_error);
@@ -519,12 +533,15 @@ impl MaintenanceDosePanel {
                                 Err(error) => self.state = LoadState::Failed(error),
                             }
                         }
+                        });
                     }
                     ui.label("Provide event-specific D1S/R2S spatial curves. FARIS computes the history coupling and duration; this workflow does not run a general D1S/R2S transport solver.");
-                    path_row(ui, "Designs", &mut self.inputs.designs, DoseField::Designs, &mut self.dialog, &mut self.dialog_error);
-                    path_row(ui, "Dose limits and calculation settings", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog, &mut self.dialog_error);
-                    path_row(ui, "Optional spatial dose curve cache", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog, &mut self.dialog_error);
-                    path_row(ui, "New result file", &mut self.inputs.output, DoseField::Output, &mut self.dialog, &mut self.dialog_error);
+                    ui.add_enabled_ui(self.run.is_none(), |ui| {
+                        path_row(ui, "Designs", &mut self.inputs.designs, DoseField::Designs, &mut self.dialog, &mut self.dialog_error);
+                        path_row(ui, "Dose limits and calculation settings", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog, &mut self.dialog_error);
+                        path_row(ui, "Optional spatial dose curve cache", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog, &mut self.dialog_error);
+                        path_row(ui, "New result file", &mut self.inputs.output, DoseField::Output, &mut self.dialog, &mut self.dialog_error);
+                    });
                     ui.horizontal(|ui| {
                         if self.run.is_none() && ui.button("Run bounded dose coupling").clicked() {
                             let cad_designs_match = self.cad_context.is_none()
@@ -540,7 +557,11 @@ impl MaintenanceDosePanel {
                                 Err("The CAD design inputs changed after the guided setup. Recreate the hash-bound CAD dose design file before running.".into())
                             };
                             match started {
-                                Ok(run) => self.run = Some(run),
+                                Ok(run) => {
+                                    self.run = Some(run);
+                                    self.last_run_inputs = None;
+                                    self.state = LoadState::Empty;
+                                }
                                 Err(error) => self.state = LoadState::Failed(error),
                             }
                         }
@@ -572,7 +593,15 @@ impl MaintenanceDosePanel {
             match &self.state {
                 LoadState::Empty => { ui.label("Open a faris-maintenance-result/v0.2 file to inspect authored spatial-dose scenarios."); },
                 LoadState::Failed(error) => { ui.colored_label(egui::Color32::from_rgb(180, 45, 45), error); },
-                LoadState::Ready(result) => show_result(ui, result, &mut self.selected_design),
+                LoadState::Ready(result) => {
+                    if run_inputs_changed(self.last_run_inputs.as_ref(), &self.inputs) {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(170, 95, 0),
+                            "This result was calculated from the input snapshot captured when the run started. Current input fields have since changed.",
+                        );
+                    }
+                    show_result(ui, result, &mut self.selected_design)
+                }
             }
         });
         self.open = open;
@@ -741,6 +770,7 @@ fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
         cancel,
         receiver,
         progress,
+        inputs: inputs.clone(),
     })
 }
 
@@ -1133,6 +1163,24 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn completed_run_is_detectably_stale_when_visible_inputs_change() {
+        let snapshot = DoseInputs {
+            designs: "designs.json".into(),
+            assumptions: "assumptions.json".into(),
+            curves: "curves.json".into(),
+            output: "result.json".into(),
+        };
+        assert!(!run_inputs_changed(Some(&snapshot), &snapshot));
+
+        let changed = DoseInputs {
+            assumptions: "other-assumptions.json".into(),
+            ..snapshot.clone()
+        };
+        assert!(run_inputs_changed(Some(&snapshot), &changed));
+        assert!(!run_inputs_changed(None, &changed));
+    }
 
     #[test]
     fn cad_design_input_binds_cad_source_rates_and_optional_assumptions_override() {
