@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // SPDX-FileCopyrightText: 2026 Avila Labs
-//! The Tools section the Design check and Design flux windows share: the six tool paths set once
+//! The Tools section the Design check and Design flux windows share: the tool paths set once
 //! (kept in the settings file, `settings`), the environment variables that win over them, and
 //! "Find tools", which looks in the usual places (`tool_finder`) and offers what it found.
 //!
@@ -232,7 +232,12 @@ impl ToolsModel {
 
     /// True while no tool has a value from anywhere: a first run.
     fn nothing_known(&self) -> bool {
-        self.env.is_empty() && !self.settings.has_any_tool()
+        self.env.is_empty()
+            && !Tool::ALL
+                .iter()
+                .copied()
+                .filter(|tool| *tool != Tool::Actinv)
+                .any(|tool| self.settings.tool(tool).is_some())
     }
 
     /// True while Find tools is looking (a capture waits for it).
@@ -330,7 +335,7 @@ impl ToolsModel {
             .default_open(needs_attention || self.nothing_known())
             .show(ui, |ui| {
                 ui.weak(
-                    "The programs FARIS uses for CAD and for OpenMC. Set once: both design windows \
+                    "The programs FARIS uses for CAD, OpenMC, and ACTINV. Set once: both design windows \
                      share these paths and they are kept for the next session. Find tools looks in \
                      the usual places and shows what it found before changing anything.",
                 );

@@ -2107,7 +2107,12 @@ impl eframe::App for FarisApp {
                 }
             }
         }
-        self.maintenance_dose.window(&ctx);
+        let actinv_executable = self.tools.as_ref().and_then(|tools| {
+            let value = tools.borrow().value(crate::settings::Tool::Actinv);
+            (!value.trim().is_empty()).then(|| PathBuf::from(value.trim()))
+        });
+        self.maintenance_dose
+            .window(&ctx, actinv_executable.as_deref());
         self.diff.window(&ctx, self.file.path.as_deref());
         self.design_check.window(&ctx);
         if let Some((design, report)) = self.design_check.take_flux_request() {

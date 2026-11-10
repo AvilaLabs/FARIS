@@ -31,16 +31,18 @@ pub enum Tool {
     PlasmaSource,
     WindowPython,
     OpenmcPackage,
+    Actinv,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 6] = [
+    pub const ALL: [Tool; 7] = [
         Tool::CadPython,
         Tool::OpenmcPython,
         Tool::CrossSections,
         Tool::PlasmaSource,
         Tool::WindowPython,
         Tool::OpenmcPackage,
+        Tool::Actinv,
     ];
 
     /// The key in the settings file.
@@ -52,6 +54,7 @@ impl Tool {
             Self::PlasmaSource => "plasma_source",
             Self::WindowPython => "window_python",
             Self::OpenmcPackage => "openmc_package",
+            Self::Actinv => "actinv",
         }
     }
 
@@ -63,6 +66,7 @@ impl Tool {
             Self::PlasmaSource => "Plasma source folder",
             Self::WindowPython => "Window Python",
             Self::OpenmcPackage => "OpenMC package folder",
+            Self::Actinv => "ACTINV executable",
         }
     }
 
@@ -73,7 +77,7 @@ impl Tool {
             Self::OpenmcPython => Some("FARIS_OPENMC_PYTHON"),
             Self::CrossSections => Some("FARIS_CROSS_SECTIONS"),
             Self::PlasmaSource => Some("FARIS_PLASMA_SOURCE_PATH"),
-            Self::WindowPython | Self::OpenmcPackage => None,
+            Self::WindowPython | Self::OpenmcPackage | Self::Actinv => None,
         }
     }
 

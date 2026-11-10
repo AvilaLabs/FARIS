@@ -352,7 +352,7 @@ impl MaintenanceDosePanel {
             });
     }
 
-    pub fn window(&mut self, ctx: &egui::Context) {
+    pub fn window(&mut self, ctx: &egui::Context, actinv_executable: Option<&Path>) {
         if !self.open {
             return;
         }
@@ -479,12 +479,12 @@ impl MaintenanceDosePanel {
             if !crate::browser::IS_BROWSER {
                 ui.collapsing("Run dose-governed maintenance", |ui| {
                     ui.label("Prepare dose physics from a passing checked CAD Design and ImportReport. The preparation config authors the solid-to-history-component map and spatial inputs; FARIS clones materials per solid and builds the full-geometry model.");
-                    ui.add_enabled_ui(self.prepare.is_none(), |ui| {
+                    ui.add_enabled_ui(!self.is_pending(), |ui| {
                         path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog, &mut self.dialog_error);
                     });
                     ui.horizontal(|ui| {
-                        if self.prepare.is_none() && ui.button("Prepare CAD dose physics").clicked() {
-                            match start_dose_prepare(&self.prepare_config, self.cad_context.clone()) {
+                        if !self.is_pending() && ui.button("Prepare CAD dose physics").clicked() {
+                            match start_dose_prepare(&self.prepare_config, self.cad_context.clone(), actinv_executable) {
                                 Ok(state) => { self.prepare = Some(state); self.prepare_message = None; }
                                 Err(error) => self.state = LoadState::Failed(error),
                             }
@@ -510,7 +510,7 @@ impl MaintenanceDosePanel {
                         for (component, solids) in &context.history_components {
                             ui.label(format!("{component}: {}", solids.join(", ")));
                         }
-                        ui.add_enabled_ui(self.prepare.is_none() && self.run.is_none(), |ui| {
+                        ui.add_enabled_ui(!self.is_pending(), |ui| {
                         path_row(ui, "History assumptions override (optional)", &mut self.cad_history_assumptions, DoseField::CadHistoryAssumptions, &mut self.dialog, &mut self.dialog_error);
                         path_row(ui, "Prepared dose-physics manifest", &mut self.cad_dose_physics, DoseField::CadDosePhysics, &mut self.dialog, &mut self.dialog_error);
                         path_row(ui, "New CAD designs file", &mut self.cad_design_file, DoseField::CadDesignFile, &mut self.dialog, &mut self.dialog_error);
@@ -536,14 +536,14 @@ impl MaintenanceDosePanel {
                         });
                     }
                     ui.label("Provide event-specific D1S/R2S spatial curves. FARIS computes the history coupling and duration; this workflow does not run a general D1S/R2S transport solver.");
-                    ui.add_enabled_ui(self.run.is_none(), |ui| {
+                    ui.add_enabled_ui(!self.is_pending(), |ui| {
                         path_row(ui, "Designs", &mut self.inputs.designs, DoseField::Designs, &mut self.dialog, &mut self.dialog_error);
                         path_row(ui, "Dose limits and calculation settings", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog, &mut self.dialog_error);
                         path_row(ui, "Optional spatial dose curve cache", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog, &mut self.dialog_error);
                         path_row(ui, "New result file", &mut self.inputs.output, DoseField::Output, &mut self.dialog, &mut self.dialog_error);
                     });
                     ui.horizontal(|ui| {
-                        if self.run.is_none() && ui.button("Run bounded dose coupling").clicked() {
+                        if !self.is_pending() && ui.button("Run bounded dose coupling").clicked() {
                             let cad_designs_match = self.cad_context.is_none()
                                 || self.cad_designs_inputs.as_ref()
                                     == Some(&(
@@ -552,7 +552,7 @@ impl MaintenanceDosePanel {
                                         self.cad_dose_physics.trim().to_owned(),
                                     ));
                             let started = if cad_designs_match {
-                                start_dose_run(&self.inputs)
+                                start_dose_run(&self.inputs, actinv_executable)
                             } else {
                                 Err("The CAD design inputs changed after the guided setup. Recreate the hash-bound CAD dose design file before running.".into())
                             };
@@ -571,7 +571,7 @@ impl MaintenanceDosePanel {
                 ui.separator();
             }
             ui.horizontal(|ui| {
-                if ui.button("Open result…").clicked() && self.dialog.is_none() {
+                if !self.is_pending() && ui.button("Open result…").clicked() {
                     let (tx, rx) = mpsc::channel(); self.dialog = Some((DoseField::Result, rx));
                     match crate::thread::Builder::new()
                         .name("faris-dose-result-dialog".into())
@@ -717,7 +717,11 @@ fn path_row(
     });
 }
 
-fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
+fn start_dose_run(
+    inputs: &DoseInputs,
+    actinv_executable: Option<&Path>,
+) -> Result<DoseRunState, String> {
+    let actinv_executable = required_actinv_executable(actinv_executable)?;
     let designs = required_path("designs", &inputs.designs)?;
     let assumptions = required_path("assumptions", &inputs.assumptions)?;
     let curves = optional_path(&inputs.curves);
@@ -735,6 +739,7 @@ fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
         python: PathBuf::from("python3"),
         worker_script,
         work_dir: output.with_extension("dose-work"),
+        actinv_executable: Some(actinv_executable),
     };
     let cancel = Cancellation::default();
     let worker_cancel = cancel.clone();
@@ -777,7 +782,9 @@ fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
 fn start_dose_prepare(
     config: &str,
     cad_context: Option<CadHistoryContext>,
+    actinv_executable: Option<&Path>,
 ) -> Result<DosePrepareState, String> {
+    let actinv_executable = required_actinv_executable(actinv_executable)?;
     let config = required_path("dose CAD preparation config", config)?;
     let worker = default_event_dose_worker().ok_or(
         "OpenMC event-dose worker script was not found in the application package or source tree",
@@ -794,11 +801,33 @@ fn start_dose_prepare(
                 .map_or(Ok(()), |context| {
                     verify_cad_prepare_binding(&config, context)
                 })
-                .and_then(|()| prepare_dose_cad(&config, &python, &worker, &worker_cancel));
+                .and_then(|()| {
+                    prepare_dose_cad(
+                        &config,
+                        &python,
+                        &worker,
+                        Some(&actinv_executable),
+                        &worker_cancel,
+                    )
+                });
             let _ = tx.send(result);
         })
         .map_err(|error| format!("could not start CAD dose preparation worker: {error}"))?;
     Ok(DosePrepareState { cancel, receiver })
+}
+
+fn required_actinv_executable(path: Option<&Path>) -> Result<PathBuf, String> {
+    let path = path.ok_or_else(|| {
+        "Set the ACTINV executable in Tools settings before starting this operation.".to_string()
+    })?;
+    if !path.is_file() {
+        return Err(format!(
+            "The ACTINV executable in Tools settings is not a file: {}",
+            path.display()
+        ));
+    }
+    path.canonicalize()
+        .map_err(|error| format!("Cannot resolve ACTINV executable {}: {error}", path.display()))
 }
 
 fn verify_cad_prepare_binding(
@@ -1191,7 +1220,16 @@ mod tests {
             ..MaintenanceDosePanel::default()
         };
 
-        panel.window(&egui::Context::default());
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 900.0));
+        let output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            },
+            |ui| panel.window(ui.ctx()),
+        );
+        output.drop_without_applying_deltas();
 
         assert_eq!(panel.interface_status()["result_state"], "ready");
         assert_eq!(
