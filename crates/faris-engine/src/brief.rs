@@ -567,6 +567,21 @@ fn plural(n: u64, noun: &str) -> String {
 /// One plain-language sentence for moving blanket thickness at the expense of
 /// shield (breeder-heavy versus reference), built from the contrast numbers.
 pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> Option<String> {
+    allocation_takeaway_output(c, shift_cm, horizon_years).map(|takeaway| takeaway.text)
+}
+
+/// A generated sentence and the calculated quantities whose numbers it contains.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TakeawayOutput {
+    pub text: String,
+    pub quantities: Vec<Quantity>,
+}
+
+pub fn allocation_takeaway_output(
+    c: &Contrast,
+    shift_cm: f64,
+    horizon_years: f64,
+) -> Option<TakeawayOutput> {
     let (breeding, resolved) = c.breeding_pct?;
     let breeding_clause = if resolved {
         let verb = if breeding >= 0.0 { "raises" } else { "lowers" };
@@ -575,10 +590,12 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
         format!("changes breeding by {breeding:+.1} % (within 2σ sampling noise)")
     };
     let mut tail = Vec::new();
+    let mut quantities = vec![Quantity::Tbr];
     let mut worse_first = false;
     if let Some(d) = c.first_swap_y
         && d.abs() >= 0.05
     {
+        quantities.push(Quantity::Fluence);
         worse_first = d < 0.0;
         tail.push(format!(
             "{} the first magnet swap {:.1} years {}{}",
@@ -589,6 +606,9 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
         ));
     }
     if let Some(d) = c.swaps {
+        if !quantities.contains(&Quantity::Fluence) {
+            quantities.push(Quantity::Fluence);
+        }
         let band = c.swaps_band.map_or("", BandVerdict::note);
         tail.push(match d {
             0 => format!("leaves the swap count over {horizon_years:.0} years unchanged{band}"),
@@ -616,12 +636,19 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
         }
     }
     sentence.push('.');
-    Some(sentence)
+    Some(TakeawayOutput {
+        text: sentence,
+        quantities,
+    })
 }
 
 /// One sentence for the open outboard port in the reference allocation
 /// (`c` is port minus no-port).
 pub fn port_takeaway(c: &Contrast, horizon_years: f64) -> Option<String> {
+    port_takeaway_output(c, horizon_years).map(|takeaway| takeaway.text)
+}
+
+pub fn port_takeaway_output(c: &Contrast, horizon_years: f64) -> Option<TakeawayOutput> {
     let swaps = c.swaps?;
     let net = c.net_twh?;
     let band = c.swaps_band.map_or("", BandVerdict::note);
@@ -636,11 +663,14 @@ pub fn port_takeaway(c: &Contrast, horizon_years: f64) -> Option<String> {
             plural(d.unsigned_abs(), "magnet swap")
         ),
     };
-    Some(format!(
-        "Adding the outboard port, an open duct with no shield plug, {swap_clause} and {} {:.2} TWh of lifetime net electricity (reference allocation).",
-        if net < 0.0 { "costs" } else { "adds" },
-        net.abs()
-    ))
+    Some(TakeawayOutput {
+        text: format!(
+            "Adding the outboard port, an open duct with no shield plug, {swap_clause} and {} {:.2} TWh of lifetime net electricity (reference allocation).",
+            if net < 0.0 { "costs" } else { "adds" },
+            net.abs()
+        ),
+        quantities: vec![Quantity::Fluence, Quantity::NetElectricPower],
+    })
 }
 
 /// The four arrangements compared: `cells[port 0 / no-port 1][reference 0 /
@@ -658,6 +688,8 @@ pub struct StudyComparison {
     pub horizon_years: f64,
     /// Generated sentences; empty when the inputs do not support any.
     pub takeaways: Vec<String>,
+    /// Calculated quantities represented in each corresponding generated sentence.
+    pub takeaway_quantities: Vec<Vec<Quantity>>,
 }
 
 pub fn compare_study(cells: &[[ArrangementSummary; 2]; 2]) -> StudyComparison {
@@ -668,13 +700,20 @@ pub fn compare_study(cells: &[[ArrangementSummary; 2]; 2]) -> StudyComparison {
     let horizon = cells[0][0].horizon_years.max(cells[0][1].horizon_years);
     let horizon_years = if horizon > 0.0 { horizon } else { 30.0 };
     let shift_cm = ((BREEDER_BLANKET_M - REFERENCE_BLANKET_M) * 100.0).round();
-    let takeaways = [
-        allocation_takeaway(&allocation_with_port, shift_cm, horizon_years),
-        port_takeaway(&port_reference, horizon_years),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
+    let generated_takeaways = [
+        allocation_takeaway_output(&allocation_with_port, shift_cm, horizon_years),
+        port_takeaway_output(&port_reference, horizon_years),
+    ];
+    let takeaways = generated_takeaways
+        .iter()
+        .flatten()
+        .map(|takeaway| takeaway.text.clone())
+        .collect();
+    let takeaway_quantities = generated_takeaways
+        .into_iter()
+        .flatten()
+        .map(|takeaway| takeaway.quantities)
+        .collect();
     StudyComparison {
         allocation_with_port,
         allocation_no_port,
@@ -682,6 +721,7 @@ pub fn compare_study(cells: &[[ArrangementSummary; 2]; 2]) -> StudyComparison {
         port_breeder,
         horizon_years,
         takeaways,
+        takeaway_quantities,
     }
 }
 
@@ -1372,6 +1412,13 @@ mod tests {
         assert_eq!(study.port_breeder.swaps, Some(5));
         assert_eq!(study.allocation_no_port.swaps, Some(0));
         assert_eq!(study.takeaways.len(), 2);
+        assert_eq!(
+            study.takeaway_quantities,
+            vec![
+                vec![Quantity::Tbr, Quantity::Fluence],
+                vec![Quantity::Fluence, Quantity::NetElectricPower]
+            ]
+        );
         assert_eq!(study.horizon_years, 30.0);
     }
 

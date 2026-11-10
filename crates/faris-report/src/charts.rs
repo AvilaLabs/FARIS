@@ -133,8 +133,14 @@ const TICK: f32 = 6.8;
 const LABEL: f32 = 7.2;
 
 fn title_block(svg: &mut Svg, x: f32, title: &str, subtitles: &[&str]) -> f32 {
-    svg.text(x, 11.5, title, TextStyle::new(9.2, INK).bold());
+    let title_lines = wrap_lines(title, (svg.width() - x - 20.0).max(1.0), 9.2);
     let mut y = 11.5;
+    for (i, line) in title_lines.iter().enumerate() {
+        if i > 0 {
+            y += 9.6;
+        }
+        svg.text(x, y, line, TextStyle::new(9.2, INK).bold());
+    }
     for line in subtitles {
         y += 9.6;
         svg.text(x, y, line, TextStyle::new(6.4, MUTED));
@@ -1065,6 +1071,44 @@ mod tests {
         assert_eq!(flux.svg.matches("<circle").count(), 7);
         // Three lines per error bar plus gridlines and axes.
         assert!(flux.svg.matches("<line").count() > 7 * 3);
+    }
+
+    #[test]
+    fn sweep_chart_titles_wrap_inside_their_panel_width() {
+        let points = sweep();
+        let summaries: Vec<Option<HistorySummary>> = (0..points.len())
+            .map(|i| {
+                Some(HistorySummary {
+                    magnets_replaceable: true,
+                    magnet_replacements: [4, 5, 6][i % 3],
+                    first_magnet_replacement_years: Some(6.0),
+                    magnet_permanent_limit_years: None,
+                    net_electricity_twh: Some(33.0 + 0.1 * i as f64),
+                    final_available_tritium_kg: 3.0,
+                    uncertainty: Default::default(),
+                })
+            })
+            .collect();
+        for chart in [
+            sweep_breeding_chart(&points),
+            sweep_flux_chart(&points),
+            sweep_history_chart(&points, &summaries),
+        ] {
+            let title_lines: Vec<_> = chart
+                .svg
+                .lines()
+                .filter(|line| line.contains("font-size=\"9.20\""))
+                .filter_map(|line| line.split_once('>').map(|(_, tail)| tail))
+                .filter_map(|tail| tail.split_once("</text>").map(|(text, _)| text))
+                .collect();
+            assert!(!title_lines.is_empty(), "{}", chart.name);
+            for line in title_lines {
+                assert!(
+                    text_width(FontKind::Body, line, 9.2) <= chart.width - 22.0,
+                    "title line exceeds its panel: {line}"
+                );
+            }
+        }
     }
 
     #[test]

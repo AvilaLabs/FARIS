@@ -1276,6 +1276,49 @@ mod tests {
             ExecutionStatus::Cancelled
         );
     }
+    // Verifies: PERF-024, AUTO-040, REL-006
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cancellation_kills_a_running_grandchild_process() {
+        let (dir, spec) = shell("sleep 30 & echo $! > grandchild.pid; wait");
+        let pid_file = dir.path().join("grandchild.pid");
+        let cancellation = Cancellation::default();
+        let remote = cancellation.clone();
+        let worker = thread::spawn(move || run_job(&spec, &remote).unwrap());
+
+        let start_deadline = Instant::now() + Duration::from_secs(2);
+        let pid: u32 = loop {
+            if let Ok(contents) = std::fs::read_to_string(&pid_file)
+                && let Ok(pid) = contents.trim().parse()
+            {
+                break pid;
+            }
+            assert!(Instant::now() < start_deadline, "grandchild did not start");
+            thread::sleep(Duration::from_millis(10));
+        };
+        let pid_stat = PathBuf::from(format!("/proc/{pid}/stat"));
+        let cancelled_at = Instant::now();
+        cancellation.cancel();
+        let result = worker.join().unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Cancelled);
+        assert!(cancelled_at.elapsed() < Duration::from_secs(2));
+
+        // The runner cannot reap grandchildren. Require the OS reaper to remove the dead
+        // process entry; a zombie still counts as an unresolved orphan for this gate.
+        let cleanup_deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            match std::fs::read_to_string(&pid_stat) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                _ => {}
+            }
+            assert!(
+                Instant::now() < cleanup_deadline,
+                "grandchild {pid} remains in /proc after cancellation"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
     // Verifies: AUTO-040, SEC-063, PLAT-004, PLAT-005
     #[test]
     fn oversized_output_is_bounded_even_when_a_process_exits_quickly() {

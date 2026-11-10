@@ -12,9 +12,9 @@ not establish that the full 1.0 target set is met.
 
 At this baseline, the requirement tables recorded 14 of the 44 release-gate IDs
 as Met. SRC-002 source-power bookkeeping, NUC-053 seed separation, NUC-050
-replicated fast-flux performance, MAG-003 peak-density/volume display, and
-SEC-001 file-opening controls now meet their written criteria, bringing the
-recorded count to 19 of 44. This is recorded evidence, not a fresh release-gate
+replicated fast-flux performance, MAG-003 peak-density/volume display,
+SEC-001 file-opening controls, and OPS-031/032 duration sensitivity and cited
+presets now meet their written criteria, bringing the recorded count to 21 of 44. This is recorded evidence, not a fresh release-gate
 pass or physical qualification. The NUC-053 control does not assert formal PRNG
 stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The

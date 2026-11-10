@@ -91,6 +91,8 @@ pub struct MaintenancePanel {
     duration_snapshot: Option<DurationSnapshot>,
     duration_preset_index: usize,
     duration_component: String,
+    /// Per-component authored low/high bounds, stored in days for the editor.
+    duration_bounds_days: BTreeMap<String, (f64, f64)>,
     pending_history_edit: Option<OperatingHistoryAssumptions>,
     tornado: Option<DurationTornado>,
     tornado_receiver: Option<TornadoReceiver>,
@@ -112,6 +114,7 @@ impl Default for MaintenancePanel {
             duration_snapshot: None,
             duration_preset_index: 0,
             duration_component: String::new(),
+            duration_bounds_days: BTreeMap::new(),
             pending_history_edit: None,
             tornado: None,
             tornado_receiver: None,
@@ -167,6 +170,7 @@ impl MaintenancePanel {
             self.tornado = None;
             self.tornado_error = None;
             self.duration_component.clear();
+            self.duration_bounds_days.clear();
         }
     }
 
@@ -179,10 +183,10 @@ impl MaintenancePanel {
     fn duration_what_if(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new("Replacement-duration what-if")
             .id_salt("maintenance-duration-what-if")
-            .default_open(false)
+            .default_open(true)
             .show(ui, |ui| {
                 let Some(snapshot) = self.duration_snapshot.clone() else {
-                    ui.weak("Load and calculate an identified operating history to compare a replacement duration.");
+                    ui.weak("Load and calculate an identified operating history to compare replacement durations.");
                     return;
                 };
                 let components: Vec<String> = snapshot
@@ -192,9 +196,7 @@ impl MaintenancePanel {
                     .filter(|limit| limit.class == ComponentClass::Replaceable)
                     .map(|limit| limit.component_id.clone())
                     .fold(Vec::new(), |mut ids, id| {
-                        if !ids.contains(&id) {
-                            ids.push(id);
-                        }
+                        if !ids.contains(&id) { ids.push(id); }
                         ids
                     });
                 if components.is_empty() {
@@ -208,19 +210,15 @@ impl MaintenancePanel {
                 }
                 let presets = maintenance_presets();
                 self.duration_preset_index = self.duration_preset_index.min(presets.len() - 1);
-                let previous_choice =
-                    (self.duration_component.clone(), self.duration_preset_index);
+                let previous_choice = (self.duration_component.clone(), self.duration_preset_index);
+                let previous_bounds = self.duration_bounds_days.clone();
                 ui.horizontal(|ui| {
-                    ui.label("Replaceable component");
+                    ui.label("Literature campaign component");
                     egui::ComboBox::from_id_salt("maintenance-duration-component")
                         .selected_text(&self.duration_component)
                         .show_ui(ui, |ui| {
                             for component in &components {
-                                ui.selectable_value(
-                                    &mut self.duration_component,
-                                    component.clone(),
-                                    component,
-                                );
+                                ui.selectable_value(&mut self.duration_component, component.clone(), component);
                             }
                         });
                 });
@@ -230,87 +228,68 @@ impl MaintenancePanel {
                         .selected_text(presets[self.duration_preset_index].title)
                         .show_ui(ui, |ui| {
                             for (index, preset) in presets.iter().enumerate() {
-                                ui.selectable_value(
-                                    &mut self.duration_preset_index,
-                                    index,
-                                    preset.title,
-                                );
+                                ui.selectable_value(&mut self.duration_preset_index, index, preset.title);
                             }
                         });
                 });
-                if previous_choice
-                    != (self.duration_component.clone(), self.duration_preset_index)
-                {
-                    self.duration_revision = self.duration_revision.wrapping_add(1);
-                    self.tornado = None;
-                    self.tornado_error = None;
+                ui.label("Independent authored duration bounds for each replaceable component (days); equal bounds mean the current authored value");
+                for component in &components {
+                    let Ok(base_s) = base_replacement_duration_s(&snapshot.assumptions, component) else { continue };
+                    let defaults = (days(base_s), days(base_s));
+                    let bounds = self.duration_bounds_days.entry(component.clone()).or_insert(defaults);
+                    ui.horizontal(|ui| {
+                        ui.label(component);
+                        ui.label("low");
+                        ui.add(egui::DragValue::new(&mut bounds.0).speed(0.1).suffix(" d"));
+                        ui.label("high");
+                        ui.add(egui::DragValue::new(&mut bounds.1).speed(0.1).suffix(" d"));
+                    });
                 }
+                let current_choice = (self.duration_component.clone(), self.duration_preset_index);
+                let current_bounds = self.duration_bounds_days.clone();
+                self.invalidate_if_duration_inputs_changed(
+                    &previous_choice,
+                    &previous_bounds,
+                    &current_choice,
+                    &current_bounds,
+                );
                 let preset = presets[self.duration_preset_index].clone();
                 ui.small(format!(
                     "{}: {:.1} months whole-campaign outage ({:.1} days). Source: {}",
-                    preset.label,
-                    preset.duration_months,
-                    days(preset.duration_s()),
-                    preset.citation
+                    preset.label, preset.duration_months, days(preset.duration_s()), preset.citation
                 ));
                 ui.small(preset.conditions);
-                ui.hyperlink_to(
-                    "Open source",
-                    preset.source_link.value.unwrap_or("https://arxiv.org/pdf/1412.4008"),
-                );
+                ui.small(format!("Scope and conditions: {}", maintenance_preset_metadata(&preset)));
+                ui.hyperlink_to("Open source", preset.source_link.value.unwrap_or("https://arxiv.org/pdf/1412.4008"));
                 ui.colored_label(
                     Kind::Conditional.color(),
-                    "The source duration is for an EU-DEMO blanket and divertor campaign. Applying it to one selected component creates an authored scenario what-if; the paper does not report a per-component duration.",
+                    "The source duration is for an EU-DEMO blanket and divertor campaign. It is included as one endpoint only for the selected component; the paper does not report per-component durations.",
                 );
-                let current = base_replacement_duration_s(
-                    &snapshot.assumptions,
-                    &self.duration_component,
-                );
-                match current {
-                    Err(error) => {
-                        ui.colored_label(Kind::Failed.color(), error);
+                ui.label("These are deterministic authored scenario sensitivities. No model uncertainty is propagated.");
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(self.tornado_receiver.is_none(), egui::Button::new("Calculate duration tornado"))
+                        .on_hover_text("Runs a base history and two endpoint histories for every replaceable component on a worker thread.")
+                        .clicked()
+                    {
+                        match duration_ranges_for_panel(
+                            &snapshot.assumptions,
+                            &self.duration_bounds_days,
+                            &self.duration_component,
+                            &preset,
+                        ) {
+                            Ok(ranges) => self.start_tornado(snapshot.clone(), ranges, ui.ctx()),
+                            Err(error) => self.tornado_error = Some(error),
+                        }
                     }
-                    Ok(base_s) => {
-                        ui.small(format!(
-                            "Current duration: {}. Campaign value: {}.",
-                            days_text(base_s, 1),
-                            days_text(preset.duration_s(), 1)
-                        ));
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add_enabled(
-                                    self.tornado_receiver.is_none(),
-                                    egui::Button::new("Calculate duration tornado"),
-                                )
-                                .on_hover_text("Runs the current history and the low/high duration cases on a worker thread. The history's recorded assumptions and rates are the inputs.")
-                                .clicked()
-                            {
-                                self.start_tornado(snapshot.clone(), &preset, base_s, ui.ctx());
-                            }
-                            if ui
-                                .add_enabled(
-                                    self.pending_history_edit.is_none(),
-                                    egui::Button::new("Apply campaign duration to this component"),
-                                )
-                                .clicked()
-                            {
-                                match assumptions_with_campaign_duration(
-                                    &snapshot.assumptions,
-                                    &self.duration_component,
-                                    &preset,
-                                ) {
-                                    Ok(edited) => self.pending_history_edit = Some(edited),
-                                    Err(error) => self.tornado_error = Some(error),
-                                }
-                            }
-                        });
+                    if ui.add_enabled(self.pending_history_edit.is_none(), egui::Button::new("Apply campaign duration to this component")).clicked() {
+                        match assumptions_with_campaign_duration(&snapshot.assumptions, &self.duration_component, &preset) {
+                            Ok(edited) => self.pending_history_edit = Some(edited),
+                            Err(error) => self.tornado_error = Some(error),
+                        }
                     }
-                }
+                });
                 if self.tornado_receiver.is_some() {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.weak("Calculating three bounded histories…");
-                    });
+                    ui.horizontal(|ui| { ui.spinner(); ui.weak("Calculating base plus two endpoints per component…"); });
                     ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
                 }
                 if let Some(error) = &self.tornado_error {
@@ -318,46 +297,13 @@ impl MaintenancePanel {
                 }
                 if let Some(tornado) = &self.tornado {
                     ui.separator();
-                    let availability_validation =
-                        faris_model::validation::ValidationMark::current(
-                            faris_model::validation::Quantity::Availability,
-                        )
-                        .tag();
-                    let electricity_validation =
-                        faris_model::validation::ValidationMark::current(
-                            faris_model::validation::Quantity::NetElectricPower,
-                        )
-                        .tag();
-                    let availability_note = validation_hover_text(
-                        faris_model::validation::Quantity::Availability,
-                    );
-                    let electricity_note = validation_hover_text(
-                        faris_model::validation::Quantity::NetElectricPower,
-                    );
-                    let lit_endpoint = tornado.bars.first().map_or("no endpoint", |bar| {
-                        let is_low = preset.duration_s() == bar.low_s;
-                        let is_high = preset.duration_s() == bar.high_s;
-                        match (is_low, is_high) {
-                            (true, true) => "both endpoints (the durations are equal)",
-                            (true, false) => "low-duration endpoint",
-                            (false, true) => "high-duration endpoint",
-                            (false, false) => "no endpoint",
-                        }
-                    });
+                    let availability_validation = faris_model::validation::ValidationMark::current(faris_model::validation::Quantity::Availability).tag();
+                    let electricity_validation = faris_model::validation::ValidationMark::current(faris_model::validation::Quantity::NetElectricPower).tag();
                     ui.label(format!(
-                        "These are deterministic scenario sensitivities, not uncertainty bands. No model uncertainty is propagated. Current matrix validation: availability {availability_validation}; net electricity {electricity_validation}. The literature campaign value applies only at the {lit_endpoint}; the other endpoint is the current authored duration."
-                    ))
-                    .on_hover_text(format!(
-                        "Availability — {}\nNet electric power — {}",
-                        availability_note,
-                        electricity_note,
+                        "Deterministic sensitivity, not an uncertainty band. Availability {availability_validation}; net electricity {electricity_validation}. Literature endpoint applies only to {}.",
+                        self.duration_component
                     ));
-                    ui.small(format!(
-                        "Campaign endpoint source: {} · {} · {}",
-                        preset.id,
-                        preset.citation,
-                        preset.source_link.value.unwrap_or("source link not stated")
-                    ));
+                    ui.small(format!("Campaign endpoint source for {}: {} · {} · {}", self.duration_component, preset.id, preset.citation, preset.source_link.value.unwrap_or("source link not stated")));
                     ui.label(format!(
                         "Base (conditional deterministic case): availability {:.2} %{}",
                         tornado.base.availability * 100.0,
@@ -367,33 +313,33 @@ impl MaintenancePanel {
                         )
                     ));
                     for bar in &tornado.bars {
+                        let low_label = duration_endpoint_label(bar, bar.low_s, &preset);
+                        let high_label = duration_endpoint_label(bar, bar.high_s, &preset);
                         ui.label(format!(
-                            "{} · authored low-duration endpoint {}: availability {:.2} %{}; authored high-duration endpoint {}: {:.2} %{}",
+                            "{} · {} {}: availability {:.2} %{}; {} {}: availability {:.2} %{}",
                             bar.component_id,
+                            low_label,
                             days_text(bar.low_s, 1),
                             bar.at_low.availability * 100.0,
-                            bar.at_low.net_electricity_mwh.map_or_else(
-                                || "".to_owned(),
-                                |mwh| format!("; {} MWh", group_thousands(mwh))
-                            ),
+                            bar.at_low.net_electricity_mwh.map_or_else(String::new, |mwh| format!("; {} MWh", group_thousands(mwh))),
+                            high_label,
                             days_text(bar.high_s, 1),
                             bar.at_high.availability * 100.0,
-                            bar.at_high.net_electricity_mwh.map_or_else(
-                                || "".to_owned(),
-                                |mwh| format!("; {} MWh", group_thousands(mwh))
-                            )
+                            bar.at_high.net_electricity_mwh.map_or_else(String::new, |mwh| format!("; {} MWh", group_thousands(mwh))),
                         ));
-                        ui.small(format!(
-                            "Duration bounds: {}. The literature source applies only to the endpoint identified above.",
-                            input_label_text(&bar.label)
-                        ));
+                        if bar.component_id == self.duration_component {
+                            ui.hyperlink_to(
+                                format!("Literature endpoint source: {}", preset.citation),
+                                preset.source_link.value.unwrap_or("https://arxiv.org/pdf/1412.4008"),
+                            );
+                        } else {
+                            ui.small(format!("Duration bounds: {}.", input_label_text(&bar.label)));
+                        }
                     }
+                    duration_tornado_chart(ui, tornado, &preset);
                 }
                 if self.pending_history_edit.is_some() {
-                    ui.colored_label(
-                        Kind::Authored.color(),
-                        "Literature duration prepared as an authored scenario assumption. The application will validate and apply it through the history editor; use Undo to restore the prior assumptions.",
-                    );
+                    ui.colored_label(Kind::Authored.color(), "Literature duration prepared as an authored scenario assumption. The application will validate and apply it through the history editor; use Undo to restore the prior assumptions.");
                 }
             });
     }
@@ -401,28 +347,16 @@ impl MaintenancePanel {
     fn start_tornado(
         &mut self,
         snapshot: DurationSnapshot,
-        preset: &MaintenancePreset,
-        base_s: f64,
+        ranges: Vec<DurationRange>,
         ctx: &egui::Context,
     ) {
-        let (low_s, high_s) = if base_s <= preset.duration_s() {
-            (base_s, preset.duration_s())
-        } else {
-            (preset.duration_s(), base_s)
-        };
-        let range = DurationRange {
-            component_id: self.duration_component.clone(),
-            low_s,
-            high_s,
-            label: InputLabel::Authored,
-        };
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
         let revision = self.duration_revision;
         let spawned = crate::thread::Builder::new()
             .name("faris-duration-tornado".into())
             .spawn(move || {
-                let result = duration_tornado(&snapshot.assumptions, &snapshot.rates, &[range]);
+                let result = duration_tornado(&snapshot.assumptions, &snapshot.rates, &ranges);
                 let _ = sender.send((revision, result));
                 context.request_repaint();
             });
@@ -435,6 +369,24 @@ impl MaintenancePanel {
             Err(error) => {
                 self.tornado_error = Some(format!("Cannot start tornado worker: {error}"))
             }
+        }
+    }
+
+    fn invalidate_duration_analysis(&mut self) {
+        self.duration_revision = self.duration_revision.wrapping_add(1);
+        self.tornado = None;
+        self.tornado_error = None;
+    }
+
+    fn invalidate_if_duration_inputs_changed(
+        &mut self,
+        old_choice: &(String, usize),
+        old_bounds: &BTreeMap<String, (f64, f64)>,
+        new_choice: &(String, usize),
+        new_bounds: &BTreeMap<String, (f64, f64)>,
+    ) {
+        if duration_inputs_changed(old_choice, old_bounds, new_choice, new_bounds) {
+            self.invalidate_duration_analysis();
         }
     }
 
@@ -752,6 +704,119 @@ fn days(seconds: f64) -> f64 {
 
 fn years(seconds: f64) -> f64 {
     seconds / JULIAN_YEAR_SECONDS
+}
+
+fn maintenance_preset_metadata(preset: &MaintenancePreset) -> String {
+    fn condition<T: std::fmt::Display>(
+        value: &faris_model::remote_handling::Condition<T>,
+    ) -> String {
+        match (&value.value, value.missing_reason) {
+            (Some(value), _) => value.to_string(),
+            (None, Some(reason)) => format!("not stated ({reason})"),
+            (None, None) => "not stated".into(),
+        }
+    }
+
+    format!(
+        "{}; {} parallel systems; {} ports; {} blanket/divertor components; contingency: {}",
+        preset.scope,
+        condition(&preset.parallel_systems),
+        condition(&preset.ports),
+        condition(&preset.modules),
+        condition(&preset.contingency_fraction),
+    )
+}
+
+fn duration_inputs_changed(
+    old_choice: &(String, usize),
+    old_bounds: &BTreeMap<String, (f64, f64)>,
+    new_choice: &(String, usize),
+    new_bounds: &BTreeMap<String, (f64, f64)>,
+) -> bool {
+    old_choice != new_choice || old_bounds != new_bounds
+}
+
+fn duration_ranges_for_panel(
+    assumptions: &OperatingHistoryAssumptions,
+    bounds_days: &BTreeMap<String, (f64, f64)>,
+    literature_component: &str,
+    preset: &MaintenancePreset,
+) -> Result<Vec<DurationRange>, String> {
+    let mut components = Vec::new();
+    for limit in assumptions
+        .service_limits
+        .iter()
+        .filter(|limit| limit.class == ComponentClass::Replaceable)
+    {
+        if !components.contains(&limit.component_id) {
+            components.push(limit.component_id.clone());
+        }
+    }
+    let mut ranges = Vec::with_capacity(components.len());
+    for component in components {
+        let Some(&(low_days, high_days)) = bounds_days.get(&component) else {
+            return Err(format!("Enter authored duration bounds for {component}."));
+        };
+        if !(low_days.is_finite() && high_days.is_finite() && low_days > 0.0) {
+            return Err(format!(
+                "Duration bounds for {component} must be finite and positive."
+            ));
+        }
+        if low_days > high_days {
+            return Err(format!(
+                "Authored duration bounds for {component} need low at or below high."
+            ));
+        }
+        let (mut low_s, mut high_s) = (low_days * DAY_S, high_days * DAY_S);
+        let label = if component == literature_component {
+            let campaign_s = preset.duration_s();
+            if campaign_s <= low_s {
+                low_s = campaign_s;
+            } else if campaign_s >= high_s {
+                high_s = campaign_s;
+            } else {
+                return Err(format!(
+                    "The selected literature duration for {component} must be at or beyond one authored bound so it appears as one endpoint."
+                ));
+            }
+            if low_s == high_s {
+                return Err(format!(
+                    "The selected literature endpoint for {component} equals its authored duration; choose a distinct authored bound."
+                ));
+            }
+            preset.input_label()
+        } else {
+            if low_s == high_s {
+                return Err(format!(
+                    "Set distinct authored low and high bounds for {component}."
+                ));
+            }
+            InputLabel::Authored
+        };
+        ranges.push(DurationRange {
+            component_id: component,
+            low_s,
+            high_s,
+            label,
+        });
+    }
+    Ok(ranges)
+}
+
+fn duration_endpoint_label(
+    bar: &faris_engine::duration_sensitivity::TornadoBar,
+    value_s: f64,
+    preset: &MaintenancePreset,
+) -> &'static str {
+    match &bar.label {
+        InputLabel::Literature { preset_id, .. }
+            if preset_id == preset.id && value_s == preset.duration_s() =>
+        {
+            "literature endpoint"
+        }
+        _ if value_s == bar.low_s => "authored low endpoint",
+        _ => "authored high endpoint",
+    }
 }
 
 fn assumptions_with_campaign_duration(
@@ -1266,6 +1331,190 @@ fn nearest_event(xs: &[f32], x: f32, reach: f32) -> Option<usize> {
         .filter(|(_, d)| *d <= reach)
         .min_by(|a, b| a.1.total_cmp(&b.1))
         .map(|(i, _)| i)
+}
+
+fn duration_tornado_chart(
+    ui: &mut egui::Ui,
+    tornado: &DurationTornado,
+    preset: &MaintenancePreset,
+) {
+    if tornado.bars.is_empty() {
+        return;
+    }
+    ui.weak(
+        "Rank follows the engine tornado order: largest absolute net-electricity swing first, with availability swing used where net electricity is unavailable.",
+    );
+    ui.horizontal(|ui| {
+        legend_swatch(ui, Kind::Authored.color(), "authored endpoint");
+        legend_swatch(ui, Kind::Literature.color(), "literature endpoint");
+    });
+    let width = ui.available_width().clamp(520.0, 1400.0);
+    let row_height = 27.0;
+    let height = 98.0 + row_height * tornado.bars.len() as f32;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let painter = ui.painter_at(rect);
+    let weak = ui.visuals().weak_text_color();
+    let axis = crate::theme::palette().chart_axis;
+    let panel_gap = 24.0;
+    let panel_width = (rect.width() - panel_gap) / 2.0;
+
+    for metric in 0..2 {
+        let panel_left = rect.left() + metric as f32 * (panel_width + panel_gap);
+        let title = if metric == 0 {
+            "Net electricity change from base\n(TWh)"
+        } else {
+            "Availability change from base\n(percentage points)"
+        };
+        painter.text(
+            egui::pos2(panel_left, rect.top() + 2.0),
+            egui::Align2::LEFT_TOP,
+            title,
+            egui::FontId::proportional(11.0),
+            ui.visuals().text_color(),
+        );
+        let plot_left = panel_left + 92.0;
+        let plot_right = panel_left + panel_width - 5.0;
+        let plot_top = rect.top() + 40.0;
+        let plot_bottom = rect.top() + 43.0 + row_height * tornado.bars.len() as f32;
+        let extent = tornado
+            .bars
+            .iter()
+            .flat_map(|bar| {
+                let deltas = if metric == 0 {
+                    match (
+                        bar.at_low
+                            .net_electricity_mwh
+                            .zip(tornado.base.net_electricity_mwh),
+                        bar.at_high
+                            .net_electricity_mwh
+                            .zip(tornado.base.net_electricity_mwh),
+                    ) {
+                        (Some((low, base)), Some((high, _))) => {
+                            Some([(low - base) / 1_000_000.0, (high - base) / 1_000_000.0])
+                        }
+                        _ => None,
+                    }
+                } else {
+                    Some([
+                        (bar.at_low.availability - tornado.base.availability) * 100.0,
+                        (bar.at_high.availability - tornado.base.availability) * 100.0,
+                    ])
+                };
+                deltas.into_iter().flatten()
+            })
+            .filter(|value| value.is_finite())
+            .fold(0.0_f64, |max, value| max.max(value.abs()))
+            .max(if metric == 0 { 0.001 } else { 0.01 });
+        let x = |value: f64| {
+            plot_left + ((value / extent + 1.0) * 0.5) as f32 * (plot_right - plot_left)
+        };
+        let zero = x(0.0);
+        painter.line_segment(
+            [egui::pos2(zero, plot_top), egui::pos2(zero, plot_bottom)],
+            egui::Stroke::new(1.0, axis),
+        );
+        painter.line_segment(
+            [
+                egui::pos2(plot_left, plot_bottom),
+                egui::pos2(plot_right, plot_bottom),
+            ],
+            egui::Stroke::new(1.0, axis),
+        );
+        let unit = if metric == 0 { "TWh" } else { "pp" };
+        for (position, value) in [-extent, 0.0, extent].into_iter().enumerate() {
+            let tick_x = x(value);
+            painter.line_segment(
+                [
+                    egui::pos2(tick_x, plot_bottom - 2.0),
+                    egui::pos2(tick_x, plot_bottom + 2.0),
+                ],
+                egui::Stroke::new(1.0, axis),
+            );
+            painter.text(
+                egui::pos2(tick_x, plot_bottom + 4.0),
+                match position {
+                    0 => egui::Align2::LEFT_TOP,
+                    2 => egui::Align2::RIGHT_TOP,
+                    _ => egui::Align2::CENTER_TOP,
+                },
+                if metric == 0 {
+                    format!("{value:+.3} {unit}")
+                } else {
+                    format!("{value:+.2} {unit}")
+                },
+                egui::FontId::proportional(9.0),
+                weak,
+            );
+        }
+        for (row, bar) in tornado.bars.iter().enumerate() {
+            let y = plot_top + 5.0 + row as f32 * row_height;
+            painter.text(
+                egui::pos2(plot_left - 7.0, y),
+                egui::Align2::RIGHT_CENTER,
+                format!("{:02} {}", row + 1, bar.component_id),
+                egui::FontId::proportional(10.0),
+                weak,
+            );
+            let deltas = if metric == 0 {
+                match (
+                    bar.at_low
+                        .net_electricity_mwh
+                        .zip(tornado.base.net_electricity_mwh),
+                    bar.at_high
+                        .net_electricity_mwh
+                        .zip(tornado.base.net_electricity_mwh),
+                ) {
+                    (Some((low, base)), Some((high, _))) => {
+                        Some([(low - base) / 1_000_000.0, (high - base) / 1_000_000.0])
+                    }
+                    _ => None,
+                }
+            } else {
+                Some([
+                    (bar.at_low.availability - tornado.base.availability) * 100.0,
+                    (bar.at_high.availability - tornado.base.availability) * 100.0,
+                ])
+            };
+            if let Some([low, high]) = deltas.filter(|values| values.iter().all(|v| v.is_finite()))
+            {
+                painter.line_segment(
+                    [egui::pos2(x(low), y), egui::pos2(x(high), y)],
+                    egui::Stroke::new(2.0, ui.visuals().text_color()),
+                );
+                let low_kind =
+                    if duration_endpoint_label(bar, bar.low_s, preset) == "literature endpoint" {
+                        Kind::Literature
+                    } else {
+                        Kind::Authored
+                    };
+                let high_kind =
+                    if duration_endpoint_label(bar, bar.high_s, preset) == "literature endpoint" {
+                        Kind::Literature
+                    } else {
+                        Kind::Authored
+                    };
+                painter.circle_filled(egui::pos2(x(low), y), 3.5, low_kind.color());
+                painter.circle_filled(egui::pos2(x(high), y), 3.5, high_kind.color());
+            } else if metric == 0 {
+                painter.text(
+                    egui::pos2((plot_left + plot_right) * 0.5, y),
+                    egui::Align2::CENTER_CENTER,
+                    "NOT_AVAILABLE",
+                    egui::FontId::proportional(10.0),
+                    Kind::NotEvaluated.color(),
+                );
+            }
+        }
+    }
+    if tornado.base.net_electricity_mwh.is_none()
+        || tornado.bars.iter().any(|bar| {
+            bar.at_low.net_electricity_mwh.is_none() || bar.at_high.net_electricity_mwh.is_none()
+        })
+    {
+        ui.weak(format!(
+            "Net electricity change: NOT_AVAILABLE. {NET_UNAVAILABLE}"
+        ));
+    }
 }
 
 fn outage_chart(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
@@ -2310,6 +2559,264 @@ mod tests {
         let error =
             assumptions_with_campaign_duration(&original, "vacuum-vessel", &preset).unwrap_err();
         assert!(error.contains("not a replaceable component"));
+    }
+
+    #[test]
+    fn literature_preset_metadata_displays_ops032_scope_and_conditions() {
+        let expected_systems = ["4", "8", "1"];
+        for (preset, systems) in faris_model::remote_handling::maintenance_presets()
+            .iter()
+            .zip(expected_systems)
+        {
+            let metadata = maintenance_preset_metadata(preset);
+            assert!(metadata.contains(preset.scope));
+            assert!(metadata.contains(&format!("{systems} parallel systems")));
+            assert!(metadata.contains("32 ports"));
+            assert!(metadata.contains("128 blanket/divertor components"));
+            assert!(metadata.contains("no percentage contingency"));
+            assert!(metadata.contains("p. 5"));
+            assert!(metadata.contains("Table 1"));
+        }
+    }
+
+    #[test]
+    fn rendered_duration_panel_shows_multi_component_outputs_and_source() {
+        fn shape_text(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        shape_text(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let assumptions = duration_assumptions();
+        let rates = faris_engine::fixtures::rates_without_covariance(0.1, 'a');
+        let mut panel = MaintenancePanel::default();
+        panel.set_duration_snapshot(Some(DurationSnapshot {
+            assumptions: assumptions.clone(),
+            rates,
+        }));
+        panel.duration_component = "magnets".into();
+        panel.duration_bounds_days = BTreeMap::from([
+            ("magnets".into(), (10.0, 20.0)),
+            ("blankets".into(), (30.0, 50.0)),
+        ]);
+        let preset =
+            faris_model::remote_handling::maintenance_preset("demo-blanket-divertor-4").unwrap();
+        let ranges = duration_ranges_for_panel(
+            &assumptions,
+            &panel.duration_bounds_days,
+            "magnets",
+            &preset,
+        )
+        .unwrap();
+        assert_eq!(ranges.len(), 2);
+        assert!(matches!(
+            &ranges
+                .iter()
+                .find(|r| r.component_id == "magnets")
+                .unwrap()
+                .label,
+            InputLabel::Literature { .. }
+        ));
+        assert_eq!(
+            ranges
+                .iter()
+                .find(|r| r.component_id == "magnets")
+                .unwrap()
+                .high_s,
+            preset.duration_s()
+        );
+        assert_eq!(
+            ranges
+                .iter()
+                .find(|r| r.component_id == "blankets")
+                .unwrap()
+                .label,
+            InputLabel::Authored
+        );
+
+        let authored = |availability, net_electricity_mwh| {
+            faris_engine::duration_sensitivity::TornadoOutputs {
+                availability,
+                net_electricity_mwh: Some(net_electricity_mwh),
+            }
+        };
+        panel.tornado = Some(DurationTornado {
+            base: authored(0.9, 100.0),
+            bars: ranges
+                .iter()
+                .map(|range| faris_engine::duration_sensitivity::TornadoBar {
+                    component_id: range.component_id.clone(),
+                    base_s: 15.0 * DAY_S,
+                    low_s: range.low_s,
+                    high_s: range.high_s,
+                    label: range.label.clone(),
+                    at_low: authored(0.91, 101.0),
+                    at_high: authored(0.89, 99.0),
+                    net_electricity_swing_mwh: Some(-2.0),
+                    availability_swing: -0.02,
+                })
+                .collect(),
+        });
+
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| panel.duration_what_if(ui));
+        let mut text = Vec::new();
+        fn count_painted(shape: &egui::Shape, lines: &mut usize, circles: &mut usize) {
+            match shape {
+                egui::Shape::LineSegment { .. } => *lines += 1,
+                egui::Shape::Circle(_) => *circles += 1,
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        count_painted(shape, lines, circles);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut bar_lines = 0;
+        let mut endpoint_dots = 0;
+        for clipped in &output.shapes {
+            shape_text(&clipped.shape, &mut text);
+            count_painted(&clipped.shape, &mut bar_lines, &mut endpoint_dots);
+        }
+        assert!(
+            bar_lines >= 8,
+            "both paired plots paint component ranges and axes"
+        );
+        assert!(
+            endpoint_dots >= 8,
+            "both endpoints for two components are painted on both axes"
+        );
+        output.textures_delta.clear();
+        let rendered = text.join("\n");
+        assert!(rendered.contains("magnets"));
+        assert!(rendered.contains("blankets"));
+        assert!(rendered.contains("availability"));
+        assert!(rendered.contains("MWh"));
+        assert!(rendered.contains("literature endpoint"));
+        assert!(rendered.contains("authored low endpoint"));
+        assert!(rendered.contains(preset.citation));
+        assert!(rendered.contains("Scope and conditions"));
+        assert!(rendered.contains("Net electricity change from base"));
+        assert!(rendered.contains("(TWh)"));
+        assert!(rendered.contains("Availability change from base"));
+        assert!(rendered.contains("(percentage points)"));
+
+        let mut unavailable = panel.tornado.clone().unwrap();
+        unavailable.base.net_electricity_mwh = None;
+        for bar in &mut unavailable.bars {
+            bar.at_low.net_electricity_mwh = None;
+            bar.at_high.net_electricity_mwh = None;
+        }
+        let mut missing = ctx.run_ui(Default::default(), |ui| {
+            duration_tornado_chart(ui, &unavailable, &preset);
+        });
+        let mut missing_text = Vec::new();
+        for clipped in &missing.shapes {
+            shape_text(&clipped.shape, &mut missing_text);
+        }
+        missing.textures_delta.clear();
+        let missing_text = missing_text.join("\n");
+        assert!(missing_text.contains("NOT_AVAILABLE"));
+        assert!(missing_text.contains(NET_UNAVAILABLE));
+
+        let old_choice = (
+            panel.duration_component.clone(),
+            panel.duration_preset_index,
+        );
+        let old_bounds = panel.duration_bounds_days.clone();
+        let prior_revision = panel.duration_revision;
+        panel.duration_component = "blankets".into();
+        panel
+            .duration_bounds_days
+            .insert("magnets".into(), (11.0, 20.0));
+        let new_choice = (
+            panel.duration_component.clone(),
+            panel.duration_preset_index,
+        );
+        let new_bounds = panel.duration_bounds_days.clone();
+        panel.invalidate_if_duration_inputs_changed(
+            &old_choice,
+            &old_bounds,
+            &new_choice,
+            &new_bounds,
+        );
+        assert_eq!(panel.duration_revision, prior_revision + 1);
+        assert!(panel.tornado.is_none());
+    }
+
+    #[test]
+    fn duration_tornado_chart_maps_one_million_mwh_to_one_terawatt_hour() {
+        let preset =
+            faris_model::remote_handling::maintenance_preset("demo-blanket-divertor-4").unwrap();
+        let output = |availability, net_electricity_mwh| {
+            faris_engine::duration_sensitivity::TornadoOutputs {
+                availability,
+                net_electricity_mwh: Some(net_electricity_mwh),
+            }
+        };
+        let tornado = DurationTornado {
+            base: output(0.9, 0.0),
+            bars: vec![faris_engine::duration_sensitivity::TornadoBar {
+                component_id: "blankets".into(),
+                base_s: 20.0 * DAY_S,
+                low_s: 20.0 * DAY_S,
+                high_s: preset.duration_s(),
+                label: preset.input_label(),
+                at_low: output(0.9, 0.0),
+                at_high: output(0.9, 1_000_000.0),
+                net_electricity_swing_mwh: Some(1_000_000.0),
+                availability_swing: 0.0,
+            }],
+        };
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1100.0, 500.0),
+            )),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| duration_tornado_chart(ui, &tornado, &preset));
+        let mut one_terawatt_tick_x = None;
+        let mut literature_dot_xs = Vec::new();
+        fn inspect(shape: &egui::Shape, tick_x: &mut Option<f32>, lit_x: &mut Vec<f32>) {
+            match shape {
+                egui::Shape::Text(text) if text.galley.text() == "+1.000 TWh" => {
+                    *tick_x = Some(text.pos.x + text.galley.size().x);
+                }
+                egui::Shape::Circle(circle) if circle.fill == Kind::Literature.color() => {
+                    lit_x.push(circle.center.x);
+                }
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        inspect(shape, tick_x, lit_x);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for clipped in &output.shapes {
+            inspect(
+                &clipped.shape,
+                &mut one_terawatt_tick_x,
+                &mut literature_dot_xs,
+            );
+        }
+        output.textures_delta.clear();
+        let tick_x = one_terawatt_tick_x.expect("the TWh axis reports its +1.000 tick");
+        assert!(
+            literature_dot_xs
+                .iter()
+                .any(|endpoint_x| (endpoint_x - tick_x).abs() < 0.1),
+            "a literature endpoint on the TWh panel must align with its +1.000 tick"
+        );
     }
 
     #[test]

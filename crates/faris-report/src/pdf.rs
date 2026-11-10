@@ -49,6 +49,7 @@ pub struct PdfContent<'a> {
     pub subtitle: String,
     pub question: String,
     pub takeaways: &'a [String],
+    pub takeaway_quantities: &'a [Vec<Quantity>],
     pub arrangements: &'a [&'a ArrangementData],
     pub study: &'a StudyComparison,
     /// The timeline chart drawn at a given height, so page one can fill
@@ -468,7 +469,7 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
 /// The first swap with its two-standard-error band, earliest (unfavourable) edge first.
 fn two_sigma_swap_text(s: &faris_engine::brief::ArrangementSummary, y: f64) -> String {
     match s.first_swap_two_sigma_y() {
-        Some((early, Some(late))) => format!("{y:.1} y (2σ {early:.1} to {late:.1} y)"),
+        Some((early, Some(late))) => format!("{y:.1} y (2σ {early:.1}–{late:.1} y)"),
         Some((early, None)) => format!("{y:.1} y (2σ from {early:.1} y, no upper edge)"),
         None => format!("{y:.1} y"),
     }
@@ -592,7 +593,20 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
     y += 6.0;
     // Takeaway block.
     if !c.takeaways.is_empty() {
-        let text = c.takeaways.join(" ");
+        // Takeaway quantities come from the engine alongside each generated
+        // sentence, so the report does not infer scientific meaning from prose.
+        let text = c
+            .takeaways
+            .iter()
+            .enumerate()
+            .map(|(index, sentence)| match c.takeaway_quantities.get(index) {
+                Some(quantities) if !quantities.is_empty() => {
+                    format!("{sentence} {}", markers(quantities))
+                }
+                _ => sentence.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
         let inner = text_w - 16.0;
         let lines = wrap_lines(&text, inner, 8.6);
         let h = lines.len() as f32 * 11.4 + 22.0;
@@ -614,14 +628,6 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
             6.2,
         );
         let _ = pw;
-        cv.right(
-            MARGIN + text_w - 8.0,
-            y + 10.0,
-            &markers(&[Quantity::Tbr, Quantity::Fluence, Quantity::NetElectricPower]),
-            6.0,
-            MUTED,
-            FontKind::Body,
-        );
         let mut ty = y + 15.0;
         for line in &lines {
             cv.body(MARGIN + 8.0, ty + 8.6, line, 8.6, INK);
@@ -722,10 +728,11 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
         for (i, row) in cells.iter().enumerate() {
             let cell = &row[r];
             let x = MARGIN + label_w + col_w * i as f32;
+            let value_size = if r == 1 { 6.8 } else { 7.6 };
             if cell.muted {
-                cv.body(x + 4.0, y + 8.6, &cell.text, 7.6, MUTED);
+                cv.body(x + 4.0, y + 8.6, &cell.text, value_size, MUTED);
             } else {
-                cv.mono(x + 4.0, y + 8.6, &cell.text, 7.6, INK);
+                cv.mono(x + 4.0, y + 8.6, &cell.text, value_size, INK);
             }
             cv.pill(x + 4.0, y + 11.6, &cell.label, cell.kind, 5.9);
         }
@@ -779,7 +786,8 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
         let code = format!("[{}: {}]", note(*q).state.code(), q.short());
         cv.body(x, y + 14.0, &code, 5.4, MUTED);
     }
-    y += 10.0;
+    // Leave the full marker line above the first data row.
+    y += 17.0;
     cv.hline(MARGIN, PAGE_W - MARGIN, y, RULE, 0.6);
     let rows: [(&str, &Contrast); 4] = [
         (
@@ -1335,7 +1343,12 @@ mod tests {
             first_swap_relative_sampling: Some(0.1),
             ..Default::default()
         };
-        assert_eq!(two_sigma_swap_text(&s, 10.0), "10.0 y (2σ 8.3 to 12.5 y)");
+        assert_eq!(two_sigma_swap_text(&s, 10.0), "10.0 y (2σ 8.3–12.5 y)");
+        let first_swap_col_w = (CONTENT_W - 138.0) / 4.0;
+        assert!(
+            text_width(FontKind::Mono, &two_sigma_swap_text(&s, 10.0), 6.8)
+                <= first_swap_col_w - 8.0
+        );
         s.first_swap_relative_sampling = Some(0.6);
         assert!(two_sigma_swap_text(&s, 10.0).contains("no upper edge"));
     }

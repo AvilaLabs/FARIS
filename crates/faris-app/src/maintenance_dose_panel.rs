@@ -265,30 +265,57 @@ impl MaintenanceDosePanel {
                         }
                     }
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(format!(
-                            "Fixed-duration model downtime: {:.3} d",
-                            design.fixed.total_replacement_downtime_s / DAY_S
-                        ));
+                        calculated_output(
+                            ui,
+                            format!(
+                                "Fixed-duration model downtime: {:.3} d",
+                                design.fixed.total_replacement_downtime_s / DAY_S
+                            ),
+                            Quantity::Availability,
+                        );
                         ui.label(format!("Computed state: {:?}", design.computed.status));
                         if let Some(summary) = &design.computed.summary {
-                            ui.label(format!(
-                                "Computed downtime: {:.3} d",
-                                summary.total_replacement_downtime_s / DAY_S
-                            ));
-                            ui.label(format!(
-                                "Availability fixed/computed: {:.2}% / {:.2}%",
-                                100.0 * design.fixed.availability,
-                                100.0 * summary.availability
-                            ));
+                            calculated_output(
+                                ui,
+                                format!(
+                                    "Computed downtime: {:.3} d",
+                                    summary.total_replacement_downtime_s / DAY_S
+                                ),
+                                Quantity::Availability,
+                            );
+                            calculated_output(
+                                ui,
+                                format!(
+                                    "Availability fixed: {:.2}%",
+                                    100.0 * design.fixed.availability
+                                ),
+                                Quantity::Availability,
+                            );
+                            calculated_output(
+                                ui,
+                                format!(
+                                    "Availability computed: {:.2}%",
+                                    100.0 * summary.availability
+                                ),
+                                Quantity::Availability,
+                            );
                             if let (Some(fixed), Some(computed)) = (
                                 design.fixed.lifetime_net_electricity_mwh,
                                 summary.lifetime_net_electricity_mwh,
                             ) {
-                                ui.label(format!(
-                                    "Net electricity fixed/computed: {:.3} / {:.3} TWh",
-                                    fixed / 1.0e6,
-                                    computed / 1.0e6
-                                ));
+                                calculated_output(
+                                    ui,
+                                    format!("Net electricity fixed: {:.3} TWh", fixed / 1.0e6),
+                                    Quantity::NetElectricPower,
+                                );
+                                calculated_output(
+                                    ui,
+                                    format!(
+                                        "Net electricity computed: {:.3} TWh",
+                                        computed / 1.0e6
+                                    ),
+                                    Quantity::NetElectricPower,
+                                );
                             }
                         } else if let Some(reason) = &design.computed.not_evaluated {
                             ui.label(format!("Why: {} Next step: {}", reason.reason, reason.next_step));
@@ -304,6 +331,7 @@ impl MaintenanceDosePanel {
                         validation_detail(ui, Quantity::NetElectricPower, "Net electricity");
                     }
                 }
+                maintenance_uncertainty_notice(ui);
             });
     }
 
@@ -335,13 +363,25 @@ impl MaintenanceDosePanel {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(format!("Computed status: {:?}", design.computed.status));
                         if let Some(summary) = &design.computed.summary {
-                            ui.label(format!(
-                                "Replacement downtime: {:.3} d",
-                                summary.total_replacement_downtime_s / DAY_S
-                            ));
-                            ui.label(format!("Availability: {:.2}%", 100.0 * summary.availability));
+                            calculated_output(
+                                ui,
+                                format!(
+                                    "Replacement downtime: {:.3} d",
+                                    summary.total_replacement_downtime_s / DAY_S
+                                ),
+                                Quantity::Availability,
+                            );
+                            calculated_output(
+                                ui,
+                                format!("Availability: {:.2}%", 100.0 * summary.availability),
+                                Quantity::Availability,
+                            );
                             if let Some(net) = summary.lifetime_net_electricity_mwh {
-                                ui.label(format!("Net electricity: {:.3} TWh", net / 1.0e6));
+                                calculated_output(
+                                    ui,
+                                    format!("Net electricity: {:.3} TWh", net / 1.0e6),
+                                    Quantity::NetElectricPower,
+                                );
                                 validation_detail(ui, Quantity::NetElectricPower, "Net electricity");
                             }
                             validation_detail(ui, Quantity::Availability, "Downtime and availability");
@@ -350,6 +390,7 @@ impl MaintenanceDosePanel {
                         }
                     });
                 }
+                maintenance_uncertainty_notice(ui);
             });
     }
 
@@ -620,6 +661,36 @@ fn validation_detail(ui: &mut egui::Ui, quantity: Quantity, label: &str) {
         note.why,
         note.next_step
     ));
+}
+
+/// Put the validation state beside every calculated value and keep its missing
+/// uncertainty explicit at the value itself.
+fn calculated_output(ui: &mut egui::Ui, text: String, quantity: Quantity) {
+    let mark = faris_model::validation::ValidationMark::current(quantity);
+    let note = note(quantity);
+    ui.monospace(format!("{text} [{}] · no interval", mark.tag()))
+        .on_hover_text(format!(
+            "Validation scope: {}. Why: {}. Next step: {}. {}",
+            note.scope,
+            note.why,
+            note.next_step,
+            maintenance_uncertainty_text()
+        ));
+}
+
+fn maintenance_uncertainty_notice(ui: &mut egui::Ui) {
+    ui.label(format!(
+        "Maintenance uncertainty: {}",
+        maintenance_uncertainty_text()
+    ));
+}
+
+fn maintenance_uncertainty_text() -> String {
+    faris_engine::output_uncertainty::OutputUncertainty::none(
+        "the typed maintenance result stores point estimates only and carries no propagated uncertainty fields",
+        "propagate transport, activation, and operating-schedule uncertainty through the maintenance calculation",
+    )
+    .text(2)
 }
 
 fn write_cad_designs(

@@ -104,6 +104,10 @@ impl Svg {
         }
     }
 
+    pub fn width(&self) -> f32 {
+        self.width
+    }
+
     pub fn rect(
         &mut self,
         x: f32,

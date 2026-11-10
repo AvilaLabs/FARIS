@@ -1549,6 +1549,18 @@ fn the_pdf_marks_calculated_numbers_and_prints_the_legend() {
     assert!(flat.contains("NV not validated"), "{flat}");
     assert!(flat.contains("VR validated within range"));
     assert!(flat.contains("CC code-to-code only"));
+    let start = flat.find("Shifting ").expect("allocation takeaway");
+    let allocation_markers = flat[start..]
+        .find(". [NV: TBR] [NV: fluence]")
+        .expect("allocation sentence ends with its typed quantity markers");
+    assert!(allocation_markers > 0);
+    let start = flat
+        .find("Adding the outboard port")
+        .expect("port takeaway");
+    let port_markers = flat[start..]
+        .find(". [NV: fluence] [NV: net power]")
+        .expect("port sentence ends with its typed quantity markers");
+    assert!(port_markers > 0);
 }
 
 // Verifies: LEG-040
