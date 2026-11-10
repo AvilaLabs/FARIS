@@ -117,3 +117,19 @@ records its plan hash and each command, log, exit code, and output-record hash. 
 expected records were written. It is not a convergence, uncertainty, VAL043,
 or physical-validation verdict. Source-response mesh convergence and
 activation-grid convergence remain distinct questions.
+
+Before every external command the driver persists its exact guarded command,
+start time, UTC deadline, resource limits, and a unique named user systemd
+scope. On cancellation, timeout, output/log limit, or a lingering output-pipe
+descendant, it explicitly requests `systemctl --user stop` for that exact
+scope with a bounded wait, then terminates the client process group as fallback.
+It uses the existing R6 user systemd scope guard (`MemoryMax=6G`, no swap),
+requires 8 GiB free reserve in
+addition to the 8 GiB D1S/R2S output cap (comparisons are capped at 32 MiB),
+and caps each log at 32 MiB. The
+outer task deadlines exceed the existing inner run budgets to allow
+finalization: D1S 7,600 s; R2S 182,700 s (24 h neutron + 24 h activation + three
+3,000 s photon budgets + 900 s overhead); comparisons 300 s. The plan records
+the sum as a worst-case serial campaign bound. A timeout, output/log limit, or
+`KeyboardInterrupt` stops the full process group with SIGTERM followed by
+SIGKILL if needed; task state remains recorded as incomplete.
