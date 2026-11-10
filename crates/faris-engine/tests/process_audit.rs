@@ -19,9 +19,10 @@ use std::{
 };
 
 /// Text that starts a process, hands a program to the job runner, or loads code.
-const TOKENS: [&str; 18] = [
+const TOKENS: [&str; 19] = [
     "Command::new",
     "CommandExt",
+    "CommandWrap::from",
     "libloading",
     "dlopen",
     "dlsym",
@@ -51,6 +52,7 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     // job program itself and assigns it to a job object.
     ("faris-engine/src/jobs.rs", "Command::new", 3, "FS", "program is an absolute tool path (S); arguments F or S"),
     ("faris-engine/src/jobs.rs", "CommandExt", 1, "-", "process_group for the Unix spawns above"),
+    ("faris-engine/src/jobs.rs", "CommandWrap::from", 1, "FS", "Windows wraps an already configured std::process::Command; the reviewed JobSpec provides the executable path and arguments"),
     ("faris-engine/src/jobs.rs", "run_job(", 2, "-", "definition and browser-target forwarding call"),
     ("faris-engine/src/jobs.rs", "run_job_with_prepared_cache(", 2, "-", "native definition and browser-target stub"),
     ("faris-engine/src/jobs.rs", "run_job_with_lines(", 3, "-", "definition, forwarding call, stub for targets without processes"),

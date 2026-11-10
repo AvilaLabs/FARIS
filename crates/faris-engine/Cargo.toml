@@ -36,6 +36,7 @@ libproc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 win32job.workspace = true
+process-wrap.workspace = true
 
 # Free memory for the admission check where there is no /proc/meminfo.
 [target.'cfg(any(target_os = "macos", windows))'.dependencies]

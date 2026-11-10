@@ -694,7 +694,13 @@ fn run_job_internal(
     process_limits.single_file_bytes = process_file_size_limit_bytes;
     let mut running = platform::Running::start(spec, &process_limits)?;
     let exceeded = Arc::new(AtomicBool::new(false));
+    #[cfg(windows)]
+    let stdout = running.child.stdout().take().expect("piped child stdout");
+    #[cfg(not(windows))]
     let stdout = running.child.stdout.take().expect("piped child stdout");
+    #[cfg(windows)]
+    let stderr = running.child.stderr().take().expect("piped child stderr");
+    #[cfg(not(windows))]
     let stderr = running.child.stderr.take().expect("piped child stderr");
     let limit = spec.capture_limit_bytes;
     let out_flag = exceeded.clone();
@@ -842,15 +848,19 @@ fn run_job_internal(
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod platform {
     use super::{ExecutionStatus, IoResult, JobError, JobSpec, ResourceLimits};
-    use std::process::{Child, Command, ExitStatus, Stdio};
+    #[cfg(windows)]
+    use process_wrap::std::ChildWrapper;
+    use std::process::{Command, ExitStatus, Stdio};
+    #[cfg(windows)]
+    type Child = Box<dyn ChildWrapper>;
+    #[cfg(not(windows))]
+    type Child = std::process::Child;
 
-    /// A launched job. On Windows, dropping it closes the job object, which kills what is left.
+    /// A launched job. On Windows, dropping it terminates any process still in its job object.
     pub struct Running {
         pub child: Child,
         #[cfg(unix)]
         group: nix::unistd::Pid,
-        #[cfg(windows)]
-        job: Option<win32job::Job>,
     }
 
     /// The command with its working directory, environment (only the spec's) and pipes set.
@@ -969,154 +979,85 @@ mod platform {
 
     #[cfg(windows)]
     impl Running {
-        /// Starts the program suspended, puts it in a job object that kills everything in it
-        /// when the job is closed, and only then lets its primary thread run.
+        /// Starts the program suspended, assigns it to a job object, and resumes it only after
+        /// assignment. The outer child wrapper terminates the job when dropped before completion.
         pub fn start(spec: &JobSpec, _limits: &ResourceLimits) -> Result<Self, JobError> {
-            use std::os::windows::io::AsRawHandle;
-            use std::os::windows::process::CommandExt;
-            let mut limit_info = win32job::ExtendedLimitInfo::new();
-            limit_info.limit_kill_on_job_close();
-            let job = win32job::Job::create_with_limit_info(&limit_info).map_err(job_error)?;
+            use process_wrap::std::{CommandWrap, JobObject};
             let mut command = Command::new(&spec.program);
             command.args(&spec.arguments);
-            let mut child = configure(&mut command, spec)
-                .creation_flags(CREATE_SUSPENDED)
-                .spawn()?;
-            if let Err(error) = job.assign_process(child.as_raw_handle() as isize) {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(job_error(error));
-            }
-            if let Err(error) = resume_primary_thread(child.id()) {
-                // Closing the job also terminates the suspended child. Reap its process
-                // handle before returning the launch failure to the caller.
-                drop(job);
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(JobError::Io(error));
-            }
-            Ok(Self {
-                child,
-                job: Some(job),
-            })
+            configure(&mut command, spec);
+            let mut wrapped = CommandWrap::from(command);
+            wrapped.wrap(JobObject).wrap(KillJobOnDrop);
+            let child = wrapped.spawn()?;
+            Ok(Self { child })
         }
 
         /// `(committed now, peak committed)` of the program the job started. The safe job-object
         /// wrapper reads no job-wide figure, so processes it started are not counted.
         pub fn sample_memory(&self) -> Option<(u64, u64)> {
             use std::os::windows::io::AsRawHandle;
+            let process = self.child.process_handle()?;
             let counters =
-                win32job::utils::get_process_memory_info(self.child.as_raw_handle() as isize)
-                    .ok()?;
+                win32job::utils::get_process_memory_info(process.as_raw_handle() as isize).ok()?;
             Some((
                 u64::try_from(counters.private_usage).ok()?,
                 u64::try_from(counters.peak_pagefile_usage).ok()?,
             ))
         }
 
-        /// Closing the job object terminates every process in it.
+        /// Terminate every process in the job object.
         pub fn terminate(&mut self) -> IoResult<()> {
-            drop(self.job.take());
-            let _ = self.child.kill();
-            Ok(())
+            self.child.start_kill()
         }
     }
 
-    /// `CREATE_SUSPENDED`, from WinBase.h. `CommandExt::creation_flags` passes this flag to
-    /// CreateProcessW while retaining std's argument encoding, environment, and pipe setup.
     #[cfg(windows)]
-    const CREATE_SUSPENDED: u32 = 0x0000_0004;
+    #[derive(Clone, Copy, Debug)]
+    struct KillJobOnDrop;
 
-    /// Finds and resumes the only thread in a newly-created suspended process. No user code can
-    /// run before this call, so the process cannot create another thread before the snapshot.
     #[cfg(windows)]
-    fn resume_primary_thread(process_id: u32) -> IoResult<()> {
-        use std::{ffi::c_void, mem::size_of};
-
-        type Handle = *mut c_void;
-        const TH32CS_SNAPTHREAD: u32 = 0x0000_0004;
-        const THREAD_SUSPEND_RESUME: u32 = 0x0002;
-        const INVALID_HANDLE_VALUE: Handle = -1isize as Handle;
-        const RESUME_FAILED: u32 = u32::MAX;
-
-        #[repr(C)]
-        struct ThreadEntry32 {
-            size: u32,
-            _usage: u32,
-            thread_id: u32,
-            owner_process_id: u32,
-            _base_priority: i32,
-            _delta_priority: i32,
-            _flags: u32,
+    impl process_wrap::std::CommandWrapper for KillJobOnDrop {
+        fn wrap_child(
+            &mut self,
+            child: Box<dyn process_wrap::std::ChildWrapper>,
+            _core: &process_wrap::std::CommandWrap,
+        ) -> IoResult<Box<dyn process_wrap::std::ChildWrapper>> {
+            Ok(Box::new(KillJobOnDropChild { inner: Some(child) }))
         }
-
-        #[link(name = "kernel32")]
-        unsafe extern "system" {
-            fn CreateToolhelp32Snapshot(flags: u32, process_id: u32) -> Handle;
-            fn Thread32First(snapshot: Handle, entry: *mut ThreadEntry32) -> i32;
-            fn Thread32Next(snapshot: Handle, entry: *mut ThreadEntry32) -> i32;
-            fn OpenThread(access: u32, inherit: i32, thread_id: u32) -> Handle;
-            fn ResumeThread(thread: Handle) -> u32;
-            fn CloseHandle(handle: Handle) -> i32;
-        }
-
-        struct OwnedHandle(Handle);
-        impl Drop for OwnedHandle {
-            fn drop(&mut self) {
-                // SAFETY: this owns a valid handle returned by one of the APIs above.
-                unsafe { CloseHandle(self.0) };
-            }
-        }
-
-        // SAFETY: Tool Help APIs are called with the documented flags and initialized entry.
-        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
-        if snapshot == INVALID_HANDLE_VALUE {
-            return Err(std::io::Error::last_os_error());
-        }
-        let snapshot = OwnedHandle(snapshot);
-        let mut entry = ThreadEntry32 {
-            size: size_of::<ThreadEntry32>() as u32,
-            _usage: 0,
-            thread_id: 0,
-            owner_process_id: 0,
-            _base_priority: 0,
-            _delta_priority: 0,
-            _flags: 0,
-        };
-        // SAFETY: entry is a valid writable THREADENTRY32 structure.
-        let mut found = unsafe { Thread32First(snapshot.0, &mut entry) } != 0;
-        while found {
-            if entry.owner_process_id == process_id {
-                // SAFETY: the thread ID came from this system thread snapshot.
-                let thread = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.thread_id) };
-                if thread.is_null() {
-                    return Err(std::io::Error::last_os_error());
-                }
-                let thread = OwnedHandle(thread);
-                // SAFETY: this is the newly-created suspended primary thread.
-                let previous_suspend_count = unsafe { ResumeThread(thread.0) };
-                if previous_suspend_count == RESUME_FAILED {
-                    return Err(std::io::Error::last_os_error());
-                }
-                if previous_suspend_count != 1 {
-                    return Err(std::io::Error::other(format!(
-                        "new child primary thread had unexpected suspend count {previous_suspend_count}"
-                    )));
-                }
-                return Ok(());
-            }
-            // SAFETY: entry remains a valid writable THREADENTRY32 structure.
-            found = unsafe { Thread32Next(snapshot.0, &mut entry) } != 0;
-        }
-        Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "could not find suspended child primary thread",
-        ))
     }
 
     #[cfg(windows)]
-    fn job_error(error: win32job::JobError) -> JobError {
-        JobError::Io(std::io::Error::other(error.to_string()))
+    #[derive(Debug)]
+    struct KillJobOnDropChild {
+        inner: Option<Box<dyn process_wrap::std::ChildWrapper>>,
+    }
+
+    #[cfg(windows)]
+    impl process_wrap::std::ChildWrapper for KillJobOnDropChild {
+        fn inner(&self) -> &dyn process_wrap::std::ChildWrapper {
+            self.inner.as_deref().expect("child wrapper is present")
+        }
+
+        fn inner_mut(&mut self) -> &mut dyn process_wrap::std::ChildWrapper {
+            self.inner.as_deref_mut().expect("child wrapper is present")
+        }
+
+        fn into_inner(mut self: Box<Self>) -> Box<dyn process_wrap::std::ChildWrapper> {
+            self.inner.take().expect("child wrapper is present")
+        }
+
+        fn process_handle(&self) -> Option<std::os::windows::io::BorrowedHandle<'_>> {
+            self.inner.as_deref()?.process_handle()
+        }
+    }
+
+    #[cfg(windows)]
+    impl Drop for KillJobOnDropChild {
+        fn drop(&mut self) {
+            if let Some(child) = self.inner.as_deref_mut() {
+                let _ = child.kill();
+            }
+        }
     }
 
     #[cfg(windows)]
