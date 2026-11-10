@@ -646,6 +646,19 @@
       "fixed_in": "30aeeef",
       "disposition": "The controlled native peer case authored a calibration threshold for a design ID different from the generated case ID, so the requested calibration could not bind to the run. The fixture now targets the generated design, and preflight rejects calibration references outside the runner generated design set. The regression checks rejection of a stale ID; this corrects fixture binding and does not establish physical qualification.",
       "regression_test": "integrations/lifecycle_peer/test_faris_native_case.py::test_preflight_rejects_calibration_target_not_generated_by_runner"
+    },
+    {
+      "id": "FARIS-050",
+      "title": "Fresh-process heating preflight failed because openmc.lib was not imported",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "957cf4e",
+      "disposition": "The heating preflight used OpenMC library state without importing openmc.lib in the fresh worker interpreter. An actual native heating attempt stopped during preflight with NOT_EVALUATED before solver execution. The worker now imports openmc.lib explicitly, and a fresh-interpreter regression covers the import path. This was a preflight failure; no invalid physical PASS was produced.",
+      "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_heating_preflight_imports_openmc_lib_in_fresh_interpreter"
     }
   ]
 }
