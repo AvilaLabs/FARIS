@@ -1226,14 +1226,14 @@ mod tests {
 
         let ctx = egui::Context::default();
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 900.0));
-        let output = ctx.run_ui(
+        let frame_output = ctx.run_ui(
             egui::RawInput {
                 screen_rect: Some(screen),
                 ..Default::default()
             },
-            |ui| panel.window(ui.ctx()),
+            |ui| panel.window(ui.ctx(), None),
         );
-        output.drop_without_applying_deltas();
+        frame_output.drop_without_applying_deltas();
 
         assert_eq!(panel.interface_status()["result_state"], "ready");
         assert_eq!(

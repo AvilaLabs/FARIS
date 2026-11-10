@@ -1359,8 +1359,9 @@ mod tests {
         let heating = rendered_focus_walk("CAD heating", |ctx| heating_panel.window(ctx));
         let mut maintenance_panel = crate::maintenance_dose_panel::MaintenanceDosePanel::default();
         maintenance_panel.open = true;
-        let maintenance =
-            rendered_focus_walk("CAD maintenance dose", |ctx| maintenance_panel.window(ctx));
+        let maintenance = rendered_focus_walk("CAD maintenance dose", |ctx| {
+            maintenance_panel.window(ctx, None)
+        });
 
         for (name, walk) in [
             ("CAD flux", transport),
