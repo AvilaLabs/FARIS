@@ -192,6 +192,22 @@
       "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
       "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
       "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "hcpb-tbm-jade-v1",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "94a53e45df7b565afc25f9a0224fc879e38712a26a38a6bb3d9e7db80b5d85db",
+      "manifest_last_commit": "004a6ff4fb6481c4103390f5368734921ad70ddf",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "wcll-tbm-jade-v1",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "94a53e45df7b565afc25f9a0224fc879e38712a26a38a6bb3d9e7db80b5d85db",
+      "manifest_last_commit": "004a6ff4fb6481c4103390f5368734921ad70ddf",
+      "recorded": "2026-11-09"
     }
   ]
 }
