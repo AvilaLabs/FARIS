@@ -1389,6 +1389,20 @@ def solver_environment(base: dict[str, str], threads: int, aperture: dict | None
     return result
 
 
+def openmc_runtime_preflight_identity(executable: Path, env: dict[str, str], openmc, cross_sections: Path) -> dict:
+    """Build one identical CLI/Python/data identity for controls and production preflight."""
+    runtime = selected_openmc_runtime_identity(executable, env)
+    module_path = Path(openmc.__file__).resolve(strict=True)
+    xs_path = cross_sections.resolve(strict=True)
+    runtime.update({"openmc_python_version": openmc.__version__,
+                    "python_executable_path": str(Path(sys.executable).resolve(strict=True)),
+                    "openmc_python_module_path": str(module_path),
+                    "openmc_python_module_sha256": hash_file(module_path),
+                    "cross_sections_path": str(xs_path),
+                    "cross_sections_xml_sha256": hash_file(xs_path, MAX_CROSS_SECTIONS_XML_BYTES)})
+    return runtime
+
+
 def command_aim_vacuum_control(args) -> int:
     require(args.i_have_the_cpu, "aim-vacuum-control runs three bounded OpenMC vacuum jobs; pass --i-have-the-cpu")
     require(0 < args.particles <= MAX_PARTICLES, f"--particles must be in [1, {MAX_PARTICLES}]")
@@ -1418,18 +1432,8 @@ def command_aim_vacuum_control(args) -> int:
     executable = shutil.which(args.openmc)
     require(executable is not None, f"OpenMC executable not found: {args.openmc}")
     executable_path = Path(executable).resolve(strict=True)
-    base_env = {key: value for key, value in os.environ.items() if key not in (
-        "OPENMC_APERTURE_BIAS", "OPENMC_APERTURE_ONE_SIDED", "OPENMC_COLLISION_AIM",
-        "OPENMC_WW_SKIP_VOID", "OPENMC_SPLIT_BEFORE_COLLISION")}
-    base_env.update({"OMP_NUM_THREADS": str(args.threads), "OPENBLAS_NUM_THREADS": "1"})
-    runtime = selected_openmc_runtime_identity(executable_path, base_env)
-    openmc_module_path = Path(openmc.__file__).resolve(strict=True)
-    runtime.update({"openmc_python_version": openmc.__version__,
-                    "python_executable_path": str(Path(sys.executable).resolve(strict=True)),
-                    "openmc_python_module_path": str(openmc_module_path),
-                    "openmc_python_module_sha256": hash_file(openmc_module_path),
-                    "cross_sections_path": str(cross_sections),
-                    "cross_sections_xml_sha256": hash_file(cross_sections, MAX_CROSS_SECTIONS_XML_BYTES)})
+    base_env = solver_environment(os.environ, args.threads)
+    runtime = openmc_runtime_preflight_identity(executable_path, base_env, openmc, cross_sections)
     imp0_control = verify_imp0_control_receipt(args.imp0_control.expanduser().resolve(strict=True), runtime)
     runtime["aim_capability"] = aim_runtime_identity(runtime)
     source_hash = hash_file(deck_path, MAX_SOURCE_BYTES)
@@ -1576,14 +1580,9 @@ def command_run(args) -> int:
         raise ValueError("openmc_mcnp_adapter must be installed from a pinned source checkout") from exc
 
     solver_env = solver_environment(os.environ, args.threads)
-    runtime = selected_openmc_runtime_identity(executable_path, solver_env)
+    runtime = openmc_runtime_preflight_identity(executable_path, solver_env, openmc, cross_sections)
     require(runtime["executable_sha256"] == openmc_exe_sha256,
             "OpenMC CLI changed between discovery and linked-library capability check")
-    openmc_module_path = Path(openmc.__file__).resolve(strict=True)
-    runtime["openmc_python_module_path"] = str(openmc_module_path)
-    runtime["openmc_python_module_sha256"] = hash_file(openmc_module_path)
-    runtime["cross_sections_path"] = str(cross_sections)
-    runtime["cross_sections_xml_sha256"] = hash_file(cross_sections, MAX_CROSS_SECTIONS_XML_BYTES)
     control_receipt = verify_imp0_control_receipt(args.imp0_control.expanduser().resolve(strict=True), runtime)
     aim_control_receipt = None
     if args.aim_aperture_beta is not None:

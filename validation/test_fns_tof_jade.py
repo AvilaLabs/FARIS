@@ -377,6 +377,38 @@ class FnsTofHelpers(unittest.TestCase):
                                  (R.AIM_CONTROL_RADII_CM[0], args.batches, args.particles,
                                   args.seed))
 
+    def test_control_and_production_cli_use_same_complete_runtime_preflight(self):
+        import ast
+        import inspect
+        import tempfile
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            executable, module, xs = (root / "openmc", root / "openmc.py", root / "cross_sections.xml")
+            executable.write_text("cli")
+            module.write_text("python api")
+            xs.write_text("<cross_sections />")
+            api = SimpleNamespace(__file__=str(module), __version__=R.OPENMC_REQUIRED)
+            env = R.solver_environment({"LD_LIBRARY_PATH": "/opt/openmc/lib",
+                                        "OPENMC_APERTURE_BIAS": "inherited"}, 1)
+            base = {"executable_path": str(executable), "executable_sha256": R.hash_file(executable),
+                    "linked_library_path": str(executable), "linked_library_sha256": R.hash_file(executable),
+                    "patch_version": 1}
+            with patch.object(R, "selected_openmc_runtime_identity", return_value=base) as selected:
+                control_identity = R.openmc_runtime_preflight_identity(executable, env, api, xs)
+                production_identity = R.openmc_runtime_preflight_identity(executable, env, api, xs)
+            self.assertEqual(control_identity, production_identity)
+            self.assertEqual(control_identity["openmc_python_version"], R.OPENMC_REQUIRED)
+            self.assertEqual(control_identity["python_executable_path"], str(Path(sys.executable).resolve()))
+            self.assertEqual(selected.call_count, 2)
+            self.assertEqual(selected.call_args_list[0].args, selected.call_args_list[1].args)
+        for command in (R.command_aim_vacuum_control, R.command_run):
+            attributes = {node.func.id for node in ast.walk(ast.parse(inspect.getsource(command)))
+                          if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+            self.assertIn("openmc_runtime_preflight_identity", attributes,
+                          f"{command.__name__} bypasses the shared runtime identity")
+
     def test_analog_environment_clears_inherited_aim_and_collision_settings(self):
         env = R.solver_environment({"OPENMC_APERTURE_BIAS": "bad", "OPENMC_COLLISION_AIM": "bad",
                                    "OPENMC_WW_SKIP_VOID": "1", "KEEP": "yes"}, 1)
