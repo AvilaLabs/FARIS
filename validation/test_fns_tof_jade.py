@@ -197,10 +197,12 @@ class FnsTofHelpers(unittest.TestCase):
 
     def test_aim_control_receipt_binds_runtime_all_points_radii_plans_and_statepoints(self):
         import tempfile
+        import h5py
         from unittest.mock import patch
         parsed = B.input_deck(DECK_FOUR)
         runtime = {"executable_sha256": "e" * 64, "linked_library_sha256": "l" * 64,
                    "openmc_python_module_sha256": "p" * 64, "cross_sections_xml_sha256": "x" * 64,
+                   "cross_sections_path": "/data/xs.xml",
                    "aim_capability": {"patch_sha256": "a" * 64}}
         imp0_control = {"receipt_sha256": "i" * 64, "status": "PASS"}
         patch_statepoint = {"lost_particles": 0, "intentional_kill_events": 0,
@@ -210,22 +212,82 @@ class FnsTofHelpers(unittest.TestCase):
                             "source": "child statepoint datasets; imp0 kills and normal lost count are distinct"}
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            statepoint = root / "control.statepoint.h5"
-            statepoint.write_bytes(b"fake statepoint identity; reader mocked")
             levels = []
             artifacts = []
-            for radius in R.AIM_CONTROL_RADII_CM:
-                results = [{"mcnp_tally_number": point["tally"],
-                            "position_cm": point["position_cm"], "passed": True}
-                           for point in parsed["detectors"]]
-                levels.append({"radius_cm": radius, "status": "PASS", "results": results,
-                               "source_aperture": R.source_aperture_plan(parsed, radius, 0.1),
-                               "patch_statepoint": patch_statepoint})
+            for index, radius in enumerate(R.AIM_CONTROL_RADII_CM):
+                folder = root / f"r{index}"
+                folder.mkdir()
+                statepoint = folder / "statepoint.10.h5"
+                volume = R.sphere_volume_cm3(radius)
+                inputs = []
+                expected_means = {}
+                for point in parsed["detectors"]:
+                    distance = math.dist(parsed["source_position_cm"], point["position_cm"])
+                    expected = R.isotropic_sphere_volume_average_cm2(distance, radius)
+                    raw_mean = expected * volume
+                    raw_sd = raw_mean * 0.005
+                    inputs.append({"mcnp_tally_number": point["tally"],
+                                   "position_cm": point["position_cm"], "radius_cm": radius,
+                                   "sphere_volume_cm3": volume,
+                                   "raw_tracklength_mean_particle_cm_per_source": raw_mean,
+                                   "raw_tracklength_std_dev_particle_cm_per_source": raw_sd,
+                                   "analytic_flux_cm-2_per_source": expected})
+                    expected_means[point["tally"]] = raw_mean
+                evaluated = R.evaluate_vacuum_aim_control(inputs, patch_statepoint)
+                with h5py.File(statepoint, "w") as sp:
+                    for name, value in ((R.FARIS_IMP0_PATCH_VERSION_DATASET, 1),
+                                        (R.FARIS_IMP0_PATCH_KILL_EVENTS_DATASET, 0),
+                                        (R.FARIS_IMP0_PATCH_BIRTH_KILL_DATASET, 0),
+                                        (R.FARIS_IMP0_PATCH_ENTRY_KILL_DATASET, 0),
+                                        (R.FARIS_OPENMC_LOST_DATASET, 0),
+                                        (R.STATEPOINT_CURRENT_BATCH_DATASET, 10),
+                                        (R.STATEPOINT_N_BATCHES_DATASET, 10),
+                                        (R.STATEPOINT_N_PARTICLES_DATASET, 100),
+                                        (R.STATEPOINT_N_REALIZATIONS_DATASET, 10),
+                                        ("seed", 1701 + index)):
+                        sp.create_dataset(name, data=value)
+                    sp.attrs["openmc_version"] = [0, 15, 3]
+                    tallies = sp.create_group("tallies")
+                    tallies.create_group("results")
+                    for tally_id, mean in expected_means.items():
+                        tally = tallies.create_group(f"tally {tally_id}")
+                        tally.create_dataset("name", data=f"aim_vacuum_f{tally_id}".encode())
+                        tally.create_dataset("estimator", data=b"tracklength")
+                        tally.create_dataset("n_realizations", data=10)
+                        sd = mean * 0.005
+                        sum_sq = 10 * mean * mean + 90 * sd * sd
+                        tally.create_dataset("results", data=[[[10 * mean, sum_sq]]])
+                plan = R.source_aperture_plan(parsed, radius, 0.1)
+                (folder / "aim-source-plan.json").write_text(json.dumps(plan))
+                xml_hashes = {}
+                for filename in ("geometry.xml", "settings.xml", "tallies.xml", "materials.xml"):
+                    xml_path = folder / filename
+                    xml_path.write_text(f"<root radius='{radius}' />")
+                    xml_hashes[filename] = R.hash_file(xml_path)
+                level = {"radius_cm": radius, "status": evaluated["status"],
+                         "criteria": evaluated["criteria"], "results": evaluated["results"],
+                         "source_aperture": plan, "patch_statepoint": patch_statepoint}
+                levels.append(level)
                 artifacts.append({"radius_cm": radius, "statepoint_path": str(statepoint),
-                                  "statepoint_sha256": R.hash_file(statepoint)})
+                                  "statepoint_sha256": R.hash_file(statepoint),
+                                  "materials_xml_sha256": xml_hashes["materials.xml"],
+                                  "geometry_xml_sha256": xml_hashes["geometry.xml"],
+                                  "settings_xml_sha256": xml_hashes["settings.xml"],
+                                  "tallies_xml_sha256": xml_hashes["tallies.xml"],
+                                  "aim_plan_sha256": R.hash_file(folder / "aim-source-plan.json")})
             receipt = {"schema": "faris.fns-aim-vacuum-control/1.0.0", "status": "PASS",
                        "case_id": R.AIM_SUPPORTED_CASE, "source_deck_sha256": "d" * 64,
                        "runtime_identity": runtime, "imp0_control_receipt": imp0_control,
+                       "cross_sections_xml_sha256": runtime["cross_sections_xml_sha256"],
+                       "cross_sections_path": "/data/xs.xml",
+                       "histories_per_radius": 1000, "batches": 10, "threads": 1,
+                       "seed_by_radius": [1701, 1702, 1703],
+                       "radii_cm": list(R.AIM_CONTROL_RADII_CM),
+                       "acceptance": {"all_four_detector_points_at_all_three_radii": True,
+                                      "analytic_cell_flux_bias": "absolute z-score <= 3 and relative MCSE <= 2% for each detector/radius",
+                                      "zero_lost_particles_and_zero_importance_kills": True,
+                                      "source_likelihood_ratio_bound": "0 < p_iso/q <= 1/(1-beta); per-plan finite positive lower bound also recorded",
+                                      "source_direction_law": "isotropic law retained through a positive (1-beta) mixture component"},
                        "beta": 0.1, "radius_levels": levels,
                        "solver_artifacts": artifacts}
             receipt["receipt_sha256"] = R.canonical_json_sha256(receipt)
@@ -236,10 +298,11 @@ class FnsTofHelpers(unittest.TestCase):
                                                         parsed, "d" * 64, 0.1, imp0_control)
                 self.assertEqual(verified["status"], "PASS")
                 bad = json.loads(path.read_text())
-                bad["radius_levels"][0]["results"].pop()
+                bad["radius_levels"][0]["results"][0]["estimated_flux_cm-2_per_source"] *= 100
+                bad["radius_levels"][0]["results"][0]["passed"] = True
                 bad["receipt_sha256"] = R.canonical_json_sha256(bad, ("receipt_sha256",))
                 path.write_text(json.dumps(bad))
-                with self.assertRaisesRegex(ValueError, "every one of the four"):
+                with self.assertRaisesRegex(ValueError, "differs from rederived child evidence"):
                     R.verify_aim_control_receipt(path, runtime, R.AIM_SUPPORTED_CASE,
                                                  parsed, "d" * 64, 0.1, imp0_control)
 

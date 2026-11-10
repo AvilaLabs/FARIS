@@ -226,6 +226,30 @@ def verify_aim_control_receipt(path: Path, runtime: dict, case_id: str, parsed: 
             "AIM vacuum-control receipt used a different CLI, library, Python API or nuclear-data identity")
     require(document.get("imp0_control_receipt") == imp0_control,
             "AIM vacuum-control receipt is not bound to the currently selected passing imp0 control")
+    require(document.get("cross_sections_xml_sha256") == runtime.get("cross_sections_xml_sha256")
+            and document.get("cross_sections_path") == runtime.get("cross_sections_path"),
+            "AIM vacuum-control receipt nuclear-data index differs from the selected runtime")
+    require(document.get("radii_cm") == list(AIM_CONTROL_RADII_CM),
+            "AIM vacuum-control receipt must bind all three frozen radii")
+    require(document.get("acceptance") == {
+        "all_four_detector_points_at_all_three_radii": True,
+        "analytic_cell_flux_bias": "absolute z-score <= 3 and relative MCSE <= 2% for each detector/radius",
+        "zero_lost_particles_and_zero_importance_kills": True,
+        "source_likelihood_ratio_bound": "0 < p_iso/q <= 1/(1-beta); per-plan finite positive lower bound also recorded",
+        "source_direction_law": "isotropic law retained through a positive (1-beta) mixture component"},
+            "AIM vacuum-control receipt criteria text is not the frozen current acceptance contract")
+    histories, batches = document.get("histories_per_radius"), document.get("batches")
+    require(isinstance(histories, int) and not isinstance(histories, bool) and histories > 0
+            and isinstance(batches, int) and not isinstance(batches, bool)
+            and 2 <= batches <= histories and histories % batches == 0,
+            "AIM vacuum-control histories/batches are invalid")
+    threads = document.get("threads")
+    require(isinstance(threads, int) and not isinstance(threads, bool) and threads > 0,
+            "AIM vacuum-control thread count is invalid")
+    seeds = document.get("seed_by_radius")
+    require(isinstance(seeds, list) and len(seeds) == len(AIM_CONTROL_RADII_CM)
+            and all(isinstance(seed, int) and not isinstance(seed, bool) and seed > 0 for seed in seeds),
+            "AIM vacuum-control seed list is invalid")
     levels = document.get("radius_levels")
     require(isinstance(levels, list) and [row.get("radius_cm") for row in levels] == list(AIM_CONTROL_RADII_CM),
             "AIM vacuum-control receipt omits one of the three detector radii")
@@ -236,10 +260,10 @@ def verify_aim_control_receipt(path: Path, runtime: dict, case_id: str, parsed: 
         require(isinstance(level, dict) and isinstance(artifact, dict)
                 and level.get("radius_cm") == radius and artifact.get("radius_cm") == radius,
                 "AIM vacuum-control radius or artifact order differs")
-        require(level.get("status") == "PASS"
-                and set(row.get("mcnp_tally_number") for row in level.get("results", [])) == set(AIM_REQUIRED_TALLIES)
-                and all(row.get("passed") is True for row in level.get("results", [])),
-                "AIM vacuum-control receipt lacks a passing result for every one of the four FNS detector points")
+        level_results = level.get("results")
+        require(isinstance(level_results, list) and len(level_results) == len(AIM_REQUIRED_TALLIES)
+                and {row.get("mcnp_tally_number") for row in level_results} == set(AIM_REQUIRED_TALLIES),
+                "AIM vacuum-control receipt lacks exactly one result for every FNS detector point")
         expected_plan = source_aperture_plan(parsed, radius, beta)
         require(level.get("source_aperture") == expected_plan,
                 "AIM vacuum-control source apertures differ from current detector centers, radius or beta")
@@ -258,9 +282,119 @@ def verify_aim_control_receipt(path: Path, runtime: dict, case_id: str, parsed: 
         child = read_imp0_statepoint(statepoint_path)
         require(child == level["patch_statepoint"],
                 "AIM vacuum-control record diagnostics differ from its hashed child statepoint")
+        require(child["current_batch"] == batches and child["n_batches"] == batches
+                and child["n_particles"] == histories // batches
+                and child["n_realizations"] == batches and child["solver_version"] == OPENMC_REQUIRED,
+                "AIM vacuum-control child statepoint histories/batches differ from its receipt")
+        require(child["lost_particles"] == child["intentional_kill_events"]
+                == child["source_birth_kill_events"] == child["cell_entry_kill_events"] == 0,
+                "AIM vacuum-control child statepoint reports losses or importance kills")
+        for key, filename in (("geometry_xml_sha256", "geometry.xml"),
+                              ("materials_xml_sha256", "materials.xml"),
+                              ("settings_xml_sha256", "settings.xml"),
+                              ("tallies_xml_sha256", "tallies.xml")):
+            xml_path = statepoint_path.parent / filename
+            require(xml_path.is_file() and artifact.get(key) == hash_file(xml_path),
+                    f"AIM vacuum-control {filename} is missing or differs from its recorded hash")
+        plan_path = statepoint_path.parent / "aim-source-plan.json"
+        require(plan_path.is_file() and artifact.get("aim_plan_sha256") == hash_file(plan_path),
+                "AIM vacuum-control source plan is missing or differs from its recorded hash")
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        require(plan == expected_plan, "AIM vacuum-control source plan file differs from the current exact mixture")
+        raw_scores, actual_seed = read_aim_tally_scores(statepoint_path, AIM_REQUIRED_TALLIES)
+        require(actual_seed == seeds[index],
+                f"AIM vacuum-control FNS radius {radius:g} cm statepoint seed differs from its receipt")
+        positions = {int(row["tally"]): row["position_cm"] for row in parsed["detectors"]}
+        source = parsed["source_position_cm"]
+        volume = sphere_volume_cm3(radius)
+        expected_rows = []
+        for tally_id in AIM_REQUIRED_TALLIES:
+            distance = math.sqrt(math.fsum((float(positions[tally_id][k]) - float(source[k])) ** 2
+                                           for k in range(3)))
+            expected = isotropic_sphere_volume_average_cm2(distance, radius)
+            mean, sd = raw_scores[tally_id]
+            expected_rows.append({"mcnp_tally_number": tally_id, "position_cm": positions[tally_id],
+                                  "radius_cm": radius, "sphere_volume_cm3": volume,
+                                  "raw_tracklength_mean_particle_cm_per_source": mean,
+                                  "raw_tracklength_std_dev_particle_cm_per_source": sd,
+                                  "analytic_flux_cm-2_per_source": expected})
+        recomputed = evaluate_vacuum_aim_control(expected_rows, child)
+        require(recomputed["status"] == "PASS"
+                and level.get("status") == recomputed["status"]
+                and level.get("criteria") == recomputed["criteria"],
+                "AIM vacuum-control receipt criteria do not pass when rederived from child tallies")
+        recorded = {int(row["mcnp_tally_number"]): row for row in level_results}
+        for row in recomputed["results"]:
+            tally_id = row["mcnp_tally_number"]
+            saved = recorded[tally_id]
+            require(saved.get("position_cm") == row["position_cm"]
+                    and saved.get("radius_cm") == radius
+                    and saved.get("sphere_volume_cm3") == volume,
+                    f"AIM vacuum-control F{tally_id} result geometry differs from current detector and radius")
+            for field in ("raw_tracklength_mean_particle_cm_per_source",
+                          "raw_tracklength_std_dev_particle_cm_per_source",
+                          "analytic_flux_cm-2_per_source", "estimated_flux_cm-2_per_source",
+                          "u_mc_cm-2_per_source", "relative_mcse", "relative_bias", "analytic_z_score"):
+                value = row[field]
+                require(field in saved and isinstance(saved[field], (int, float))
+                        and not isinstance(saved[field], bool)
+                        and math.isclose(float(saved[field]), float(value), rel_tol=1e-12, abs_tol=1e-300),
+                        f"AIM vacuum-control F{tally_id} saved {field} differs from rederived child evidence")
+            require(saved.get("passed") is True,
+                    f"AIM vacuum-control F{tally_id} does not pass the current derived criteria")
     return {"path": str(path.resolve()), "sha256": hash_file(path), "receipt_sha256": recorded_hash,
             "status": "PASS", "radii_cm": list(AIM_CONTROL_RADII_CM),
             "all_four_detector_tallies": list(AIM_REQUIRED_TALLIES)}
+
+
+def read_aim_tally_scores(path: Path, tally_ids: tuple[int, ...]) -> tuple[dict[int, tuple[float, float]], int]:
+    """Rebuild OpenMC mean and standard error directly from hashed statepoint sums."""
+    try:
+        import h5py
+        import numpy as np
+    except ImportError as exc:
+        raise ValueError("h5py and numpy are required to rederive AIM control tallies") from exc
+    result = {}
+    with h5py.File(path, "r") as statepoint:
+        require("tallies" in statepoint,
+                "AIM child statepoint omits tally result datasets")
+        groups = statepoint["tallies"]
+        n_realizations = scalar_int_dataset(statepoint[STATEPOINT_N_REALIZATIONS_DATASET],
+                                            STATEPOINT_N_REALIZATIONS_DATASET)
+        require(n_realizations > 1, "AIM child statepoint needs at least two batch realizations")
+        actual_seed = scalar_int_dataset(statepoint["seed"], "seed")
+        by_name = {}
+        for group_name, tally in groups.items():
+            if not group_name.startswith("tally ") or "name" not in tally:
+                continue
+            name = tally["name"][()]
+            if isinstance(name, bytes):
+                name = name.decode("utf-8")
+            by_name[name] = tally
+        for tally_id in tally_ids:
+            name = f"aim_vacuum_f{tally_id}"
+            require(name in by_name, f"AIM child statepoint lacks raw tally {name}")
+            tally = by_name[name]
+            require("results" in tally and "estimator" in tally and "n_realizations" in tally,
+                    f"AIM child statepoint tally {name} omits raw result metadata")
+            tally_n = scalar_int_dataset(tally["n_realizations"], f"{name} n_realizations")
+            require(tally_n == n_realizations,
+                    f"AIM child statepoint tally {name} realization count differs from global metadata")
+            estimator = tally["estimator"][()]
+            if isinstance(estimator, bytes):
+                estimator = estimator.decode("utf-8")
+            require(estimator == "tracklength", f"AIM control tally {name} is not tracklength")
+            values = np.asarray(tally["results"][...], dtype=float)
+            require(values.shape == (1, 1, 2) and np.isfinite(values).all(),
+                    f"AIM control tally {name} has unexpected raw-result shape or non-finite values")
+            total, total_sq = map(float, values[0, 0])
+            mean = total / n_realizations
+            variance_of_mean = (total_sq / n_realizations - mean * mean) / (n_realizations - 1)
+            require(total >= 0.0 and total_sq >= 0.0 and variance_of_mean >= -1e-14 * max(total_sq, 1.0),
+                    f"AIM control tally {name} has invalid sum/sum-square statistics")
+            sd = math.sqrt(max(variance_of_mean, 0.0))
+            result[tally_id] = (mean, sd)
+    return result, actual_seed
 
 
 def hash_file(path: Path, limit: int | None = None) -> str:

@@ -148,6 +148,13 @@ material-transport run. The vacuum control verifies only the angular-mixture
 weighting and spherical-volume normalization; it is not a material-transport
 result or an MCNP F5 equivalence claim.
 
+At consumption time the adapter reopens each hashed statepoint and reconstructs
+the four raw tally means and standard errors, then reapplies the frozen analytic
+3-standard-error and 2% MCSE checks. It also checks the child batch/history/seed
+metadata, generated XML and source-plan hashes, and the selected nuclear-data
+index. Editing result rows or `passed` flags and recomputing the JSON self-hash
+does not qualify a control receipt.
+
 Example control plan (use fresh work directories and the same patched runtime
 and FNS cross sections as the later run):
 
