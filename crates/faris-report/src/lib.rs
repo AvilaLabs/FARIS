@@ -562,6 +562,11 @@ fn pdf_content<'a>(
         study: &p.study,
         timeline,
         sweep_charts: p.sweep_charts.as_ref().map(|[a, b, c]| [a, b, c]),
+        sweep_uncertainty: input
+            .sweep
+            .as_ref()
+            .filter(|sweep| !sweep.points.is_empty())
+            .map(|sweep| (sweep.points.as_slice(), sweep.summaries.as_slice())),
         sweep_findings: p.sweep_findings.clone(),
         sweep_note: p.sweep_note.clone(),
         assumptions: &p.assumptions,

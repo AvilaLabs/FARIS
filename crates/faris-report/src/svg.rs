@@ -133,6 +133,20 @@ impl Svg {
         self.body.push_str("/>\n");
     }
 
+    /// A rectangle with an accessible, hoverable text label.
+    pub fn rect_with_title(
+        &mut self,
+        bounds: [f32; 4],
+        fill: Option<(Rgb, f32)>,
+        stroke: Option<(Rgb, f32)>,
+        title: &str,
+    ) {
+        let _ = write!(self.body, "<g><title>{}</title>", escape(title));
+        let [x, y, w, h] = bounds;
+        self.rect(x, y, w, h, fill, stroke);
+        self.body.push_str("</g>\n");
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn line(
         &mut self,
@@ -199,6 +213,22 @@ impl Svg {
             hex(fill),
             hex(stroke)
         );
+    }
+
+    /// A circle with an accessible, hoverable text label.
+    pub fn circle_with_title(
+        &mut self,
+        center: [f32; 2],
+        r: f32,
+        fill: Rgb,
+        stroke: Rgb,
+        width: f32,
+        title: &str,
+    ) {
+        let _ = write!(self.body, "<g><title>{}</title>", escape(title));
+        let [cx, cy] = center;
+        self.circle(cx, cy, r, fill, stroke, width);
+        self.body.push_str("</g>\n");
     }
 
     /// Text from plain content (escaped here).

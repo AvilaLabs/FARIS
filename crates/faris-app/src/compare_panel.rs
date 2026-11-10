@@ -183,15 +183,46 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
         });
 }
 
+fn validation_tag(quantity: Quantity) -> String {
+    faris_model::validation::ValidationMark::current(quantity).tag()
+}
+
+fn validation_detail(quantity: Quantity) -> String {
+    let note = faris_model::validation::note(quantity);
+    format!(
+        "{} · scope: {} · why: {} · next step: {}",
+        validation_tag(quantity),
+        note.scope,
+        note.why,
+        note.next_step
+    )
+}
+
+fn takeaway_validation(sentence: &str, quantities: &[Quantity]) -> (String, String) {
+    let tags = quantities
+        .iter()
+        .map(|quantity| validation_tag(*quantity))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let details = quantities
+        .iter()
+        .map(|quantity| validation_detail(*quantity))
+        .collect::<Vec<_>>()
+        .join("\n");
+    (format!("{sentence} {tags}"), details)
+}
+
 fn delta_cell(
     ui: &mut egui::Ui,
     text: Option<String>,
     badge_kind: Option<(Kind, &str, &str)>,
+    quantity: Quantity,
     none_hint: &str,
 ) {
     ui.horizontal(|ui| match text {
         Some(t) => {
-            ui.monospace(t);
+            ui.monospace(format!("{t} {}", validation_tag(quantity)))
+                .on_hover_text(validation_detail(quantity));
             if let Some((kind, label, why)) = badge_kind {
                 badge::badge(ui, kind, label, why);
             }
@@ -262,18 +293,76 @@ fn flag_count_note(compared: usize, flagged: usize) -> String {
     )
 }
 
-fn contrast_row(ui: &mut egui::Ui, title: &str, c: &Contrast) {
+fn margin_delta_cell(
+    ui: &mut egui::Ui,
+    value: Option<String>,
+    sources: (&Cell, &Cell),
+    field: &str,
+    unit: &str,
+    verdict: Option<faris_engine::brief::BandVerdict>,
+    none_hint: &str,
+) {
+    let (from, to) = sources;
+    match value {
+        Some(value) => {
+            let missing = || {
+                OutputUncertainty::none(
+                    "this arrangement has no stored uncertainty state for the margin",
+                    "reload or recalculate the history summary to record its uncertainty state",
+                )
+            };
+            let from_state = from
+                .uncertainty
+                .get(field)
+                .map(|state| uncertainty_display(state, unit))
+                .unwrap_or_else(|| uncertainty_display(&missing(), unit));
+            let to_state = to
+                .uncertainty
+                .get(field)
+                .map(|state| uncertainty_display(state, unit))
+                .unwrap_or_else(|| uncertainty_display(&missing(), unit));
+            let verdict_text = match verdict {
+                Some(faris_engine::brief::BandVerdict::Separated) => {
+                    "the two 2σ input bands are separated; this is not an interval of the difference"
+                }
+                Some(faris_engine::brief::BandVerdict::Overlapping) => {
+                    "the two 2σ input bands overlap; the difference is unresolved"
+                }
+                Some(faris_engine::brief::BandVerdict::NoBand) => {
+                    "no 2σ input-band comparison is available; the difference is conditional"
+                }
+                None => "2σ input-band comparison was not evaluated",
+            };
+            ui.vertical(|ui| {
+                ui.monospace(format!("{value} {}", validation_tag(Quantity::Fluence)))
+                    .on_hover_text(validation_detail(Quantity::Fluence));
+                ui.small(format!(
+                    "2σ inputs · first: {}; second: {}",
+                    from_state, to_state,
+                ));
+                ui.small(verdict_text);
+            });
+        }
+        None => {
+            ui.weak(NOT_RECORDED).on_hover_text(none_hint);
+        }
+    }
+}
+
+fn contrast_row(ui: &mut egui::Ui, title: &str, c: &Contrast, from: &Cell, to: &Cell) {
     ui.label(title);
     delta_cell(
         ui,
         c.breeding_pct.map(|(v, _)| format!("{v:+.2} %")),
         c.breeding_pct.map(|(_, r)| sampled_badge(r)),
+        Quantity::Tbr,
         "Needs a recorded breeding ratio for both arrangements.",
     );
     delta_cell(
         ui,
         c.flux_pct.map(|(v, _)| format!("{v:+.1} %")),
         c.flux_pct.map(|(_, r)| sampled_badge(r)),
+        Quantity::Flux,
         "Needs a recorded magnet flux for both arrangements.",
     );
     let conditional = |present: bool| {
@@ -283,22 +372,29 @@ fn contrast_row(ui: &mut egui::Ui, title: &str, c: &Contrast) {
             CONDITIONAL_NOTE,
         ))
     };
-    delta_cell(
+    margin_delta_cell(
         ui,
         c.swaps.map(|v| format!("{v:+}")),
-        conditional(c.swaps.is_some()),
+        (from, to),
+        "swaps",
+        "swaps",
+        c.swaps_band,
         "Needs a magnet service limit in the history assumptions.",
     );
-    delta_cell(
+    margin_delta_cell(
         ui,
         c.first_swap_y.map(|v| format!("{v:+.1} y")),
-        conditional(c.first_swap_y.is_some()),
+        (from, to),
+        "first_swap_y",
+        "y",
+        c.first_swap_band,
         "Needs a first magnet swap in both arrangements; one of them has none within the horizon.",
     );
     delta_cell(
         ui,
         c.net_twh.map(|v| format!("{v:+.2} TWh")),
         conditional(c.net_twh.is_some()),
+        Quantity::NetElectricPower,
         "Needs a net-electricity ledger for both arrangements.",
     );
     ui.end_row();
@@ -657,10 +753,10 @@ pub fn compare_view(
                         ui.strong(heading);
                     }
                     ui.end_row();
-                    contrast_row(ui, "Breeder-heavy − Reference · with port", &study.allocation_with_port);
-                    contrast_row(ui, "Breeder-heavy − Reference · no port", &study.allocation_no_port);
-                    contrast_row(ui, "Port − No port · reference", &study.port_reference);
-                    contrast_row(ui, "Port − No port · breeder-heavy", &study.port_breeder);
+                    contrast_row(ui, "Breeder-heavy − Reference · with port", &study.allocation_with_port, &cells[0][0], &cells[0][1]);
+                    contrast_row(ui, "Breeder-heavy − Reference · no port", &study.allocation_no_port, &cells[1][0], &cells[1][1]);
+                    contrast_row(ui, "Port − No port · reference", &study.port_reference, &cells[1][0], &cells[0][0]);
+                    contrast_row(ui, "Port − No port · breeder-heavy", &study.port_breeder, &cells[1][1], &cells[0][1]);
                 });
             let (compared, flagged) = flag_counts(&[
                 &study.allocation_with_port,
@@ -671,16 +767,20 @@ pub fn compare_view(
             ui.small(flag_count_note(compared, flagged));
 
             ui.add_space(10.0);
-            let sentences = &study.takeaways;
-            if !sentences.is_empty() {
+            if !study.takeaways.is_empty() {
                 egui::Frame::new()
                     .fill(egui::Color32::from_white_alpha(8))
                     .corner_radius(6.0)
                     .inner_margin(egui::Margin::same(10))
                     .show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(egui::RichText::new(sentences.join(" ")).size(15.0));
-                            badge::kind_badge(ui, Kind::Conditional, "Generated from the numbers above. Conditional on the authored service limit and replacement duration; sampling noise on the transport inputs is not propagated into the swap years.");
+                            for (index, sentence) in study.takeaways.iter().enumerate() {
+                                let quantities = study.takeaway_quantities.get(index).map_or(&[][..], Vec::as_slice);
+                                let (text, details) = takeaway_validation(sentence, quantities);
+                                ui.label(egui::RichText::new(text).size(15.0))
+                                    .on_hover_text(details);
+                                badge::kind_badge(ui, Kind::Conditional, "Generated from the numbers above. Conditional on the authored service limit and replacement duration; sampling noise on the transport inputs is not propagated into the swap years.");
+                            }
                         });
                     });
             }
@@ -739,6 +839,232 @@ mod tests {
     use super::*;
 
     #[test]
+    fn rendered_takeaway_uses_its_typed_quantity_identities_for_markers_and_notes() {
+        let quantities = [Quantity::Tbr, Quantity::Fluence];
+        let (rendered, detail) = takeaway_validation(
+            "Shifting the blanket changes breeding by 1.0 % and adds one swap.",
+            &quantities,
+        );
+        assert!(rendered.ends_with("[not validated: TBR] [not validated: fluence]"));
+        assert!(detail.contains(&faris_model::validation::note(Quantity::Tbr).why));
+        assert!(detail.contains(&faris_model::validation::note(Quantity::Fluence).next_step));
+    }
+
+    #[test]
+    fn rendered_contrast_numbers_use_their_typed_quantity_statuses() {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        let contrast = Contrast {
+            breeding_pct: Some((1.0, true)),
+            flux_pct: Some((2.0, false)),
+            swaps: Some(2),
+            first_swap_y: Some(-3.0),
+            net_twh: Some(3.0),
+            swaps_band: Some(faris_engine::brief::BandVerdict::Separated),
+            first_swap_band: Some(faris_engine::brief::BandVerdict::Separated),
+        };
+        let mut from = Cell::default();
+        from.uncertainty.insert(
+            "swaps".into(),
+            OutputUncertainty::interval(0.0, Some(1.0), "2 sigma of flux"),
+        );
+        from.uncertainty.insert(
+            "first_swap_y".into(),
+            OutputUncertainty::interval(5.0, Some(7.0), "2 sigma of flux"),
+        );
+        let mut to = Cell::default();
+        to.uncertainty.insert(
+            "swaps".into(),
+            OutputUncertainty::interval(2.0, Some(3.0), "2 sigma of flux"),
+        );
+        to.uncertainty.insert(
+            "first_swap_y".into(),
+            OutputUncertainty::interval(2.0, Some(4.0), "2 sigma of flux"),
+        );
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            contrast_row(ui, "fixture", &contrast, &from, &to)
+        });
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.drop_without_applying_deltas();
+        for expected in [
+            "+1.00 % [not validated: TBR]",
+            "+2.0 % [not validated: flux]",
+            "+2 [not validated: fluence]",
+            "-3.0 y [not validated: fluence]",
+            "2σ inputs · first: 0.0 to 1.0 (2 sigma of flux) swaps; second: 2.0 to 3.0 (2 sigma of flux) swaps",
+            "2σ inputs · first: 5.0 to 7.0 (2 sigma of flux) y; second: 2.0 to 4.0 (2 sigma of flux) y",
+            "input bands are separated; this is not an interval of the difference",
+            "+3.00 TWh [not validated: net power]",
+        ] {
+            assert!(
+                rendered.contains(expected),
+                "missing {expected} in {rendered}"
+            );
+        }
+        assert!(validation_detail(Quantity::NetElectricPower).contains("next step:"));
+    }
+
+    #[test]
+    fn rendered_compare_arrangement_cells_show_swap_count_and_first_swap_bands() {
+        let mut cell = Cell {
+            recorded: true,
+            swaps: Some(3),
+            swaps_two_sigma: Some((2, 5)),
+            first_swap_y: Some(7.0),
+            first_swap_relative_sampling: Some(0.1),
+            ..Default::default()
+        };
+        cell.uncertainty.insert(
+            "swaps".into(),
+            OutputUncertainty::interval(2.0, Some(5.0), "2 sigma of flux that drives each limit"),
+        );
+        cell.uncertainty.insert(
+            "first_swap_y".into(),
+            OutputUncertainty::interval(5.8, Some(8.6), "2 sigma of driving flux, first order"),
+        );
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            cell_ui(ui, "mag-margin-fixture", &cell, true, false, 420.0);
+        });
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.drop_without_applying_deltas();
+        assert!(rendered.contains("Magnet swaps in"), "{rendered}");
+        assert!(rendered.contains("Swap-count uncertainty"), "{rendered}");
+        assert!(
+            rendered.contains("2.0 to 5.0 (2 sigma of flux that drives each limit) swaps"),
+            "{rendered}"
+        );
+        assert!(rendered.contains("First swap"), "{rendered}");
+        assert!(
+            rendered.contains("5.8 to 8.6 (2 sigma of driving flux, first order) y"),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn rendered_magnet_margin_deltas_show_both_typed_two_sigma_inputs_and_verdict() {
+        let mut from = Cell::default();
+        from.uncertainty.insert(
+            "first_swap_y".into(),
+            OutputUncertainty::interval(8.0, Some(12.0), "2 sigma of driving flux, first order"),
+        );
+        let mut to = Cell::default();
+        to.uncertainty.insert(
+            "first_swap_y".into(),
+            OutputUncertainty::interval(4.0, Some(6.0), "2 sigma of driving flux, first order"),
+        );
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            margin_delta_cell(
+                ui,
+                Some("-5.0 y".into()),
+                (&from, &to),
+                "first_swap_y",
+                "y",
+                Some(faris_engine::brief::BandVerdict::Separated),
+                "missing margin",
+            );
+        });
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.drop_without_applying_deltas();
+        assert!(rendered.contains("-5.0 y"), "{rendered}");
+        assert!(
+            rendered.contains("first: 8.0 to 12.0 (2 sigma of driving flux, first order) y"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("second: 4.0 to 6.0 (2 sigma of driving flux, first order) y"),
+            "{rendered}"
+        );
+        assert!(
+            rendered
+                .contains("input bands are separated; this is not an interval of the difference"),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn rendered_magnet_margin_delta_keeps_missing_legacy_inputs_unqualified() {
+        let from = Cell::default();
+        let to = Cell::default();
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            margin_delta_cell(
+                ui,
+                Some("+2".into()),
+                (&from, &to),
+                "swaps",
+                "swaps",
+                Some(faris_engine::brief::BandVerdict::NoBand),
+                "missing margin",
+            );
+        });
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.drop_without_applying_deltas();
+        assert!(
+            rendered
+                .contains("no interval, because this arrangement has no stored uncertainty state"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("no 2σ input-band comparison is available"),
+            "{rendered}"
+        );
+        assert!(rendered.contains("next step:"), "{rendered}");
+    }
+
+    #[test]
     fn uncertainty_display_keeps_closed_open_and_missing_states_with_units() {
         use faris_engine::output_uncertainty::OutputUncertainty;
 
@@ -770,7 +1096,6 @@ mod tests {
         assert!(!closed.contains("1 σ"));
     }
 
-    // Verifies: UNC-080
     #[test]
     fn rendered_comparison_bars_attribute_interval_and_missing_uncertainty_per_series() {
         let rows = [
@@ -826,6 +1151,71 @@ mod tests {
         );
         assert!(
             rendered.contains("next step: rerun transport with batch statistics recorded"),
+            "{rendered}"
+        );
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn rendered_comparison_swap_bars_attribute_each_magnet_count_band() {
+        let rows = [
+            (
+                true,
+                false,
+                Some(3.0),
+                Some(OutputUncertainty::interval(
+                    1.0,
+                    Some(5.0),
+                    "2 sigma of flux that drives each limit, first order",
+                )),
+            ),
+            (
+                false,
+                true,
+                Some(2.0),
+                Some(OutputUncertainty::none(
+                    "the saved history has no stored flux standard error",
+                    "recalculate transport with batch statistics recorded",
+                )),
+            ),
+        ];
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            paired_bars(ui, "Magnet swaps over the horizon", "swaps", &rows, 0);
+        });
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.drop_without_applying_deltas();
+        assert!(
+            rendered.contains("Magnet swaps over the horizon"),
+            "{rendered}"
+        );
+        assert!(rendered.contains("3 swaps"), "{rendered}");
+        assert!(
+            rendered
+                .contains("1.0 to 5.0 (2 sigma of flux that drives each limit, first order) swaps"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains(
+                "2 swaps: no interval, because the saved history has no stored flux standard error"
+            ),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("next step: recalculate transport with batch statistics recorded"),
             "{rendered}"
         );
     }

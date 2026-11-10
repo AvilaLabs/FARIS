@@ -708,7 +708,7 @@ fn unsaved_study_says_so_in_the_pdf() {
 }
 
 #[test]
-fn pdf_is_two_us_letter_pages() {
+fn pdf_includes_a_third_us_letter_page_for_sweep_uncertainty() {
     let (_guard, outcome) = exported();
     let pdf = outcome.folder.join("summary.pdf");
     assert!(read(&outcome.folder, "summary.pdf").starts_with(b"%PDF-"));
@@ -722,12 +722,141 @@ fn pdf_is_two_us_letter_pages() {
         .lines()
         .find_map(|l| l.strip_prefix("Pages:"))
         .map(str::trim);
-    assert_eq!(pages, Some("2"), "{info}");
+    assert_eq!(pages, Some("3"), "{info}");
     assert!(info.contains("612 x 792 pts (letter)"), "{info}");
 }
 
+// Verifies: UNC-080
 #[test]
-fn both_pages_fit_their_content() {
+fn rendered_sweep_uncertainty_page_binds_typed_states_to_each_nominal_row() {
+    let (_guard, outcome) = exported();
+    if !tool_available("pdftotext") {
+        return;
+    }
+    let out = Command::new("pdftotext")
+        .args(["-enc", "UTF-8", "-layout", "-f", "3", "-l", "3"])
+        .arg(outcome.folder.join("summary.pdf"))
+        .arg("-")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(flat.contains("Allocation-sweep uncertainty"), "{flat}");
+    assert!(flat.contains("Input m Swaps"), "{flat}");
+    assert!(
+        flat.contains("authored input, with no input range assigned"),
+        "{flat}"
+    );
+    assert!(flat.contains("3.00 to 4.00 (2 sigma"), "{flat}");
+    assert!(flat.contains("0.35 m"), "{flat}");
+    assert!(flat.contains("13.35"), "{flat}");
+    assert!(
+        flat.contains("no interval, because deterministic function"),
+        "{flat}"
+    );
+    assert!(
+        flat.contains("next step: run the history ensemble"),
+        "{flat}"
+    );
+    assert!(!flat.contains("difference interval"), "{flat}");
+}
+
+// Verifies: UNC-080
+#[test]
+fn sweep_pdf_paginates_large_grids_and_continues_unbounded_reasons_without_loss() {
+    let mut source = input();
+    let sweep = source.sweep.as_mut().unwrap();
+    let base_point = sweep.points[0].clone();
+    let base_summary = sweep.summaries[0].as_ref().unwrap().clone();
+    sweep.points.clear();
+    sweep.summaries.clear();
+    for index in 0..35 {
+        let mut point = base_point.clone();
+        point.blanket_m = 0.35 + index as f64 * 0.01;
+        point.shield_m = 0.9 - point.blanket_m;
+        point.variant_id = format!("layout-{index:02}");
+        point.label = format!("Layout allocation {index:02}");
+        let mut summary = base_summary.clone();
+        summary.magnet_replacements = 3 + (index % 2) as u32;
+        summary.net_electricity_twh = Some(13.35 + index as f64 * 0.01);
+        if index == 17 {
+            summary.uncertainty.insert(
+                "magnet_replacements".into(),
+                faris_engine::output_uncertainty::OutputUncertainty::none(
+                    format!(
+                        "{}{} LONG_REASON_END",
+                        "allocation-specific transport reason ".repeat(130),
+                        "UNBROKEN_REASON_TOKEN".repeat(90)
+                    ),
+                    format!(
+                        "{}{} LONG_NEXT_END",
+                        "allocation-specific next step ".repeat(60),
+                        "UNBROKEN_NEXT_TOKEN".repeat(60)
+                    ),
+                ),
+            );
+        }
+        sweep.points.push(point);
+        sweep.summaries.push(Some(summary));
+    }
+
+    let prepared = prepare(&source).unwrap();
+    let order: Vec<&ArrangementData> = prepared.data.iter().collect();
+    let draw = timeline_fn(&prepared);
+    let content = pdf_content(&source, &prepared, &order, &draw);
+    let extent = pdf::measure(&content).unwrap();
+    assert!(extent.sweep_uncertainty_pages >= 3, "{extent:?}");
+    assert!(
+        extent.sweep_uncertainty_bottom.unwrap() <= 756.0,
+        "{extent:?}"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let outcome = export_study(&source, dir.path()).unwrap();
+    if !tool_available("pdfinfo") || !tool_available("pdftotext") {
+        return;
+    }
+    let pdf = outcome.folder.join("summary.pdf");
+    let info = Command::new("pdfinfo").arg(&pdf).output().unwrap();
+    let info = String::from_utf8_lossy(&info.stdout);
+    let total_pages: usize = info
+        .lines()
+        .find_map(|line| line.strip_prefix("Pages:"))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    assert_eq!(total_pages, 2 + extent.sweep_uncertainty_pages, "{info}");
+    let text = Command::new("pdftotext")
+        .args(["-enc", "UTF-8", "-layout"])
+        .arg(&pdf)
+        .arg("-")
+        .output()
+        .unwrap();
+    let flat = String::from_utf8_lossy(&text.stdout)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        flat.contains("LONG_REASON_END"),
+        "long reason clipped: {flat}"
+    );
+    assert!(
+        flat.contains("LONG_NEXT_END"),
+        "long next step clipped: {flat}"
+    );
+    assert!(
+        flat.contains("0.69 m"),
+        "last allocation row clipped: {flat}"
+    );
+    assert!(
+        flat.contains("13.69"),
+        "last nominal electricity value clipped: {flat}"
+    );
+}
+
+#[test]
+fn all_summary_pages_fit_their_content() {
     let source = input();
     let prepared = prepare(&source).unwrap();
     let order: Vec<&ArrangementData> = prepared.data.iter().collect();
@@ -736,6 +865,10 @@ fn both_pages_fit_their_content() {
     let extent = pdf::measure(&content).unwrap();
     assert!(extent.page_one_bottom <= 756.0, "{extent:?}");
     assert!(extent.page_two_bottom <= 756.0, "{extent:?}");
+    assert!(
+        extent.sweep_uncertainty_bottom.unwrap() <= 756.0,
+        "{extent:?}"
+    );
     assert!(extent.page_two_scale >= 0.86, "{extent:?}");
 }
 
@@ -1307,7 +1440,7 @@ mod ensembles {
 
     // Verifies: PRV-012, UNC-080
     #[test]
-    fn the_pdf_gains_a_third_page_that_fits_and_shows_ranges_beside_nominal_values() {
+    fn the_pdf_history_and_sweep_uncertainty_pages_fit_and_show_typed_states() {
         let source = with_ensembles();
         let prepared = prepare(&source).unwrap();
         let order: Vec<&ArrangementData> = prepared.data.iter().collect();
@@ -1316,6 +1449,10 @@ mod ensembles {
         let extent = pdf::measure(&content).unwrap();
         assert!(extent.page_one_bottom <= 756.0, "{extent:?}");
         assert!(extent.page_three_bottom.unwrap() <= 756.0, "{extent:?}");
+        assert!(
+            extent.sweep_uncertainty_bottom.unwrap() <= 756.0,
+            "{extent:?}"
+        );
 
         let (_dir, outcome) = exported_with_ensembles();
         if !tool_available("pdfinfo") || !tool_available("pdftotext") {
@@ -1328,7 +1465,7 @@ mod ensembles {
             .lines()
             .find_map(|l| l.strip_prefix("Pages:"))
             .map(str::trim);
-        assert_eq!(pages, Some("3"), "{info}");
+        assert_eq!(pages, Some("4"), "{info}");
         let out = Command::new("pdftotext")
             .args(["-enc", "UTF-8"])
             .arg("-layout")
@@ -1337,7 +1474,7 @@ mod ensembles {
             .output()
             .unwrap();
         let text = String::from_utf8_lossy(&out.stdout).to_string();
-        assert!(text.contains("Page 3 of 3"));
+        assert!(text.contains("Page 3 of 4"));
         assert!(text.contains("Uncertainty in the operating history"));
         assert!(
             text.contains("transport Monte Carlo sampling uncertainty only")
@@ -1351,9 +1488,31 @@ mod ensembles {
         assert!(flat.contains("no covariance between its results"), "{flat}");
         assert!(flat.contains("Next step: Rerun transport with this FARIS version"));
         assert!(flat.contains("no uncertainty range"));
+        let sweep_page = Command::new("pdftotext")
+            .args(["-enc", "UTF-8", "-layout", "-f", "4", "-l", "4"])
+            .arg(&pdf)
+            .arg("-")
+            .output()
+            .unwrap();
+        let sweep_page = String::from_utf8_lossy(&sweep_page.stdout);
+        let flat_sweep = sweep_page.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            flat_sweep.contains("Allocation-sweep uncertainty"),
+            "{flat_sweep}"
+        );
+        assert!(flat_sweep.contains("3.00 to 4.00 (2 sigma"), "{flat_sweep}");
+        assert!(
+            flat_sweep.contains("no interval, because deterministic function"),
+            "{flat_sweep}"
+        );
+        assert!(
+            flat_sweep.contains("run the history ensemble for this arrangement"),
+            "{flat_sweep}"
+        );
+        assert!(flat_sweep.contains("13.35"), "{flat_sweep}");
     }
 
-    /// Development aid: keep the three-page export for visual review.
+    /// Development aid: keep the four-page export for visual review.
     #[test]
     fn write_sample_ensemble_export_when_asked() {
         let Some(dir) = std::env::var_os("FARIS_REPORT_SAMPLE_DIR") else {

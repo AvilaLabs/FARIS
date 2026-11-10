@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // SPDX-FileCopyrightText: 2026 Avila Labs
-//! The two-page US Letter summary. Text is drawn as real text in the app's
-//! fonts (embedded, subset); charts are the exported SVGs drawn as vectors.
+//! The US Letter summary. Text is drawn as real text in the app's fonts
+//! (embedded, subset); charts are the exported SVGs drawn as vectors.
 
 use crate::{
     ArrangementData,
@@ -18,6 +18,7 @@ use faris_engine::{
     history_ensemble::output_quantity,
     history_uncertainty::{SCOPE_DETAIL, SCOPE_LINE},
     output_uncertainty::OutputUncertainty,
+    sweep::{HistorySummary, TransportPoint},
 };
 use faris_model::RESEARCH_SCREENING_STATEMENT;
 use faris_model::validation::{Quantity, ValidationState, note};
@@ -44,7 +45,7 @@ const BOTTOM: f32 = 756.0;
 const RULE: Rgb = [208, 212, 220];
 const STRIPE: Rgb = [246, 247, 250];
 
-/// Everything the two pages show.
+/// Everything the summary pages show.
 pub struct PdfContent<'a> {
     pub title: &'a str,
     pub subtitle: String,
@@ -57,6 +58,8 @@ pub struct PdfContent<'a> {
     /// exactly the room that is left.
     pub timeline: &'a dyn Fn(f32) -> ChartSvg,
     pub sweep_charts: Option<[&'a ChartSvg; 3]>,
+    /// Allocation sweep rows for the uncertainty detail page, when recorded.
+    pub sweep_uncertainty: Option<(&'a [TransportPoint], &'a [Option<HistorySummary>])>,
     pub sweep_findings: Vec<(StatusKind, String)>,
     pub sweep_note: String,
     pub assumptions: &'a [AssumptionRow],
@@ -1105,6 +1108,280 @@ fn page_two(cv: &mut Canvas, c: &PdfContent, k: f32) -> f32 {
     y
 }
 
+/// Per-allocation sweep outputs with their own stored intervals or reasons.
+/// Rows paginate at line boundaries so arbitrary state text is never clipped.
+#[derive(Clone)]
+struct SweepUncertaintyRow {
+    blanket_m: f64,
+    cells: [Vec<String>; 5],
+}
+
+#[derive(Clone, Copy)]
+struct SweepRowFragment {
+    row: usize,
+    first_line: usize,
+    end_line: usize,
+}
+
+fn sweep_uncertainty_rows(
+    points: &[TransportPoint],
+    summaries: &[Option<HistorySummary>],
+) -> Vec<SweepUncertaintyRow> {
+    points
+        .iter()
+        .enumerate()
+        .map(|(index, point)| {
+            let summary = summaries.get(index).and_then(Option::as_ref);
+            let no_history = OutputUncertainty::none(
+                "no calculated sweep history is recorded for this allocation",
+                "calculate this allocation's history and export again",
+            );
+            let swap_state = summary
+                .and_then(|s| s.uncertainty.get("magnet_replacements"))
+                .cloned()
+                .unwrap_or_else(|| {
+                    if summary.is_some() {
+                        OutputUncertainty::none(
+                            "this saved sweep history has no stored swap-count uncertainty state",
+                            "rerun and export this history with the current FARIS version",
+                        )
+                    } else {
+                        no_history.clone()
+                    }
+                });
+            let electricity = summary.and_then(|s| s.net_electricity_twh);
+            let energy_state = electricity.map(|_| {
+                summary
+                    .and_then(|s| s.uncertainty.get("net_electricity_twh"))
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        OutputUncertainty::none(
+                            "this saved sweep history has no stored electricity uncertainty state",
+                            "rerun and export this history with the current FARIS version",
+                        )
+                    })
+            });
+            let cells = [
+                vec![format!("{:.2} m", point.blanket_m)],
+                vec![summary.map_or_else(|| "—".to_owned(), |s| s.magnet_replacements.to_string())],
+                wrap_uncertainty_lines(&swap_state.text(2), 199.0, 6.1),
+                vec![electricity.map_or_else(|| "—".to_owned(), |v| format!("{v:.2}"))],
+                wrap_uncertainty_lines(
+                    &energy_state.map_or_else(
+                        || "No electricity value recorded for this allocation.".to_owned(),
+                        |state| state.text(2),
+                    ),
+                    173.0,
+                    6.1,
+                ),
+            ];
+            SweepUncertaintyRow {
+                blanket_m: point.blanket_m,
+                cells,
+            }
+        })
+        .collect()
+}
+
+const SWEEP_UNCERTAINTY_LEAD: f32 = 7.4;
+const SWEEP_UNCERTAINTY_SIZE: f32 = 6.1;
+
+/// Wrap uncertainty text even when a stored reason contains one long URL or token.
+fn wrap_uncertainty_lines(text: &str, width: f32, size: f32) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        let mut rest = word;
+        while !rest.is_empty() {
+            if current.is_empty() && text_width(FontKind::Body, rest, size) <= width {
+                current.push_str(rest);
+                break;
+            }
+            if !current.is_empty() {
+                let with_word = format!("{current} {rest}");
+                if text_width(FontKind::Body, &with_word, size) <= width {
+                    current = with_word;
+                    break;
+                }
+                lines.push(std::mem::take(&mut current));
+            }
+            let mut fitting_end = 0;
+            for (end, _) in rest
+                .char_indices()
+                .skip(1)
+                .chain(std::iter::once((rest.len(), '\0')))
+            {
+                if text_width(FontKind::Body, &rest[..end], size) > width {
+                    break;
+                }
+                fitting_end = end;
+            }
+            if fitting_end == 0 {
+                fitting_end = rest.chars().next().unwrap().len_utf8();
+            }
+            current.push_str(&rest[..fitting_end]);
+            rest = &rest[fitting_end..];
+            if !rest.is_empty() {
+                lines.push(std::mem::take(&mut current));
+            }
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
+}
+
+fn sweep_uncertainty_header(cv: &mut Canvas, continued: bool) -> f32 {
+    let mut y = MARGIN;
+    let title = if continued {
+        "Allocation-sweep uncertainty (continued)"
+    } else {
+        "Allocation-sweep uncertainty"
+    };
+    cv.bold(MARGIN, y + 10.0, title, 10.0, INK);
+    y += 17.0;
+    let intro = wrap_lines(
+        "Blanket thickness is the authored input, with no input range assigned (next step: add one only if the study defines it). Output intervals or reasons below are per allocation; no cross-allocation interval is inferred.",
+        CONTENT_W,
+        6.8,
+    );
+    for (line, text) in intro.iter().enumerate() {
+        cv.body(MARGIN, y + 6.8 + line as f32 * 8.4, text, 6.8, MUTED);
+    }
+    y += intro.len() as f32 * 8.4 + 5.0;
+    let widths = [50.0, 48.0, 205.0, 58.0, 179.0];
+    let headers = [
+        "Input m",
+        "Swaps",
+        "Swap-count interval or reason",
+        "Net TWh",
+        "Electricity interval or reason",
+    ];
+    let mut x = MARGIN;
+    for (i, header) in headers.iter().enumerate() {
+        cv.bold(x + 3.0, y + 6.4, header, 6.2, INK);
+        x += widths[i];
+    }
+    y += 9.0;
+    cv.hline(MARGIN, PAGE_W - MARGIN, y, RULE, 0.6);
+    y
+}
+
+fn sweep_uncertainty_fragments(rows: &[SweepUncertaintyRow]) -> Vec<Vec<SweepRowFragment>> {
+    let intro_lines = wrap_lines(
+        "Blanket thickness is the authored input, with no input range assigned (next step: add one only if the study defines it). Output intervals or reasons below are per allocation; no cross-allocation interval is inferred.",
+        CONTENT_W,
+        6.8,
+    )
+    .len();
+    let row_start = MARGIN + 17.0 + intro_lines as f32 * 8.4 + 5.0 + 9.0;
+    // page_sweep_uncertainty adds a 4pt rule/foot allowance after the final row.
+    let available = BOTTOM - row_start - 4.0;
+    let max_fragment_lines = ((available - 3.0) / SWEEP_UNCERTAINTY_LEAD)
+        .floor()
+        .max(1.0) as usize;
+    let mut pages = vec![Vec::new()];
+    let mut used = 0.0f32;
+    for (index, row) in rows.iter().enumerate() {
+        let line_count = row.cells.iter().map(Vec::len).max().unwrap_or(1).max(1);
+        let whole_height = line_count as f32 * SWEEP_UNCERTAINTY_LEAD + 3.0;
+        if whole_height <= available {
+            if used > 0.0 && used + whole_height > available {
+                pages.push(Vec::new());
+                used = 0.0;
+            }
+            pages.last_mut().unwrap().push(SweepRowFragment {
+                row: index,
+                first_line: 0,
+                end_line: line_count,
+            });
+            used += whole_height;
+            continue;
+        }
+        if used > 0.0 {
+            pages.push(Vec::new());
+            used = 0.0;
+        }
+        let mut first_line = 0;
+        while first_line < line_count {
+            let end_line = (first_line + max_fragment_lines).min(line_count);
+            pages.last_mut().unwrap().push(SweepRowFragment {
+                row: index,
+                first_line,
+                end_line,
+            });
+            used = (end_line - first_line) as f32 * SWEEP_UNCERTAINTY_LEAD + 3.0;
+            first_line = end_line;
+            if first_line < line_count {
+                pages.push(Vec::new());
+                used = 0.0;
+            }
+        }
+    }
+    pages.retain(|page| !page.is_empty());
+    pages
+}
+
+fn page_sweep_uncertainty(
+    cv: &mut Canvas,
+    rows: &[SweepUncertaintyRow],
+    fragments: &[SweepRowFragment],
+    continued: bool,
+) -> f32 {
+    let mut y = sweep_uncertainty_header(cv, continued);
+    let widths = [50.0, 48.0, 205.0, 58.0, 179.0];
+    for fragment in fragments {
+        let row = &rows[fragment.row];
+        let line_count = fragment.end_line - fragment.first_line;
+        let row_h = line_count as f32 * SWEEP_UNCERTAINTY_LEAD + 3.0;
+        if fragment.row % 2 == 1 {
+            cv.rect(
+                MARGIN,
+                y + 0.5,
+                CONTENT_W,
+                row_h,
+                0.0,
+                Some((STRIPE, 1.0)),
+                None,
+            );
+        }
+        let mut x = MARGIN;
+        for (column, (cell_lines, width)) in row.cells.iter().zip(widths).enumerate() {
+            if fragment.first_line > 0 && column == 0 {
+                cv.body(
+                    x + 3.0,
+                    y + 1.5 + SWEEP_UNCERTAINTY_SIZE,
+                    &format!("{:.2} m (cont.)", row.blanket_m),
+                    SWEEP_UNCERTAINTY_SIZE,
+                    MUTED,
+                );
+            } else {
+                for (line_index, text) in cell_lines
+                    .iter()
+                    .enumerate()
+                    .skip(fragment.first_line)
+                    .take(line_count)
+                {
+                    cv.body(
+                        x + 3.0,
+                        y + 1.5
+                            + SWEEP_UNCERTAINTY_SIZE
+                            + (line_index - fragment.first_line) as f32 * SWEEP_UNCERTAINTY_LEAD,
+                        text,
+                        SWEEP_UNCERTAINTY_SIZE,
+                        INK,
+                    );
+                }
+            }
+            x += width;
+        }
+        y += row_h;
+    }
+    cv.hline(MARGIN, PAGE_W - MARGIN, y + 0.5, RULE, 0.6);
+    y + 4.0
+}
+
 /// Page three: every history output beside its Monte Carlo range or
 /// distribution, one column per arrangement. Returns the y reached.
 fn page_three(cv: &mut Canvas, c: &PdfContent, report: &UncertaintyReport) -> f32 {
@@ -1308,6 +1585,8 @@ pub struct Extent {
     pub page_two_bottom: f32,
     pub page_two_scale: f32,
     pub page_three_bottom: Option<f32>,
+    pub sweep_uncertainty_bottom: Option<f32>,
+    pub sweep_uncertainty_pages: usize,
 }
 
 #[cfg(test)]
@@ -1322,11 +1601,26 @@ pub fn measure(c: &PdfContent) -> Result<Extent, String> {
     let k = page_two_scale(c, &body, &mono);
     let page_two_bottom = page_two(&mut dry, c, k);
     let page_three_bottom = c.uncertainty.map(|u| page_three(&mut dry, c, u));
+    let sweep_layout = c.sweep_uncertainty.map(|(points, summaries)| {
+        let rows = sweep_uncertainty_rows(points, summaries);
+        let pages = sweep_uncertainty_fragments(&rows);
+        (rows, pages)
+    });
+    let sweep_uncertainty_pages = sweep_layout.as_ref().map_or(0, |(_, pages)| pages.len());
+    let sweep_uncertainty_bottom = sweep_layout.as_ref().map(|(rows, pages)| {
+        pages
+            .iter()
+            .enumerate()
+            .map(|(index, page)| page_sweep_uncertainty(&mut dry, rows, page, index > 0))
+            .fold(0.0, f32::max)
+    });
     Ok(Extent {
         page_one_bottom,
         page_two_bottom,
         page_two_scale: k,
         page_three_bottom,
+        sweep_uncertainty_bottom,
+        sweep_uncertainty_pages,
     })
 }
 
@@ -1339,7 +1633,13 @@ fn fonts() -> Result<(Font, Font), String> {
 pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
     let (body, mono) = fonts()?;
     let k = page_two_scale(c, &body, &mono);
-    let pages = if c.uncertainty.is_some() { 3 } else { 2 };
+    let sweep_layout = c.sweep_uncertainty.map(|(points, summaries)| {
+        let rows = sweep_uncertainty_rows(points, summaries);
+        let pages = sweep_uncertainty_fragments(&rows);
+        (rows, pages)
+    });
+    let sweep_page_count = sweep_layout.as_ref().map_or(0, |(_, pages)| pages.len());
+    let pages = 2 + c.uncertainty.is_some() as usize + sweep_page_count;
     let mut document = Document::new();
     document.set_metadata(
         Metadata::new()
@@ -1380,13 +1680,32 @@ pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
         let mut surface = page.surface();
         let mut cv = Canvas {
             surface: Some(&mut surface),
-            body,
-            mono,
+            body: body.clone(),
+            mono: mono.clone(),
         };
         page_three(&mut cv, c, report);
         page_footer(&mut cv, &c.footer, 3, pages);
         surface.finish();
         page.finish();
+    }
+    if let Some((rows, sweep_pages)) = sweep_layout {
+        let first_page = 3 + c.uncertainty.is_some() as usize;
+        for (index, fragments) in sweep_pages.iter().enumerate() {
+            let mut page = document.start_page_with(
+                PageSettings::from_wh(PAGE_W, PAGE_H).ok_or("page size rejected")?,
+            );
+            let mut surface = page.surface();
+            let mut cv = Canvas {
+                surface: Some(&mut surface),
+                body: body.clone(),
+                mono: mono.clone(),
+            };
+            let _ = page_sweep_uncertainty(&mut cv, &rows, fragments, index > 0);
+            let page_number = first_page + index;
+            page_footer(&mut cv, &c.footer, page_number, pages);
+            surface.finish();
+            page.finish();
+        }
     }
     document
         .finish()
@@ -1396,6 +1715,108 @@ pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Verifies: MAG-004
+    #[test]
+    fn the_pdf_swap_count_cell_shows_the_two_sigma_fewest_to_most_range() {
+        let make_history = |relative_error: Option<f64>| {
+            let assumptions = faris_engine::fixtures::assumptions();
+            let mut rates = faris_engine::fixtures::rates_without_covariance(
+                relative_error.unwrap_or(0.0),
+                'a',
+            );
+            if relative_error.is_none() {
+                rates
+                    .component_average_flux_n_m2_s
+                    .get_mut("magnets")
+                    .unwrap()
+                    .standard_error = None;
+            }
+            faris_engine::history::run_operating_history(&assumptions, &rates).unwrap()
+        };
+        let data = |history: faris_engine::history::HistoryResult| {
+            let summary = faris_engine::brief::summarize_arrangement(
+                Some(&faris_engine::brief::TransportSummary::default()),
+                Some(&history),
+            );
+            ArrangementData {
+                input: crate::ArrangementInput {
+                    arrangement: faris_engine::brief::Arrangement {
+                        port: true,
+                        breeder: false,
+                    },
+                    transport: Some(faris_engine::brief::TransportSummary::default()),
+                    sampling: None,
+                    history: Some(history),
+                    ensemble: crate::uncertainty::EnsembleInput::None,
+                },
+                summary,
+            }
+        };
+
+        let data_with_error = data(make_history(Some(0.4)));
+        let count = data_with_error.summary.swaps.unwrap();
+        let (fewest, most) = data_with_error.summary.swaps_two_sigma.unwrap();
+        assert!(
+            fewest < most,
+            "expected a visible range, got {fewest} to {most}"
+        );
+        let cells = comparison_cells(&data_with_error);
+        assert_eq!(cells[0].text, format!("{count} (2σ {fewest} to {most})"));
+        assert_eq!(cells[0].label, "conditional · 2σ, first order");
+
+        let legacy = data(make_history(None));
+        assert!(legacy.summary.swaps.is_some());
+        assert!(legacy.summary.swaps_two_sigma.is_none());
+        let cells = comparison_cells(&legacy);
+        assert_eq!(cells[0].text, legacy.summary.swaps.unwrap().to_string());
+        assert_eq!(cells[0].label, "conditional · no flux error");
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn pdf_magnet_delta_cells_show_band_verdicts_without_inventing_delta_intervals() {
+        let resolved = faris_engine::brief::Contrast {
+            swaps: Some(2),
+            first_swap_y: Some(-3.0),
+            swaps_band: Some(BandVerdict::Separated),
+            first_swap_band: Some(BandVerdict::Overlapping),
+            ..Default::default()
+        };
+        let cells = delta_cells(&resolved);
+        assert_eq!(
+            cells[2],
+            Some(("+2".into(), StatusKind::Checked, "beyond 2σ bands"))
+        );
+        assert_eq!(
+            cells[3],
+            Some(("-3.0 y".into(), StatusKind::Partial, "within 2σ bands"))
+        );
+        let no_band = faris_engine::brief::Contrast {
+            swaps: Some(1),
+            first_swap_y: Some(1.5),
+            swaps_band: Some(BandVerdict::NoBand),
+            first_swap_band: Some(BandVerdict::NoBand),
+            ..Default::default()
+        };
+        let cells = delta_cells(&no_band);
+        assert_eq!(
+            cells[2],
+            Some((
+                "+1".into(),
+                StatusKind::Conditional,
+                "conditional · no band"
+            ))
+        );
+        assert_eq!(
+            cells[3],
+            Some((
+                "+1.5 y".into(),
+                StatusKind::Conditional,
+                "conditional · no band"
+            ))
+        );
+    }
 
     // Verifies: MAG-004
     #[test]

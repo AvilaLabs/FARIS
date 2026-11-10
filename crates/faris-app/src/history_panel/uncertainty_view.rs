@@ -237,6 +237,12 @@ impl HistoryPanel {
             ui.weak("Uncertainty: starts when the history has settled.");
             return;
         };
+        if self.uncertainty_cancellation_pending() {
+            cancellation_notice(ui);
+            if !matches!(&status, Status::Ready(_)) {
+                return;
+            }
+        }
         match status {
             Status::NotPlanned | Status::Waiting => {
                 ui.horizontal_wrapped(|ui| {
@@ -311,6 +317,13 @@ impl HistoryPanel {
         let Some(status) = self.uncertainty_status(scenario, variant) else {
             return;
         };
+        let cancellation_pending = self.uncertainty_cancellation_pending();
+        if cancellation_pending {
+            cancellation_notice(ui);
+            if !matches!(&status, Status::Ready(_)) {
+                return;
+            }
+        }
         let running = self
             .results
             .keys()
@@ -318,7 +331,7 @@ impl HistoryPanel {
                 Status::Running { done, total } => Some((done, total)),
                 _ => None,
             });
-        if let Some((done, total)) = running {
+        if !cancellation_pending && let Some((done, total)) = running {
             ui.spinner();
             ui.small(progress_text(done, total));
             return;
@@ -555,5 +568,42 @@ fn rows_ui(ui: &mut egui::Ui, rows: &[UncertaintyRow]) {
                 ui.weak("no uncertainty range");
             }
         }
+    }
+}
+
+/// Keep the running status truthful while the worker observes cancellation.
+fn cancellation_notice(ui: &mut egui::Ui) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spinner();
+        ui.weak("Cancelling transport sampling…");
+    });
+}
+
+#[cfg(test)]
+mod cancellation_feedback_tests {
+    use super::*;
+
+    #[test]
+    fn rendered_cancellation_notice_says_worker_is_still_cancelling() {
+        let ctx = egui::Context::default();
+        let rendered_at = std::time::Instant::now();
+        let output = ctx.run_ui(egui::RawInput::default(), cancellation_notice);
+        assert!(rendered_at.elapsed() <= std::time::Duration::from_millis(100));
+        let mut text = String::new();
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text_shape) => {
+                    out.push_str(text_shape.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut text);
+        }
+        output.drop_without_applying_deltas();
+        assert!(text.contains("Cancelling transport sampling…"), "{text}");
     }
 }

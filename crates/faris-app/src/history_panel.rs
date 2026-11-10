@@ -2047,10 +2047,7 @@ impl HistoryPanel {
                         ui.small(format!(
                             "{} uncertainty: {} y",
                             trip.criterion,
-                            crate::quantity_text::output_uncertainty(
-                                &trip.time_uncertainty_s.scaled(1.0 / JULIAN_YEAR_SECONDS),
-                                2,
-                            )
+                            trip_time_uncertainty_text(trip)
                         ));
                     }
                 }
@@ -2141,6 +2138,13 @@ fn preset_note(a: &OperatingHistoryAssumptions, extra: Option<&str>, detail: &st
         .take(2)
         .collect::<String>();
     format!("{detail}\n{note}\n\nProvenance: {}", provenance.trim())
+}
+
+fn trip_time_uncertainty_text(trip: &faris_engine::history::LimitTrip) -> String {
+    crate::quantity_text::output_uncertainty(
+        &trip.time_uncertainty_s.scaled(1.0 / JULIAN_YEAR_SECONDS),
+        2,
+    )
 }
 
 fn event_label(event: &HistoryEvent) -> String {
@@ -2474,6 +2478,46 @@ mod tests {
     }
 
     // Verifies: MAG-004
+    #[test]
+    fn operating_event_trip_time_text_keeps_numeric_band_and_legacy_reason() {
+        let trip = faris_engine::history::LimitTrip {
+            criterion: "magnet fluence".into(),
+            response_id: "tf-coil".into(),
+            accumulated_value: 1.0,
+            limit: 2.0,
+            unit: "n/m²".into(),
+            time_uncertainty_s: faris_engine::output_uncertainty::OutputUncertainty::interval(
+                2.0 * JULIAN_YEAR_SECONDS,
+                Some(4.0 * JULIAN_YEAR_SECONDS),
+                "2 sigma of driving flux, first order",
+            ),
+        };
+        assert_eq!(
+            trip_time_uncertainty_text(&trip),
+            "2.00 to 4.00 (2 sigma of driving flux, first order)"
+        );
+        let legacy = faris_engine::history::LimitTrip {
+            criterion: "magnet fluence".into(),
+            response_id: "tf-coil".into(),
+            accumulated_value: 1.0,
+            limit: 2.0,
+            unit: "n/m²".into(),
+            time_uncertainty_s: faris_engine::output_uncertainty::OutputUncertainty::none(
+                "the saved event has no flux standard error",
+                "rerun the history with batch statistics recorded",
+            ),
+        };
+        let text = trip_time_uncertainty_text(&legacy);
+        assert!(
+            text.contains("no interval, because the saved event has no flux standard error"),
+            "{text}"
+        );
+        assert!(
+            text.contains("next step: rerun the history with batch statistics recorded"),
+            "{text}"
+        );
+    }
+
     #[test]
     fn next_magnet_swap_headline_shows_matching_numeric_calendar_year_band() {
         let rendered = rendered_headline_with_next_magnet_trip(

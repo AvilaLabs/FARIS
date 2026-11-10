@@ -141,7 +141,7 @@ fn cancel_uncertainty(app: &mut FarisApp, _ctx: &egui::Context) {
         "No unfinished transport-sampling calculations were cancelled.".into()
     } else {
         format!(
-            "Cancelled unfinished transport sampling for {count} arrangement(s). Nominal histories and completed intervals are retained; cancelled arrangements have no sampling interval."
+            "Cancellation requested for {count} transport-sampling calculation(s); waiting for worker acknowledgement. Nominal histories and completed intervals are retained."
         )
     };
 }
@@ -376,8 +376,7 @@ pub static REGISTRY: &[Command] = &[
         None,
         cancel_uncertainty,
     )
-    .blocked_by(no_cancellable_uncertainty)
-    .mutating(),
+    .blocked_by(no_cancellable_uncertainty),
     command(
         "uncertainty.retry_cancelled",
         "Retry cancelled transport sampling",
@@ -385,8 +384,7 @@ pub static REGISTRY: &[Command] = &[
         None,
         retry_cancelled_uncertainty,
     )
-    .blocked_by(no_cancelled_uncertainty)
-    .mutating(),
+    .blocked_by(no_cancelled_uncertainty),
     command(
         "view.focus_viewport",
         "Focus the 3D viewport (arrows orbit, Shift+arrows pan, + and − zoom, 0 resets, Enter reads out)",
@@ -1080,6 +1078,16 @@ mod tests {
             session.history,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn uncertainty_job_controls_are_not_project_mutations() {
+        // Cancel and retry act on background work, not study/design inputs, so
+        // they do not create an EditState undo step.
+        for id in ["uncertainty.cancel", "uncertainty.retry_cancelled"] {
+            let command = REGISTRY.iter().find(|command| command.id == id).unwrap();
+            assert!(!command.mutating, "{id} changes no project inputs");
+        }
     }
 
     /// One frame with these events, then the app's keyboard handling.

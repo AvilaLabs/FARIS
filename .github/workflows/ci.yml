@@ -104,6 +104,8 @@ jobs:
             python3 scripts/check_platform_notices.py --metadata "metadata-$target.json" \
               --root-crate faris-cli --root-crate faris-app --notices "notices-$target.md"
           done
+      - name: MAG-004 margin display registry is current
+        run: python3 scripts/mag004_display_audit.py
       - name: Requirement-to-test trace is current
         run: python3 scripts/requirement_trace.py --check
       - name: Requirement scorecard is current

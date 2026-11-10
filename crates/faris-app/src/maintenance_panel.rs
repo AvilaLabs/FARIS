@@ -297,35 +297,48 @@ impl MaintenancePanel {
                 }
                 if let Some(tornado) = &self.tornado {
                     ui.separator();
-                    let availability_validation = faris_model::validation::ValidationMark::current(faris_model::validation::Quantity::Availability).tag();
-                    let electricity_validation = faris_model::validation::ValidationMark::current(faris_model::validation::Quantity::NetElectricPower).tag();
+                    let availability = faris_model::validation::Quantity::Availability;
+                    let net_power = faris_model::validation::Quantity::NetElectricPower;
                     ui.label(format!(
-                        "Deterministic sensitivity, not an uncertainty band. Availability {availability_validation}; net electricity {electricity_validation}. Literature endpoint applies only to {}.",
+                        "Deterministic sensitivity, not an uncertainty band. Literature endpoint applies only to {}.",
                         self.duration_component
                     ));
                     ui.small(format!("Campaign endpoint source for {}: {} · {} · {}", self.duration_component, preset.id, preset.citation, preset.source_link.value.unwrap_or("source link not stated")));
+                    let base_net = tornado.base.net_electricity_mwh.map_or_else(
+                        || format!("lifetime net electricity unavailable {}", validation_tag(net_power)),
+                        |mwh| format!("lifetime net electricity {} MWh {}", group_thousands(mwh), validation_tag(net_power)),
+                    );
                     ui.label(format!(
-                        "Base (conditional deterministic case): availability {:.2} %{}",
+                        "Base (conditional deterministic case): availability {:.2} % {}; {base_net}",
                         tornado.base.availability * 100.0,
-                        tornado.base.net_electricity_mwh.map_or_else(
-                            || "; lifetime net electricity not available".to_owned(),
-                            |mwh| format!("; lifetime net electricity {} MWh", group_thousands(mwh))
-                        )
+                        validation_tag(availability),
+                    ))
+                    .on_hover_text(format!(
+                        "Deterministic point result; this is not an uncertainty interval. {}",
+                        tornado_output_validation_detail(&tornado.base),
                     ));
                     for bar in &tornado.bars {
                         let low_label = duration_endpoint_label(bar, bar.low_s, &preset);
                         let high_label = duration_endpoint_label(bar, bar.high_s, &preset);
+                        let endpoint = |label: &str, seconds: f64, output: &faris_engine::duration_sensitivity::TornadoOutputs| {
+                            let net = output.net_electricity_mwh.map_or_else(
+                                || format!("lifetime net electricity unavailable {}", validation_tag(net_power)),
+                                |mwh| format!("lifetime net electricity {} MWh {}", group_thousands(mwh), validation_tag(net_power)),
+                            );
+                            format!("{label} {}: availability {:.2} % {}; {net}", days_text(seconds, 1), output.availability * 100.0, validation_tag(availability))
+                        };
                         ui.label(format!(
-                            "{} · {} {}: availability {:.2} %{}; {} {}: availability {:.2} %{}",
+                            "{} · {} · {} · {}",
                             bar.component_id,
-                            low_label,
-                            days_text(bar.low_s, 1),
-                            bar.at_low.availability * 100.0,
-                            bar.at_low.net_electricity_mwh.map_or_else(String::new, |mwh| format!("; {} MWh", group_thousands(mwh))),
-                            high_label,
-                            days_text(bar.high_s, 1),
-                            bar.at_high.availability * 100.0,
-                            bar.at_high.net_electricity_mwh.map_or_else(String::new, |mwh| format!("; {} MWh", group_thousands(mwh))),
+                            endpoint(low_label, bar.low_s, &bar.at_low),
+                            endpoint(high_label, bar.high_s, &bar.at_high),
+                            "deterministic endpoints, not intervals",
+                        ))
+                        .on_hover_text(format!(
+                            "The duration endpoints are {}. Low endpoint: {}. High endpoint: {}.",
+                            input_label_text(&bar.label),
+                            tornado_output_validation_detail(&bar.at_low),
+                            tornado_output_validation_detail(&bar.at_high),
                         ));
                         if bar.component_id == self.duration_component {
                             ui.hyperlink_to(
@@ -859,6 +872,27 @@ fn days_text(seconds: f64, decimals: usize) -> String {
     crate::quantity_text::quantity("time", "d", seconds, decimals)
 }
 
+fn tornado_output_validation_detail(
+    outputs: &faris_engine::duration_sensitivity::TornadoOutputs,
+) -> String {
+    let mut details = vec![
+        format!(
+            "Availability: {}",
+            validation_hover_text(faris_model::validation::Quantity::Availability)
+        ),
+        format!(
+            "Net electric power: {}",
+            validation_hover_text(faris_model::validation::Quantity::NetElectricPower)
+        ),
+    ];
+    if outputs.net_electricity_mwh.is_none() {
+        details.push(format!(
+            "{NET_UNAVAILABLE} Next step: check the history energy assumptions and terminal snapshot, then rerun the sensitivity."
+        ));
+    }
+    details.join("\n")
+}
+
 fn validation_hover_text(quantity: faris_model::validation::Quantity) -> String {
     let note = faris_model::validation::note(quantity);
     format!(
@@ -1351,7 +1385,12 @@ fn duration_tornado_chart(
     let width = ui.available_width().clamp(520.0, 1400.0);
     let row_height = 27.0;
     let height = 98.0 + row_height * tornado.bars.len() as f32;
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    response.on_hover_text(format!(
+        "Net electricity: {}. Availability: {}. Bars show deterministic endpoint deltas, not uncertainty intervals.",
+        validation_hover_text(faris_model::validation::Quantity::NetElectricPower),
+        validation_hover_text(faris_model::validation::Quantity::Availability),
+    ));
     let painter = ui.painter_at(rect);
     let weak = ui.visuals().weak_text_color();
     let axis = crate::theme::palette().chart_axis;
@@ -1361,9 +1400,15 @@ fn duration_tornado_chart(
     for metric in 0..2 {
         let panel_left = rect.left() + metric as f32 * (panel_width + panel_gap);
         let title = if metric == 0 {
-            "Net electricity change from base\n(TWh)"
+            format!(
+                "Net electricity change from base {}\n(TWh)",
+                validation_tag(faris_model::validation::Quantity::NetElectricPower)
+            )
         } else {
-            "Availability change from base\n(percentage points)"
+            format!(
+                "Availability change from base {}\n(percentage points)",
+                validation_tag(faris_model::validation::Quantity::Availability)
+            )
         };
         painter.text(
             egui::pos2(panel_left, rect.top() + 2.0),
@@ -2697,19 +2742,40 @@ mod tests {
         let rendered = text.join("\n");
         assert!(rendered.contains("magnets"));
         assert!(rendered.contains("blankets"));
-        assert!(rendered.contains("availability"));
-        assert!(rendered.contains("MWh"));
+        assert!(
+            rendered.contains("% [not validated: availability]"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("MWh [not validated: net power]"),
+            "{rendered}"
+        );
         assert!(rendered.contains("literature endpoint"));
         assert!(rendered.contains("authored low endpoint"));
         assert!(rendered.contains(preset.citation));
         assert!(rendered.contains("Scope and conditions"));
-        assert!(rendered.contains("Net electricity change from base"));
+        assert!(rendered.contains("Net electricity change from base [not validated: net power]"));
         assert!(rendered.contains("(TWh)"));
-        assert!(rendered.contains("Availability change from base"));
+        assert!(rendered.contains("Availability change from base [not validated: availability]"));
         assert!(rendered.contains("(percentage points)"));
+        let availability_note =
+            faris_model::validation::note(faris_model::validation::Quantity::Availability);
+        let net_power_note =
+            faris_model::validation::note(faris_model::validation::Quantity::NetElectricPower);
+        assert!(
+            validation_hover_text(faris_model::validation::Quantity::Availability)
+                .contains(&availability_note.next_step)
+        );
+        assert!(
+            validation_hover_text(faris_model::validation::Quantity::NetElectricPower)
+                .contains(&net_power_note.why)
+        );
 
         let mut unavailable = panel.tornado.clone().unwrap();
         unavailable.base.net_electricity_mwh = None;
+        let missing_power_detail = tornado_output_validation_detail(&unavailable.base);
+        assert!(missing_power_detail.contains(NET_UNAVAILABLE));
+        assert!(missing_power_detail.contains("Next step: check the history energy assumptions"));
         for bar in &mut unavailable.bars {
             bar.at_low.net_electricity_mwh = None;
             bar.at_high.net_electricity_mwh = None;

@@ -55,9 +55,17 @@ evaluated, failed) use the colours of the app badges.
 
 When the desktop app has an ensemble for at least one arrangement ([OPERATING_HISTORY.md](OPERATING_HISTORY.md)), the export gains:
 
-- a third PDF page, "Uncertainty in the operating history", with each output's nominal value beside its median and P5 to P95 range (or, for discrete outputs, a sentence such as "Magnet swaps: 4 in 62 % of samples, 5 in 31 %, 3 in 7 %"), and the sample count, seed and rejections per arrangement. Page 1 points to it. Without any ensemble the PDF stays two pages;
+- a third PDF page, "Uncertainty in the operating history", with each output's nominal value beside its median and P5 to P95 range (or, for discrete outputs, a sentence such as "Magnet swaps: 4 in 62 % of samples, 5 in 31 %, 3 in 7 %"), and the sample count, seed and rejections per arrangement. Page 1 points to it;
 - a shaded P5 to P95 band on the magnet-fluence timeline, and two new charts, `history-tritium-bands` and `history-net-electricity-bands`;
 - the two CSVs and the manifest records above.
+
+When an allocation sweep is recorded, additional PDF pages show each allocation's
+magnet-swap count and net electricity beside its stored uncertainty interval or
+its reason and next step when an interval is unavailable. Long tables and long
+explanations continue onto pages with repeated headings. Each plotted SVG value
+also has a hover title carrying that value, its unit and the same uncertainty
+state. These are per-allocation intervals; no interval of the difference between
+allocations is inferred.
 
 An arrangement whose ensemble is not evaluated (for example a transport record with no covariance) keeps its nominal values, labelled "no uncertainty range: <why>", with the next step as text. Every range is labelled as transport Monte Carlo sampling uncertainty only. The desktop app does not export while ensembles are still being calculated, so ranges are never silently left out.
 

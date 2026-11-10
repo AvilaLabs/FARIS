@@ -915,23 +915,36 @@ pub fn sweep_history_chart(
         for (p, s) in &rows {
             let x = f.xs.px(p.blanket_m);
             let y = ss.px(f64::from(s.magnet_replacements));
-            f.svg.rect(
-                x - bar_w / 2.0,
-                y,
-                bar_w,
-                (pb - y).max(0.6),
+            let state = s
+                .uncertainty
+                .get("magnet_replacements")
+                .cloned()
+                .unwrap_or_else(|| {
+                    OutputUncertainty::none(
+                        "this saved sweep history has no stored swap-count uncertainty state",
+                        "rerun and export this history with the current FARIS version",
+                    )
+                });
+            f.svg.rect_with_title(
+                [x - bar_w / 2.0, y, bar_w, (pb - y).max(0.6)],
                 Some((bar_color, 0.8)),
                 Some((darken(bar_color, 0.6), 0.7)),
+                &format!(
+                    "Blanket {:.2} m; magnet swaps {} swaps; {}",
+                    p.blanket_m,
+                    s.magnet_replacements,
+                    state.text(2)
+                ),
             );
         }
     }
-    let energy: Vec<(f64, f64)> = rows
+    let energy: Vec<(&TransportPoint, &HistorySummary, f64)> = rows
         .iter()
-        .filter_map(|(p, s)| s.net_electricity_twh.map(|e| (p.blanket_m, e)))
+        .filter_map(|(p, s)| s.net_electricity_twh.map(|e| (*p, *s, e)))
         .collect();
     if let (Some(lo), Some(hi)) = (
-        energy.iter().map(|e| e.1).reduce(f64::min),
-        energy.iter().map(|e| e.1).reduce(f64::max),
+        energy.iter().map(|e| e.2).reduce(f64::min),
+        energy.iter().map(|e| e.2).reduce(f64::max),
     ) {
         let pad = ((hi - lo) * 0.2).max(0.05);
         let (etick, estep) = nice_ticks(lo - pad, hi + pad, 4);
@@ -956,11 +969,37 @@ pub fn sweep_history_chart(
         }
         let line: Vec<(f32, f32)> = energy
             .iter()
-            .map(|(m, e)| (f.xs.px(*m), es.px(*e)))
+            .map(|(p, _, e)| (f.xs.px(p.blanket_m), es.px(*e)))
             .collect();
         f.svg.polyline(&line, color, 1.1, None);
-        for (m, e) in &energy {
-            marker(&mut f.svg, f.xs.px(*m), es.px(*e), is_named(*m), color);
+        for (p, s, e) in &energy {
+            let state = s
+                .uncertainty
+                .get("net_electricity_twh")
+                .cloned()
+                .unwrap_or_else(|| {
+                    OutputUncertainty::none(
+                        "this saved sweep history has no stored electricity uncertainty state",
+                        "rerun and export this history with the current FARIS version",
+                    )
+                });
+            f.svg.circle_with_title(
+                [f.xs.px(p.blanket_m), es.px(*e)],
+                if is_named(p.blanket_m) { 2.9 } else { 2.3 },
+                if is_named(p.blanket_m) {
+                    color
+                } else {
+                    [255, 255, 255]
+                },
+                darken(color, 0.7),
+                0.9,
+                &format!(
+                    "Blanket {:.2} m; net electricity {:.2} TWh; {}",
+                    p.blanket_m,
+                    e,
+                    state.text(2)
+                ),
+            );
         }
         f.svg
             .text(pr + 6.0, pt - 3.0, "TWh", TextStyle::new(TICK - 0.4, color));
@@ -1175,6 +1214,19 @@ mod tests {
         assert!(chart.svg.contains("data/sweep.csv"), "{}", chart.svg);
         assert!(chart.svg.contains("reasons"), "{}", chart.svg);
         assert!(chart.svg.contains("next steps"), "{}", chart.svg);
+        assert_eq!(chart.svg.matches("<title>").count(), 13, "{}", chart.svg);
+        assert!(
+            chart.svg.contains("<title>Blanket 0.35 m; magnet swaps 4 swaps; 3.00 to 5.00 (two-sigma flux-driving band)</title>"),
+            "swap count, units and its own interval must share one rendered mark label: {}",
+            chart.svg
+        );
+        assert!(
+            chart.svg.contains("<title>Blanket 0.35 m; net electricity 30.00 TWh; no interval, because distinct single-history output 0 (next step: run paired transport sampling)</title>"),
+            "electricity value, units and its own missing-state reason must share one rendered mark label: {}",
+            chart.svg
+        );
+        assert!(chart.svg.contains("distinct missing flux standard error 1"));
+        assert!(chart.svg.contains("record batch statistics"));
         assert!(
             !chart.svg.contains("missing energy must not be displayed"),
             "{}",
