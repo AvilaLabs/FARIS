@@ -1,0 +1,38 @@
+{
+  "schema": "faris-geo025-cad-hybrid-loss-control/v1",
+  "date": "2026-11-10",
+  "requirement": "GEO-025",
+  "status": "PASS",
+  "scope": "Paired hybrid CSG/DAGMC loss control. The checked CAD torus facets are identical in both models. The injected gap is in the CSG region adjoining the DAGMC parent.",
+  "loss_rule": "Fail a completed run when lost events exceed one per million histories.",
+  "histories_per_case": 10000,
+  "measured_lost_events": {
+    "leak": 5010,
+    "clean": 0
+  },
+  "production_guard": {
+    "leak": "lost_particles",
+    "clean": "target_reached"
+  },
+  "diagnostics": "Ten restart positions were returned for the leaky case. They are source birth coordinates. Actual escape coordinates remain open.",
+  "openmc_library_sha256": "ba09ae9d19c4c789d8230abe62984de00d2326723b306c440506f099c2e46216",
+  "checked_cad_geometry_sha256": "79c535336093f4eb9fa529cfffd2e684b33ea2ea4fe693548f331e75cb7891d0",
+  "worker": {
+    "path": "runs/continuation/geo025-cad-loss-control-20261110-v3/prepare_control.py",
+    "sha256": "093613ded3c40a15e3c04b761894d21aa378b860e186fb616cfdf1c76db56332"
+  },
+  "full_control": {
+    "path": "runs/continuation/geo025-cad-loss-control-20261110-v3/control.json",
+    "sha256": "c684c31214d6c7dc588a8c669b247715f89e0409488f0e138c61ad1964ad2333"
+  },
+  "logs": {
+    "leak": {
+      "path": "runs/continuation/geo025-cad-loss-control-20261110-v3/prepared/leak/geo025-leak-94hz8svh/openmc.log",
+      "sha256": "2e413df608d33c1c5ab9fb6aebb27a1b5f8232bc2ff79eb03666b2c62b9c9aba"
+    },
+    "clean": {
+      "path": "runs/continuation/geo025-cad-loss-control-20261110-v3/prepared/clean/geo025-clean-0_o5q5fp/openmc.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}
