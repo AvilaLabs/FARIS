@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 58 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 60 fixed before they reached a release.
 
 ## Open
 
@@ -89,4 +89,6 @@ These were found in development and never shipped.
 | FARIS-058 | S3 | ACTINV reaction-ledger rates were reported as zone atom amounts | 8eccd63 |
 | FARIS-059 | S3 | Heating receipt verification refused a valid run-directory path alias | d8f3418 |
 | FARIS-060 | S3 | Stochastic-slab MGXS startup did not bind the model cross-section index | 6170c4d |
+| FARIS-061 | S3 | Random-ray shielding window generation attempted an eigenvalue solve on a nonfissile model | 3c9802c |
+| FARIS-062 | S3 | OpenMC rejected the inboard campaign lost-particle threshold before transport | ff03cac |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

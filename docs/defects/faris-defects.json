@@ -789,6 +789,32 @@
       "fixed_in": "6170c4d",
       "disposition": "OpenMC 0.16 stochastic-slab conversion creates a materials collection that does not inherit model.materials.cross_sections. An actual RM-M FOM prepare attempt stopped after 4.513 s with a missing-cross-sections RuntimeError, before MGXS measurement; the run directory and log are retained. The shared window generator now requires the model index, resolves it before changing directories, binds it temporarily through OPENMC_CROSS_SECTIONS, and restores the prior environment on success or failure. Missing model indexes are refused even when an ambient index exists. This was a tool startup refusal, not a physics result.",
       "regression_test": "integrations/openmc/test_window_generator_library_binding.py::test_conversion_binds_model_index_and_restores_environment"
+    },
+    {
+      "id": "FARIS-061",
+      "title": "Random-ray shielding window generation attempted an eigenvalue solve on a nonfissile model",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "3c9802c",
+      "disposition": "Random-ray adjoint window generation inherited eigenvalue run_mode from the forward model. On the nonfissile MGXS model, the retained v2 preparation log records an eigenvalue solve ending with k-eff = NaN and a tool failure. Window generation now explicitly exports the model in fixed-source mode. A focused regression checks the exported settings before launch. This corrects a preparation failure and does not establish a physical or FOM result.",
+      "regression_test": "integrations/openmc/test_window_generator_library_binding.py::test_random_ray_exports_fixed_source_model_before_launch"
+    },
+    {
+      "id": "FARIS-062",
+      "title": "OpenMC rejected the inboard campaign lost-particle threshold before transport",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "ff03cac",
+      "disposition": "The inboard campaign assigned rel_max_lost_particles = 1.0, which OpenMC 0.16 rejects because the value must be less than 1. The retained v3 C API log records this ValueError before transport began. The solver coarse-abort setting is now the supported 0.5; the separate live-batch observer still applies the strict 1e-6 campaign limit. A focused regression inspects the actual exported OpenMC settings. This was a pre-transport tool refusal, not a change to the campaign threshold or a physics result.",
+      "regression_test": "integrations/openmc/risk_tests/test_s0g_inboard_campaign.py::test_run_exports_real_openmc_settings_with_supported_lost_particle_threshold"
     }
   ]
 }
