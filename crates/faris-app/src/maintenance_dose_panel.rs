@@ -45,6 +45,7 @@ pub struct MaintenanceDosePanel {
     prepare_message: Option<String>,
     cad_context: Option<CadHistoryContext>,
     cad_history_assumptions: String,
+    cad_history_assumptions_note: Option<String>,
     cad_dose_physics: String,
     cad_design_file: String,
     cad_designs_inputs: Option<(String, String, String)>,
@@ -98,6 +99,7 @@ impl Default for MaintenanceDosePanel {
             prepare_message: None,
             cad_context: None,
             cad_history_assumptions: String::new(),
+            cad_history_assumptions_note: None,
             cad_dose_physics: String::new(),
             cad_design_file: String::new(),
             cad_designs_inputs: None,
@@ -132,6 +134,18 @@ impl MaintenanceDosePanel {
             return Err("Finish or cancel the current dose-physics preparation, run, or result load before switching CAD design.".into());
         }
         self.cad_history_assumptions.clear();
+        self.cad_history_assumptions_note = Some(
+            match faris_engine::design::resolve_cad_operating_context(&context.design, None) {
+                Ok(operating) => format!(
+                    "Design-linked assumptions: {} · SHA-256 {}",
+                    operating.history_assumptions_path.display(),
+                    operating.history_assumptions_sha256
+                ),
+                Err(error) => format!(
+                    "The design has no usable linked assumptions ({error}). Choose a planning override to continue."
+                ),
+            },
+        );
         self.cad_dose_physics.clear();
         self.prepare_message = None;
         self.inputs.designs.clear();
@@ -164,9 +178,19 @@ impl MaintenanceDosePanel {
         self.run.is_some() || self.prepare.is_some()
     }
 
+    fn cad_design_inputs_match(&self) -> bool {
+        self.cad_context.is_some()
+            && self.cad_designs_inputs.as_ref()
+                == Some(&(
+                    self.inputs.designs.trim().to_owned(),
+                    self.cad_history_assumptions.trim().to_owned(),
+                    self.cad_dose_physics.trim().to_owned(),
+                ))
+    }
+
     /// Add the CAD dose result to the app's shared Compare step with its authored identity.
     pub fn compare_section(&self, ui: &mut egui::Ui) {
-        if self.cad_context.is_none() {
+        if !self.cad_design_inputs_match() {
             return;
         }
         let LoadState::Ready(result) = &self.state else {
@@ -178,14 +202,16 @@ impl MaintenanceDosePanel {
                 ui.label("This is the checked CAD design and its hash-bound transport history. Fixed durations are the authored maintenance baseline; computed durations use the selected event dose method. D1S/R2S comparison state is shown per event in the dose result window.");
                 if !self.cad_history_assumptions.trim().is_empty() {
                     ui.label(format!(
-                        "Fixed-duration source: {}",
+                        "Planning override: {}",
                         self.cad_history_assumptions.trim()
                     ));
+                } else if let Some(source) = &self.cad_history_assumptions_note {
+                    ui.label(source);
                 }
                 for (name, design) in &result.designs {
                     ui.strong(name);
                     let prefix = format!("design/{name}/");
-                    for input in ["scenario", "history_run", "history_assumptions", "dose_physics"] {
+                    for input in ["design_file", "history_run", "history_assumptions", "dose_physics"] {
                         if let Some(hash) = result.inputs.get(&format!("{prefix}{input}")) {
                             ui.label(format!("{input} SHA-256 {}", &hash[..12.min(hash.len())]));
                         }
@@ -235,7 +261,7 @@ impl MaintenanceDosePanel {
 
     /// Expose the actual CAD-derived history on the app's Operate step.
     pub fn history_section(&self, ui: &mut egui::Ui) {
-        if self.cad_context.is_none() {
+        if !self.cad_design_inputs_match() {
             return;
         }
         let LoadState::Ready(result) = &self.state else {
@@ -245,10 +271,15 @@ impl MaintenanceDosePanel {
             .default_open(true)
             .show(ui, |ui| {
                 ui.label("These histories use the checked CAD transport rates, the bound whole-model heating response, and event-specific dose durations. The existing in-app arrangement history remains a separate scenario.");
+                if !self.cad_history_assumptions.trim().is_empty() {
+                    ui.label(format!("Planning override: {}", self.cad_history_assumptions.trim()));
+                } else if let Some(source) = &self.cad_history_assumptions_note {
+                    ui.label(source);
+                }
                 for (name, design) in &result.designs {
                     ui.strong(name);
                     let prefix = format!("design/{name}/");
-                    for input in ["scenario", "history_run", "history_assumptions", "dose_physics"] {
+                    for input in ["design_file", "history_run", "history_assumptions", "dose_physics"] {
                         if let Some(hash) = result.inputs.get(&format!("{prefix}{input}")) {
                             ui.label(format!("{input} SHA-256 {}", &hash[..12.min(hash.len())]));
                         }
@@ -400,14 +431,18 @@ impl MaintenanceDosePanel {
                     if let Some(context) = &self.cad_context {
                         ui.separator();
                         ui.strong(format!("Checked CAD design: {}", context.design_id));
-                        ui.label(format!("Scenario: {}", context.scenario.display()));
+                        ui.label(format!("Source power: {:.3} MW", context.fusion_power_mw));
+                        ui.label(format!("Design SHA-256: {}", context.design_sha256));
                         ui.label(format!("Verified same-batch history rates: {}", context.history_rates.display()));
-                        ui.weak("Choose the operating-history assumptions and a prepared CAD dose-physics manifest. The CAD rates remain bound to the scenario and source power checked by the transport run.");
+                        ui.weak("The design-linked OperatingHistoryAssumptions are used by default. An explicit override changes planning assumptions only; source power and transport identity remain bound to this CAD design.");
+                        if let Some(note) = &self.cad_history_assumptions_note {
+                            ui.weak(note);
+                        }
                         ui.weak("Dose preparation must use the same solid-to-component map and cross-section index as the transport run.");
                         for (component, solids) in &context.history_components {
                             ui.label(format!("{component}: {}", solids.join(", ")));
                         }
-                        path_row(ui, "History assumptions", &mut self.cad_history_assumptions, DoseField::CadHistoryAssumptions, &mut self.dialog);
+                        path_row(ui, "History assumptions override (optional)", &mut self.cad_history_assumptions, DoseField::CadHistoryAssumptions, &mut self.dialog);
                         path_row(ui, "Prepared dose-physics manifest", &mut self.cad_dose_physics, DoseField::CadDosePhysics, &mut self.dialog);
                         path_row(ui, "New CAD designs file", &mut self.cad_design_file, DoseField::CadDesignFile, &mut self.dialog);
                         if ui.button("Create hash-bound CAD dose design input").clicked() {
@@ -502,13 +537,24 @@ fn write_cad_designs(
         }
         path.canonicalize().map_err(|e| format!("{label}: {e}"))
     };
-    let history_assumptions = required("operating history assumptions file", history_assumptions)?;
-    let assumptions_bytes = faris_engine::reactor::read_json_bytes(&history_assumptions)
-        .map_err(|e| format!("operating history assumptions: {e}"))?;
-    let assumptions: faris_model::history::OperatingHistoryAssumptions =
-        serde_json::from_slice(&assumptions_bytes)
-            .map_err(|e| format!("operating history assumptions: {e}"))?;
-    assumptions.validate()?;
+    let history_assumptions = if history_assumptions.trim().is_empty() {
+        None
+    } else {
+        Some(required(
+            "operating history assumptions override",
+            history_assumptions,
+        )?)
+    };
+    let operating = faris_engine::design::resolve_cad_operating_context(
+        &context.design,
+        history_assumptions.as_deref(),
+    )?;
+    if operating.design_id != context.design_id
+        || operating.design_sha256 != context.design_sha256
+        || operating.fusion_power_mw.to_bits() != context.fusion_power_mw.to_bits()
+    {
+        return Err("the checked CAD source changed after its transport history run".into());
+    }
     let dose_physics = required("prepared CAD dose-physics manifest", dose_physics)?;
     let output = PathBuf::from(output.trim());
     if output.as_os_str().is_empty() || output.exists() {
@@ -525,9 +571,9 @@ fn write_cad_designs(
         "schema_version": faris_engine::maintenance::files::CAD_DOSE_DESIGNS_VERSION,
         "designs": {
             (context.design_id.clone()): {
-                "scenario": path_value(&context.scenario)?,
+                "design_file": path_value(&context.design)?,
                 "history_run": path_value(&context.history_rates)?,
-                "history_assumptions": history_assumptions.display().to_string(),
+                "history_assumptions": history_assumptions.as_ref().map(|path| path.display().to_string()),
                 "dose_physics": dose_physics.display().to_string(),
             }
         }
@@ -656,6 +702,11 @@ fn verify_cad_prepare_binding(
         );
     }
     let base = config_path.parent().unwrap_or_else(|| Path::new("."));
+    let (design_hash, _) = faris_study::sha256_file(&context.design)
+        .map_err(|e| format!("cannot recheck CAD design: {e}"))?;
+    if !design_hash.eq_ignore_ascii_case(&context.design_sha256) {
+        return Err("CAD design changed after the transport history run; rerun transport before dose preparation".into());
+    }
     let bound_path = |value: &serde_json::Value, label: &str| -> Result<PathBuf, String> {
         let text = value
             .as_str()
@@ -1001,37 +1052,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cad_design_input_binds_scenario_rates_assumptions_and_dose_manifest() {
+    fn cad_design_input_binds_cad_source_rates_and_optional_assumptions_override() {
         let dir = tempfile::tempdir().unwrap();
-        let scenario = dir.path().join("scenario.json");
+        let design_file = dir.path().join("rm-m.faris-design.json");
+        let linked_assumptions = dir.path().join("rm-m.operating-history.json");
         let rates = dir.path().join("history-driving-rates.json");
-        let history_assumptions = dir.path().join("history-assumptions.json");
         let dose_manifest = dir.path().join("dose-physics.json");
-        for path in [&scenario, &rates, &dose_manifest] {
+        for path in [&rates, &dose_manifest] {
             std::fs::write(path, "{}").unwrap();
         }
         std::fs::write(
-            &history_assumptions,
-            include_bytes!("../../../scenarios/arc-inspired/demo-operating-assumptions.json"),
+            &design_file,
+            include_bytes!("../../../scenarios/rm-m/rm-m.faris-design.json"),
+        )
+        .unwrap();
+        std::fs::write(
+            &linked_assumptions,
+            include_bytes!("../../../scenarios/rm-m/rm-m.operating-history.json"),
         )
         .unwrap();
         let output = dir.path().join("cad-designs.json");
         let context = CadHistoryContext {
-            design: scenario.clone(),
-            check_report: scenario.clone(),
-            scenario: scenario.clone(),
+            design: design_file.clone(),
+            check_report: design_file.clone(),
             history_rates: rates.clone(),
-            cross_sections: scenario.clone(),
-            cross_sections_sha256: faris_study::sha256_file(&scenario).unwrap().0,
+            cross_sections: design_file.clone(),
+            cross_sections_sha256: faris_study::sha256_file(&design_file).unwrap().0,
             history_components: std::collections::BTreeMap::from([(
                 "blanket".into(),
                 vec!["blanket-solid".into()],
             )]),
-            design_id: "device-cad".into(),
+            design_id: "rm-m".into(),
+            design_sha256: faris_study::sha256_file(&design_file).unwrap().0,
+            fusion_power_mw: 525.0,
         };
         let written = write_cad_designs(
             &context,
-            history_assumptions.to_str().unwrap(),
+            "",
             dose_manifest.to_str().unwrap(),
             output.to_str().unwrap(),
         )
@@ -1042,21 +1099,45 @@ mod tests {
             value["schema_version"],
             faris_engine::maintenance::files::CAD_DOSE_DESIGNS_VERSION
         );
-        let design = &value["designs"]["device-cad"];
+        let entry = &value["designs"]["rm-m"];
         assert_eq!(
-            design["scenario"],
-            scenario.canonicalize().unwrap().display().to_string()
+            entry["design_file"],
+            design_file.canonicalize().unwrap().display().to_string()
         );
         assert_eq!(
-            design["history_run"],
+            entry["history_run"],
             rates.canonicalize().unwrap().display().to_string()
         );
-        assert!(design.get("physics").is_none());
-        assert!(design.get("spectrum_run").is_none());
+        assert!(entry.get("scenario").is_none());
+        assert!(
+            entry
+                .get("history_assumptions")
+                .is_none_or(serde_json::Value::is_null)
+        );
+        assert!(entry.get("physics").is_none());
+        assert!(entry.get("spectrum_run").is_none());
+        let override_output = dir.path().join("cad-designs-override.json");
+        let override_file = write_cad_designs(
+            &context,
+            linked_assumptions.to_str().unwrap(),
+            dose_manifest.to_str().unwrap(),
+            override_output.to_str().unwrap(),
+        )
+        .unwrap();
+        let override_value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(override_file).unwrap()).unwrap();
+        assert_eq!(
+            override_value["designs"]["rm-m"]["history_assumptions"],
+            linked_assumptions
+                .canonicalize()
+                .unwrap()
+                .display()
+                .to_string()
+        );
         assert!(
             write_cad_designs(
                 &context,
-                history_assumptions.to_str().unwrap(),
+                "",
                 dose_manifest.to_str().unwrap(),
                 output.to_str().unwrap(),
             )
@@ -1069,16 +1150,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let design = dir.path().join("design.json");
         let report = dir.path().join("import-report.json");
-        let scenario = dir.path().join("scenario.json");
         let rates = dir.path().join("rates.json");
         let xs = dir.path().join("cross_sections.xml");
-        for path in [&design, &report, &scenario, &rates, &xs] {
+        for path in [&design, &report, &rates, &xs] {
             std::fs::write(path, "{}").unwrap();
         }
         let context = CadHistoryContext {
             design: design.clone(),
             check_report: report.clone(),
-            scenario,
             history_rates: rates,
             cross_sections: xs.clone(),
             cross_sections_sha256: faris_study::sha256_file(&xs).unwrap().0,
@@ -1087,6 +1166,8 @@ mod tests {
                 vec!["blanket-solid".into()],
             )]),
             design_id: "device-cad".into(),
+            design_sha256: faris_study::sha256_file(&design).unwrap().0,
+            fusion_power_mw: 0.0,
         };
         let config = dir.path().join("prepare.json");
         let xs_sha256 = faris_study::sha256_file(&xs).unwrap().0;
@@ -1117,6 +1198,12 @@ mod tests {
             verify_cad_prepare_binding(&config, &context)
                 .unwrap_err()
                 .contains("index does not match")
+        );
+        std::fs::write(&design, b"{ \"changed\": true }").unwrap();
+        assert!(
+            verify_cad_prepare_binding(&config, &context)
+                .unwrap_err()
+                .contains("CAD design changed")
         );
     }
 }

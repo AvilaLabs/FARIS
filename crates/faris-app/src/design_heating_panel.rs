@@ -244,7 +244,7 @@ impl DesignHeatingPanel {
                     && let (Ok(report), Some(context)) = (&result, self.cad_history.as_ref())
                 {
                     let base = context.history_rates.clone();
-                    let scenario_path = context.scenario.clone();
+                    let design_path = context.design.clone();
                     let report_path = PathBuf::from(&report.run_directory).join("report.json");
                     let output =
                         PathBuf::from(&report.run_directory).join("cad-history-energy-rates.json");
@@ -252,21 +252,13 @@ impl DesignHeatingPanel {
                     let _ = crate::thread::Builder::new()
                         .name("faris-cad-history-energy-binding".into())
                         .spawn(move || {
-                            let result = faris_engine::reactor::read_json_bytes(&scenario_path)
-                                .map_err(|e| e.to_string())
-                                .and_then(|bytes| {
-                                    faris_model::LoadedScenario::from_bytes(&bytes)
-                                        .map_err(|e| e.to_string())
-                                })
-                                .and_then(|scenario| {
-                                    faris_engine::design::combine_history_energy_rates(
-                                        &base,
-                                        &report_path,
-                                        &scenario,
-                                        &output,
-                                    )
-                                })
-                                .map(|_| output);
+                            let result = faris_engine::design::combine_cad_history_energy_rates(
+                                &base,
+                                &report_path,
+                                &design_path,
+                                &output,
+                            )
+                            .map(|_| output);
                             let _ = tx.send(result);
                         });
                     self.combine = Some(rx);
@@ -306,8 +298,10 @@ impl DesignHeatingPanel {
         ui.weak("Separate all-energy neutron, photon, electron and positron heating in solids explicitly classified as winding pack. The checked CAD conversion supplies geometry identity; sampled ring voxels estimate the peak.");
         if let Some(context) = &self.cad_history {
             ui.label(format!(
-                "Whole-life rates for {}: {}",
+                "Whole-life rates for {} · {:.3} MW · CAD SHA-256 {}: {}",
                 context.design_id,
+                context.fusion_power_mw,
+                context.design_sha256,
                 context.history_rates.display()
             ));
             ui.weak("This run also scores the complete active CAD model for the operating-energy ledger. The winding-pack peak remains a separate response. The resulting energy response is bound to the same checked CAD source and transport history.");

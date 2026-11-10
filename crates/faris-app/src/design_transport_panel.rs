@@ -41,12 +41,13 @@ struct Shown {
 pub struct CadHistoryContext {
     pub design: PathBuf,
     pub check_report: PathBuf,
-    pub scenario: PathBuf,
     pub history_rates: PathBuf,
     pub cross_sections: PathBuf,
     pub cross_sections_sha256: String,
     pub history_components: std::collections::BTreeMap<String, Vec<String>>,
     pub design_id: String,
+    pub design_sha256: String,
+    pub fusion_power_mw: f64,
 }
 
 pub struct DesignTransportPanel {
@@ -91,7 +92,6 @@ fn dialog_title(field: Field) -> &'static str {
         Field::Design => "Choose the design file",
         Field::CheckReport => "Choose the design check report",
         Field::Output => "Name a new folder for the run",
-        Field::HistoryScenario => "Choose the operating scenario",
         // The tools are chosen in the shared Tools section, not here.
         Field::OpenmcPython
         | Field::CrossSections
@@ -178,6 +178,8 @@ impl DesignTransportPanel {
                     .id
                     .clone()
                     .unwrap_or_else(|| "CAD design".into());
+                context.design_sha256 = report.design.sha256.clone();
+                context.fusion_power_mw = report.fusion_power_mw;
             }
             self.result = inputs_current.then(|| Shown {
                 view: result_view(&report),
@@ -277,7 +279,6 @@ impl DesignTransportPanel {
                     Field::Design | Field::CheckReport => {
                         dialog.add_filter("JSON", &["json"]).pick_file()
                     }
-                    Field::HistoryScenario => dialog.add_filter("JSON", &["json"]).pick_file(),
                     _ => dialog.pick_file(),
                 };
                 let _ = sender.send(picked);
@@ -389,7 +390,7 @@ impl DesignTransportPanel {
         if self.inputs != before {
             self.problems.clear();
             // Never offer a previously completed CAD result as belonging to newly edited
-            // scenario or component-mapping inputs.
+            // design/source or component-mapping inputs.
             self.result = None;
             self.history_handoff = None;
         }
@@ -426,18 +427,18 @@ impl DesignTransportPanel {
                     self.stale_run_message = None;
                     self.running_history_context = plan
                         .options
-                        .history_scenario
+                        .history_components
                         .as_ref()
-                        .zip(plan.options.history_components.as_ref())
-                        .map(|(scenario, history_components)| CadHistoryContext {
+                        .map(|history_components| CadHistoryContext {
                             design: plan.design.clone(),
                             check_report: plan.options.check_report.clone(),
-                            scenario: scenario.clone(),
                             history_rates: PathBuf::new(),
                             cross_sections: PathBuf::from(self.inputs.cross_sections.trim()),
                             cross_sections_sha256: String::new(),
                             history_components: history_components.clone(),
                             design_id: "CAD design".into(),
+                            design_sha256: String::new(),
+                            fusion_power_mw: 0.0,
                         });
                     self.running_inputs = Some(self.inputs.clone());
                     self.job.start(plan, &ctx);
@@ -540,7 +541,7 @@ impl DesignTransportPanel {
             });
         ui.add_space(6.0);
         ui.collapsing("Whole-life history rates (optional)", |ui| {
-            ui.weak("Enable this to score CAD-derived history responses in the same OpenMC batches. The selected operating scenario must have the exact fusion power authored in the CAD source. This does not infer component mappings or service limits.");
+            ui.weak("Enable this to score CAD-derived history responses in the same OpenMC batches. Source power and identity come from the checked CAD design. FARIS does not infer component mappings or service limits.");
             if let Some(error) = &self.history_solid_error {
                 ui.weak(format!("CAD solid list unavailable: {error}"));
             } else if !self.history_solid_summary.is_empty() {
@@ -553,20 +554,7 @@ impl DesignTransportPanel {
                         }
                     });
             }
-            let note = shown
-                .iter()
-                .find(|p| p.field == Some(Field::HistoryScenario))
-                .map(Problem::text);
-            let note = note.as_deref().map(|text| (kind, text));
-            if path_row(
-                ui,
-                "Operating scenario",
-                "scenario JSON whose fusion power must match CAD exactly",
-                &mut self.inputs.history_scenario,
-                note,
-            ) {
-                *pick = Some(Field::HistoryScenario);
-            }
+            ui.weak("The design's linked OperatingHistoryAssumptions set the default operating plan later in the life study. A planning override can be chosen in the dose-governed maintenance step.");
             ui.label("Component ID → CAD solid IDs (JSON). Map every non-void solid exactly once; use the CAD replacement groups as the life components where appropriate.");
             ui.add(
                 egui::TextEdit::multiline(&mut self.inputs.history_components_json)
@@ -795,6 +783,12 @@ fn show_result(ui: &mut egui::Ui, shown: &Shown) -> bool {
     ui.weak(format!("Run folder: {}", view.run_directory));
     let mut continue_to_dose = false;
     if let Some(reference) = &shown.report.history_rates_artifact {
+        if let Some(context) = &shown.history_context {
+            ui.label(format!(
+                "CAD source: {} · {:.3} MW · design SHA-256 {}",
+                context.design_id, context.fusion_power_mw, context.design_sha256
+            ));
+        }
         ui.label(format!(
             "CAD history rates: {} · SHA-256 {}",
             reference.path, reference.sha256
