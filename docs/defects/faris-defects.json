@@ -841,6 +841,19 @@
       "fixed_in": "83f0b8a",
       "disposition": "The R3 full-H5M mesh aligned to 100 cm cells extended to corners 1067.7 cm from the origin, beyond the 1000 cm transport sphere. In the retained v1 run, OpenMC Mesh.material_volumes stopped with “Mesh not fully contained in geometry” before any Monte Carlo histories. R3 volume sampling now uses an auxiliary 1167.7 cm world with the same DAGMC geometry and materials; the original 1000 cm neutron and photon transport geometry is unchanged. The fresh v2 live run is not an acceptance result. This fixes a pretransport sampling refusal and makes no scientific or dose qualification claim.",
       "regression_test": "integrations/openmc/risk_tests/test_r3_source_serialization.py::test_r2s_material_volume_sampling_aux_world_contains_mesh_without_changing_transport_geometry"
+    },
+    {
+      "id": "FARIS-065",
+      "title": "Portable transport packs omitted the batch-statistics helper bound by the worker receipt",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "0bfcb5c",
+      "disposition": "The worker receipt bound the root batch_statistics.py helper by hash, but the portable transport pack did not include it, so materializing a packed run failed with NoSuchFile. Packs now include and verify the exact helper bytes; a missing helper gives clear guidance to re-pack from the original run directory, and tampered bytes are refused. The regression covers exact-byte round-trip, missing-helper refusal and tamper refusal. Three fresh pack checks now verify with ten files including the bound helper and retain NOT_EVALUATED scientific qualification. This is a software packaging fix and makes no scientific result or gate claim.",
+      "regression_test": "crates/faris-engine/src/reactor.rs::packed_run_carries_the_exact_bound_batch_statistics_helper"
     }
   ]
 }
