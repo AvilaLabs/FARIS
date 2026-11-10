@@ -43,8 +43,8 @@ RULE_DECLARED = "2026-11-09"
 RESPONSES = {
     "neutron_flux": {
         "file_label": "Neutron flux",
-        "published_unit": "#/cm^3/source neutron (JADE TBM documentation)",
-        "description": "Published total neutron mesh flux response; raw value retained without unit conversion.",
+        "published_unit": "#/cm^3/source neutron (MCNP FC comment; output unit unverified)",
+        "description": "Candidate neutron mesh flux unit is copied from the pinned deck FC comment; JADE conversion and output unit remain unverified.",
     },
     "neutron_heating": {
         "file_label": "Neutron heating",
@@ -53,8 +53,8 @@ RESPONSES = {
     },
     "photon_flux": {
         "file_label": "Photon flux",
-        "published_unit": "#/cm^3/source neutron (JADE TBM documentation)",
-        "description": "Published total photon mesh flux response; raw value retained without unit conversion.",
+        "published_unit": "#/cm^3/source neutron (MCNP FC comment; output unit unverified)",
+        "description": "Candidate photon mesh flux unit is copied from the pinned deck FC comment; JADE conversion and output unit remain unverified.",
     },
     "photon_heating": {
         "file_label": "Photon heating",
@@ -260,7 +260,10 @@ def parse_mcnp_mesh(deck: bytes, case: str) -> dict:
             raise ValueError(f"FMESH{tally} does not use the pinned 830.0..1084.2 cm / 78-interval mesh")
         meshes[response] = tally
     return {"source_law": "MCNP SDEF erg=d1, SP1 -6 Muir velocity Gaussian DT at 10 keV; unit source weight; cell 51",
-            "mesh": "cylindrical outboard mesh, Cor A coordinates 830.0..1084.2 cm; input IINTS 1,78",
+            "mesh": "cylindrical radial mesh; MCNP IINTS 1,78 defines one 0..830 cm bin and 78 bins from 830..1084.2 cm (79 total); JADE Cor A row-to-bin mapping remains unverified",
+            "mesh_bin_count": 79,
+            "mesh_intervals": [{"lower_cm": 0.0, "upper_cm": 830.0, "bins": 1},
+                               {"lower_cm": 830.0, "upper_cm": 1084.2, "bins": 78}],
             "tallies": meshes}
 
 
@@ -285,7 +288,7 @@ def verify_upstream_inputs(root: Path, case: str) -> dict:
     return {"repository": "IAEA-NDS/open-benchmarks", "commit": INPUTS_COMMIT,
             "license": "CC-BY-4.0", "license_url": INPUT_LICENSE_URL,
             "files": found,
-            "producer_linkage": "The raw-results metadata does not bind this input bundle hash to the producing MCNP run."}
+            "producer_linkage": "The raw-results metadata does not bind this input bundle hash to the producing MCNP run. The exact JADE source commit is 81627873432afd120c714fe039b9f778758d894d; its MCNP output parser delegates mesh conversion to F4Enix (dependency lower bound >=0.8.1), and the exact F4Enix version and per-case raw-processing configuration are absent from the result receipt."}
 
 
 def input_library_block(case: str) -> dict:
@@ -405,12 +408,12 @@ def manifest_from_rows(case: str, tables: dict[str, list[dict]], retrieved: str,
             "quantity": "five separate total response profiles from the published 1D TBM cylindrical mesh",
             "units": "units as listed in response_classes; no conversion is applied",
             "source_normalisation": "JADE/MCNP reports tallies per source neutron; deck source weight is 1. Exact produced-run input and source receipt remain absent.",
-            "location": "79 JADE Cor A mesh rows at R=830.0..1084.2 cm; the source input specifies 78 radial intervals. Row-to-volume or bin-edge semantics are not established.",
+            "location": "The pinned MCNP deck defines 79 radial bins: one from 0..830 cm and 78 from 830..1084.2 cm. The JADE output contains 79 Cor A rows ranging 830.0..1084.2 cm, but row-to-bin coordinate/volume semantics remain unverified.",
             "reaction_or_particle": "separate neutron, photon, and tritium response classes; neutron and photon heating remain distinct",
             "energy_integration": "total response as defined by the source deck; no energy-binned table is supplied",
             "basis": "JADE computational benchmark TBM documentation and the pinned upstream MCNP input cards; output-to-input and output-unit identity still require a producer receipt.",
-            "why": "JADE documentation labels mesh flux in #/cm^3/source while the MCNP manual defines mesh flux as volume-averaged fluence in #/cm^2/source; this dimensional discrepancy is unresolved.",
-            "next_step": "Recover and inspect the exact producing mctal/JADE conversion and producer xsdir, then confirm the units and Cor A bin meaning against the pinned input.",
+            "why": "The source deck's FC comments label mesh flux #/cm^3/source, while MCNP mesh flux is conventionally volume-averaged fluence in #/cm^2/source. JADE's pinned parser delegates meshtal conversion to F4Enix, but its exact version and the per-case raw-processing configuration are not in the receipt; the CSV unit/normalization and Cor A row mapping therefore remain unresolved.",
+            "next_step": "Recover the exact producing mctal/meshtal, per-case JADE raw-processing configuration, and F4Enix version; then confirm units and all 79 Cor A row meanings against the pinned input and OpenMC adapter.",
         },
         "uncertainty": {
             "components": [{"name": "published MCNP Monte Carlo relative standard error", "kind": "statistical", "source_field": "CSV Error"}],

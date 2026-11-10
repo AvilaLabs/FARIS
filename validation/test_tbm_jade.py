@@ -49,6 +49,10 @@ class JadeTbmIntake(unittest.TestCase):
                 self.assertEqual(manifest["license"]["spdx"], "EUPL-1.2")
                 self.assertEqual(manifest["nuclear_data_identity"]["eligibility"].split(":", 1)[0],
                                  "NOT_EVALUATED")
+                location = manifest["normalisation"]["location"]
+                self.assertIn("79 radial bins", location)
+                self.assertIn("one from 0..830 cm", location)
+                self.assertIn("78 from 830..1084.2 cm", location)
 
     def test_candidate_keeps_all_bins_responses_and_unknown_zero_precision(self):
         candidate = MODULE.manifest_from_rows("HCPB_TBM_1D", tables(), "2026-11-09")
@@ -65,6 +69,8 @@ class JadeTbmIntake(unittest.TestCase):
         self.assertIsNone(zero["candidate_reference"]["standard_error"])
         nonzero = next(d for d in candidate["detectors"] if d["id"] == "neutron_flux:mesh-005")
         self.assertAlmostEqual(nonzero["candidate_reference"]["standard_error"], 0.6)
+        self.assertIn("output unit unverified", nonzero["candidate_reference"]["unit"])
+        self.assertIn("output unit unverified", candidate["response_classes"]["photon_flux"]["unit"])
 
     def test_response_coordinate_mismatch_is_fail_closed(self):
         raw = table_bytes()
@@ -88,8 +94,13 @@ class JadeTbmIntake(unittest.TestCase):
         for case in MODULE.CASE_SPECS:
             with self.subTest(case=case):
                 bundle = MODULE.verify_upstream_inputs(upstream, case)
-                cards = bundle["files"]["mcnp_deck"]["checks"]["tallies"]
-                self.assertEqual(cards, MODULE.CASE_SPECS[case]["tallies"])
+                checks = bundle["files"]["mcnp_deck"]["checks"]
+                self.assertEqual(checks["tallies"], MODULE.CASE_SPECS[case]["tallies"])
+                self.assertEqual(checks["mesh_bin_count"], 79)
+                self.assertEqual(checks["mesh_intervals"], [
+                    {"lower_cm": 0.0, "upper_cm": 830.0, "bins": 1},
+                    {"lower_cm": 830.0, "upper_cm": 1084.2, "bins": 78},
+                ])
 
 
 if __name__ == "__main__":

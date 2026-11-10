@@ -95,12 +95,12 @@
     "quantity": "five separate total response profiles from the published 1D TBM cylindrical mesh",
     "units": "units as listed in response_classes; no conversion is applied",
     "source_normalisation": "JADE/MCNP reports tallies per source neutron; deck source weight is 1. Exact produced-run input and source receipt remain absent.",
-    "location": "79 JADE Cor A mesh rows at R=830.0..1084.2 cm; the source input specifies 78 radial intervals. Row-to-volume or bin-edge semantics are not established.",
+    "location": "The pinned MCNP deck defines 79 radial bins: one from 0..830 cm and 78 from 830..1084.2 cm. The JADE output contains 79 Cor A rows ranging 830.0..1084.2 cm, but row-to-bin coordinate/volume semantics remain unverified.",
     "reaction_or_particle": "separate neutron, photon, and tritium response classes; neutron and photon heating remain distinct",
     "energy_integration": "total response as defined by the source deck; no energy-binned table is supplied",
     "basis": "JADE computational benchmark TBM documentation and the pinned upstream MCNP input cards; output-to-input and output-unit identity still require a producer receipt.",
-    "why": "JADE documentation labels mesh flux in #/cm^3/source while the MCNP manual defines mesh flux as volume-averaged fluence in #/cm^2/source; this dimensional discrepancy is unresolved.",
-    "next_step": "Recover and inspect the exact producing mctal/JADE conversion and producer xsdir, then confirm the units and Cor A bin meaning against the pinned input."
+    "why": "The source deck's FC comments label mesh flux #/cm^3/source, while MCNP mesh flux is conventionally volume-averaged fluence in #/cm^2/source. JADE's pinned parser delegates meshtal conversion to F4Enix, but its exact version and the per-case raw-processing configuration are not in the receipt; the CSV unit/normalization and Cor A row mapping therefore remain unresolved.",
+    "next_step": "Recover the exact producing mctal/meshtal, per-case JADE raw-processing configuration, and F4Enix version; then confirm units and all 79 Cor A row meanings against the pinned input and OpenMC adapter."
   },
   "uncertainty": {
     "components": [
@@ -123,16 +123,16 @@
   },
   "response_classes": {
     "neutron_flux": {
-      "unit": "#/cm^3/source neutron (JADE TBM documentation)",
-      "description": "Published total neutron mesh flux response; raw value retained without unit conversion."
+      "unit": "#/cm^3/source neutron (MCNP FC comment; output unit unverified)",
+      "description": "Candidate neutron mesh flux unit is copied from the pinned deck FC comment; JADE conversion and output unit remain unverified."
     },
     "neutron_heating": {
       "unit": "MeV/cm^3/source neutron",
       "description": "Published neutron heating mesh response; this is not the photon or total-heating response."
     },
     "photon_flux": {
-      "unit": "#/cm^3/source neutron (JADE TBM documentation)",
-      "description": "Published total photon mesh flux response; raw value retained without unit conversion."
+      "unit": "#/cm^3/source neutron (MCNP FC comment; output unit unverified)",
+      "description": "Candidate photon mesh flux unit is copied from the pinned deck FC comment; JADE conversion and output unit remain unverified."
     },
     "photon_heating": {
       "unit": "MeV/cm^3/source neutron",
