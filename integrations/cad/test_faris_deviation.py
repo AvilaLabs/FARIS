@@ -181,12 +181,31 @@ else:
             tri = np.array([[[30., 0., 0.], [30., 1., 0.], [30., 0., 1.]]])
             self.assertTrue(math.isinf(fd.full_torus_triangle_bounds(tri, [params])[0]))
 
-        def test_torus_bound_is_rechecked_on_children_without_point_queries(self):
+        def test_bounded_torus_subdivision_certifies_parent_with_zero_cad_queries(self):
             params = {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 30., "minor": 5.}
 
             class FullTorusOracle:
-                calls = 0
+                def full_torus_faces(self):
+                    return [params]
 
+                def convex_planar_faces(self):
+                    return []
+
+                def point_distance(self, _point, floor=0.0):
+                    raise AssertionError("analytic subdivision should certify every child")
+
+            angles = np.deg2rad([0., 2., -2.])
+            tri = np.array([[[35*np.cos(a), 35*np.sin(a), 0.] for a in angles]])
+            initial = fd.full_torus_triangle_bounds(tri, [params])[0]
+            self.assertGreater(initial, .1)
+            result = fd.certify_triangles(FullTorusOracle(), tri, .1, max_queries=1, max_depth=8)
+            self.assertEqual(result["status"], "certified")
+            self.assertEqual(result["queries"], 0)
+
+        def test_torus_analytic_work_cap_leaves_unresolved_bound(self):
+            params = {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 30., "minor": 5.}
+
+            class FullTorusOracle:
                 def full_torus_faces(self):
                     return [params]
 
@@ -194,17 +213,15 @@ else:
                     return []
 
                 def point_distance(self, point, floor=0.0):
-                    self.calls += 1
                     rho = math.hypot(point[0], point[1])
                     return abs(math.hypot(rho-params["major"], point[2])-params["minor"]), 0
 
             angles = np.deg2rad([0., 2., -2.])
-            tri = np.array([[[35*np.cos(a), 35*np.sin(a), 0.] for a in angles]])
-            oracle = FullTorusOracle()
-            result = fd.certify_triangles(oracle, tri, .1, max_queries=100, max_depth=12)
-            self.assertEqual(result["status"], "certified")
-            self.assertEqual(result["queries"], 1)
-            self.assertEqual(oracle.calls, 1)
+            one = np.array([[35*np.cos(a), 35*np.sin(a), 0.] for a in angles])
+            triangles = np.repeat(one[None], 2048, axis=0)
+            result = fd.certify_triangles(FullTorusOracle(), triangles, .1, max_queries=1, max_depth=8)
+            self.assertEqual(result["status"], "unresolved")
+            self.assertLessEqual(result["queries"], 1)
 
         def test_subdivision_certifies_every_point_when_global_upper_is_under_tolerance(self):
             triangles = np.array([[[0.0, 0.0, 0.09], [0.2, 0.0, 0.09], [0.0, 0.2, 0.09]]])

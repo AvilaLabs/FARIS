@@ -1070,7 +1070,7 @@ def convex_planar_triangle_bound(triangle, face):
     return max(bounds) + kernel_slack + 64.0 * np.finfo(np.float64).eps * scale
 
 
-def full_torus_triangle_bounds(triangles, params):
+def full_torus_triangle_bounds(triangles, params, extra_slack=0.0):
     """Certified distance upper bounds for triangles against complete analytic tori.
 
     On a full torus, boundary distance is ``abs(f-r)`` where
@@ -1086,6 +1086,12 @@ def full_torus_triangle_bounds(triangles, params):
         return np.full(len(tris) if tris.ndim else 0, np.inf)
     out = np.full(len(tris), np.inf)
     eps = np.finfo(np.float64).eps
+    try:
+        margins = np.broadcast_to(np.asarray(extra_slack, dtype=np.float64), (len(tris),))
+    except ValueError:
+        return out
+    if not np.isfinite(margins).all() or np.any(margins < 0.0):
+        return out
     for face in params:
         origin, axis = face["o"], face["z"]
         major, minor = float(face["major"]), float(face["minor"])
@@ -1131,7 +1137,18 @@ def full_torus_triangle_bounds(triangles, params):
         interpolation = np.nextafter(interpolation / 6.0, np.inf)
         bound = np.nextafter(vertex_deviation[valid] + interpolation, np.inf)
         bound = np.nextafter(bound + max(CLASSIFY_TOLERANCE, FAST_MARGIN), np.inf)
+        bound = np.nextafter(bound + margins[valid], np.inf)
         out[valid] = np.minimum(out[valid], bound)
+    return out
+
+
+def _batched_full_torus_triangle_bounds(triangles, params, batch_size=8192):
+    """Evaluate the torus bound in fixed-size chunks to cap peak temporary memory."""
+    triangles = np.asarray(triangles, dtype=np.float64)
+    out = np.full(len(triangles), np.inf)
+    for start in range(0, len(triangles), batch_size):
+        stop = min(start + batch_size, len(triangles))
+        out[start:stop] = full_torus_triangle_bounds(triangles[start:stop], params)
     return out
 
 
@@ -1139,13 +1156,16 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
     """Bound distance to the CAD boundary over every point of every facet triangle.
 
     Verified single-wire convex planar faces first provide a vertex-distance bound over the
-    whole triangle. Remaining triangles use the generic 1-Lipschitz bound: for centroid ``c``, every point is
-    within ``max(|vertex-c|)`` of c, so ``distance(c) + radius`` is an upper bound everywhere
-    on that triangle. Subdivide only triangles whose bound exceeds the requested tolerance.
+    whole triangle. Full torus faces then provide an analytic Hessian bound, with bounded
+    query-free subdivision of triangles that do not meet tolerance at first. Remaining leaves
+    use the generic 1-Lipschitz bound: for centroid ``c``, every point is within
+    ``max(|vertex-c|)`` of c, so ``distance(c) + radius`` bounds the whole triangle.
     ``point_distance`` returns the attained nearest-boundary distance; query limits or a depth
     limit leave the result unresolved, never certified by sampling alone. The planar shortcut
     assumes OpenCASCADE's line and vertex geometry within ``max(CLASSIFY_TOLERANCE,
-    FAST_MARGIN)`` in shape units, which is included as outward slack.
+    FAST_MARGIN)`` in shape units, which is included as outward slack. Analytic subdivision
+    work is capped at min(25.6 million face-bound evaluations, max(8192, 256 * max_queries));
+    temporary triangle batches are bounded independently of facet count.
     """
     import heapq
     import time
@@ -1166,7 +1186,7 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
         for i, tri in enumerate(triangles):
             planar_upper[i] = min(convex_planar_triangle_bound(tri, face) for face in planar_faces)
     torus_faces = solid.full_torus_faces() if hasattr(solid, "full_torus_faces") else ()
-    torus_upper = full_torus_triangle_bounds(triangles, torus_faces) if torus_faces else np.full(len(triangles), np.inf)
+    torus_upper = _batched_full_torus_triangle_bounds(triangles, torus_faces) if torus_faces else np.full(len(triangles), np.inf)
     analytic_upper = np.minimum(planar_upper, torus_upper)
     planar_done = analytic_upper <= tolerance
     certified_upper = float(np.max(analytic_upper[planar_done])) if planar_done.any() else 0.0
@@ -1177,14 +1197,19 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
     sampled_distance_upper = 0.0
     unresolved_upper = 0.0
     unresolved = False
+    # Initial bounds are mandatory; adaptive analytic work is separately capped so
+    # subdivision cannot expand without limit. The cap scales with the CAD query budget.
+    analytic_work_cap = min(25_600_000, max(8192, max_queries * 256))
+    analytic_work = len(triangles) * len(torus_faces)
 
-    def evaluate(tri, depth):
+    def evaluate(tri, depth, coverage_slack=0.0):
         nonlocal queries, sampled_distance_upper, certified_upper
         analytic_bound = math.inf
         if planar_faces:
-            analytic_bound = min(convex_planar_triangle_bound(tri, face) for face in planar_faces)
+            analytic_bound = min(convex_planar_triangle_bound(tri, face) + coverage_slack for face in planar_faces)
         if torus_faces:
-            analytic_bound = min(analytic_bound, float(full_torus_triangle_bounds(tri[None], torus_faces)[0]))
+            analytic_bound = min(analytic_bound, float(full_torus_triangle_bounds(
+                tri[None], torus_faces, extra_slack=coverage_slack)[0]))
         if analytic_bound <= tolerance:
             certified_upper = max(certified_upper, analytic_bound)
             return analytic_bound, None, depth
@@ -1197,27 +1222,82 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
         scale = max(1.0, float(np.abs(tri).max()), abs(value), radius)
         # Include OpenCASCADE's face-classifier tolerance as outward slack. The query distance is
         # an attained boundary distance (hence an upper bound on the minimum distance).
-        upper = value + radius + CLASSIFY_TOLERANCE + 64.0 * np.finfo(np.float64).eps * scale
+        upper = value + radius + coverage_slack + CLASSIFY_TOLERANCE + 64.0 * np.finfo(np.float64).eps * scale
+        upper = min(upper, analytic_bound)
         sampled_distance_upper = max(sampled_distance_upper, value)
         return upper, center, depth
 
     remaining_triangles = triangles[~planar_done]
-    if len(remaining_triangles) > max_queries:
+    if not torus_faces and len(remaining_triangles) > max_queries:
         return {
             "status": "unresolved", "upper_bound": None, "queries": 0,
             "max_queries": max_queries, "max_depth": max_depth,
             "seconds": time.monotonic() - started,
         }
-    for tri in remaining_triangles:
-        upper, center, depth = evaluate(tri, 0)
+    def enqueue_fallback(tri, depth, coverage_slack, known_upper):
+        nonlocal serial, unresolved, unresolved_upper, certified_upper
+        if queries >= max_queries:
+            unresolved = True
+            unresolved_upper = max(unresolved_upper, known_upper)
+            return
+        upper, _center, _depth = evaluate(tri, depth, coverage_slack)
         if upper <= tolerance:
             certified_upper = max(certified_upper, upper)
         else:
-            heapq.heappush(pending, (-upper, serial, tri, depth))
+            heapq.heappush(pending, (-upper, serial, tri, depth, coverage_slack))
             serial += 1
 
+    if torus_faces:
+        # DFS over bounded batches. Each batch has at most 2048 triangles and each
+        # stack entry at most that many, so even a deep refinement keeps memory fixed.
+        # The four child groups are processed separately instead of materializing a
+        # whole 4^depth frontier.
+        indices = np.flatnonzero(~planar_done)
+        for start in range(0, len(indices), 2048):
+            group = indices[start:start + 2048]
+            roots = triangles[group]
+            root_bounds = torus_upper[group]
+            stack = [(roots, np.zeros(len(roots), dtype=np.int16),
+                      np.zeros(len(roots), dtype=np.float64), root_bounds)]
+            while stack:
+                batch, depths, slack, bounds = stack.pop()
+                if len(batch) == 0:
+                    continue
+                certified = bounds <= tolerance
+                if certified.any():
+                    certified_upper = max(certified_upper, float(np.max(bounds[certified])))
+                bad = np.flatnonzero(~certified)
+                if len(bad) == 0:
+                    continue
+                can_split = (depths[bad] < max_depth
+                             ) & (analytic_work + 4 * len(bad) * len(torus_faces) <= analytic_work_cap)
+                fallback = bad[~can_split]
+                for index in fallback:
+                    enqueue_fallback(batch[index], int(depths[index]), float(slack[index]), float(bounds[index]))
+                split = bad[can_split]
+                if len(split) == 0:
+                    continue
+                parent = batch[split]
+                a, b, c = parent[:, 0], parent[:, 1], parent[:, 2]
+                ab, bc, ca = (a / 2.0 + b / 2.0), (b / 2.0 + c / 2.0), (c / 2.0 + a / 2.0)
+                midpoint_error = 32.0 * np.finfo(np.float64).eps * np.maximum(
+                    1.0, np.abs(parent).max(axis=(1, 2)))
+                child_slack = slack[split] + midpoint_error
+                child_depth = depths[split] + 1
+                children = (np.stack((a, ab, ca), axis=1), np.stack((ab, b, bc), axis=1),
+                            np.stack((ca, bc, c), axis=1), np.stack((ab, bc, ca), axis=1))
+                for child in children:
+                    child_bounds = full_torus_triangle_bounds(child, torus_faces, extra_slack=child_slack)
+                    # The child bounds are computed here and included in the work cap;
+                    # push the already bounded arrays so they are not recomputed.
+                    analytic_work += len(child) * len(torus_faces)
+                    stack.append((child, child_depth, child_slack, child_bounds))
+    else:
+        for tri in remaining_triangles:
+            enqueue_fallback(tri, 0, 0.0, math.inf)
+
     while pending:
-        neg_upper, _serial, tri, depth = heapq.heappop(pending)
+        neg_upper, _serial, tri, depth, coverage_slack = heapq.heappop(pending)
         upper = -neg_upper
         if upper <= tolerance:
             certified_upper = max(certified_upper, upper)
@@ -1227,14 +1307,16 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
             unresolved_upper = max(unresolved_upper, upper)
             continue
         a, b, c = tri
-        ab, bc, ca = (a + b) / 2.0, (b + c) / 2.0, (c + a) / 2.0
+        ab, bc, ca = a / 2.0 + b / 2.0, b / 2.0 + c / 2.0, c / 2.0 + a / 2.0
+        scale = max(1.0, float(np.abs(tri).max()))
+        child_slack = coverage_slack + 32.0 * np.finfo(np.float64).eps * scale
         for child in (np.array([a, ab, ca]), np.array([ab, b, bc]),
                       np.array([ca, bc, c]), np.array([ab, bc, ca])):
-            child_upper, _center, child_depth = evaluate(child, depth + 1)
+            child_upper, _center, child_depth = evaluate(child, depth + 1, child_slack)
             if child_upper <= tolerance:
                 certified_upper = max(certified_upper, child_upper)
             else:
-                heapq.heappush(pending, (-child_upper, serial, child, child_depth))
+                heapq.heappush(pending, (-child_upper, serial, child, child_depth, child_slack))
                 serial += 1
 
     return {
