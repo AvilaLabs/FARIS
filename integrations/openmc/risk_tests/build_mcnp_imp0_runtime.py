@@ -285,6 +285,12 @@ def main() -> int:
     manifest_before = source_manifest(SOURCE_REPO)
     manifest_before_sha = manifest_digest(manifest_before)
     protected_before = protected_install_hashes()
+    # MOAB exposes Eigen headers without carrying their include root in its imported target.
+    # Reuse the same existing Eigen tree as the installed AIM build, without modifying it.
+    eigen_include = Path("/home/connoravila/.cache/avila-night/envs/buildtools/include/eigen3").resolve(strict=True)
+    if not (eigen_include / "Eigen/Dense").is_file():
+        raise RuntimeError("the verified buildtools Eigen include tree is missing")
+    eigen_manifest = source_manifest(eigen_include)
 
     output.mkdir()
     source = output / "source"
@@ -328,6 +334,7 @@ def main() -> int:
         f"-DARCHIVAL_FILE={archival_file}",
         "-DCMAKE_BUILD_TYPE=Release",
         f"-DCMAKE_CXX_COMPILER=/usr/bin/c++",
+        f"-DCMAKE_CXX_FLAGS=-isystem {eigen_include}",
         f"-DCMAKE_MAKE_PROGRAM=/home/connoravila/.cache/avila-night/envs/buildtools/bin/ninja",
         f"-DCMAKE_INSTALL_PREFIX={build / 'install'}",
         "-DOPENMC_USE_DAGMC=ON", "-DOPENMC_USE_LIBMESH=OFF",
@@ -398,6 +405,8 @@ def main() -> int:
             control_runtime.get("cross_sections_catalogue") != cross_sections_identity):
         raise RuntimeError("the live control used a different cross-sections index than the build request")
     protected_after = protected_install_hashes()
+    if source_manifest(eigen_include) != eigen_manifest:
+        raise RuntimeError("the existing Eigen header tree changed during the build")
     if protected_after != protected_before:
         raise RuntimeError("an installed OpenMC runtime or shared dependency changed during the build")
 
@@ -440,6 +449,9 @@ def main() -> int:
             "configured_version": configured_version,
             "openmc_version_expected": "0.15.3",
             "cxx_compiler_path": "/usr/bin/c++",
+            "eigen_include_path": str(eigen_include),
+            "eigen_header_manifest_sha256": manifest_digest(eigen_manifest),
+            "eigen_header_manifest_file_count": len(eigen_manifest),
             "openmc_cli_path": str(executable), "openmc_cli_sha256": sha256_file(executable),
             "linked_library_path": str(library.resolve()),
             "linked_library_sha256": sha256_file(library),
