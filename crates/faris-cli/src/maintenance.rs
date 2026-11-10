@@ -100,6 +100,9 @@ pub enum MaintenanceCommand {
         /// faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes.
         #[arg(long)]
         assumptions: PathBuf,
+        /// The explicitly selected `actinv` executable for decay-heat execution.
+        #[arg(long)]
+        actinv: Option<PathBuf>,
         /// Optional hash-verified faris-maintenance-spatial-dose-curves/v0.2 cache.
         #[arg(long)]
         spatial_dose_curves: Option<PathBuf>,
@@ -121,6 +124,9 @@ pub enum MaintenanceCommand {
         /// faris-maintenance-dose-cad-config/v0.1 preparation request.
         #[arg(long)]
         config: PathBuf,
+        /// The explicitly selected `actinv` executable for decay-heat execution.
+        #[arg(long)]
+        actinv: Option<PathBuf>,
         /// Python interpreter with the validated OpenMC runtime and plasma-source package.
         #[arg(long, default_value = "python3")]
         python: PathBuf,
@@ -173,6 +179,7 @@ pub fn run(command: MaintenanceCommand) -> Result<(), Box<dyn std::error::Error>
         MaintenanceCommand::DoseRun {
             designs,
             assumptions,
+            actinv,
             spatial_dose_curves,
             python,
             worker,
@@ -181,6 +188,7 @@ pub fn run(command: MaintenanceCommand) -> Result<(), Box<dyn std::error::Error>
         } => run_dose_designs(
             designs,
             assumptions,
+            actinv,
             spatial_dose_curves,
             python,
             worker,
@@ -189,15 +197,17 @@ pub fn run(command: MaintenanceCommand) -> Result<(), Box<dyn std::error::Error>
         ),
         MaintenanceCommand::DosePrepare {
             config,
+            actinv,
             python,
             worker,
-        } => run_dose_prepare(config, python, worker),
+        } => run_dose_prepare(config, actinv, python, worker),
         MaintenanceCommand::Report { result, format } => report(&result, format),
     }
 }
 
 fn run_dose_prepare(
     config: PathBuf,
+    actinv: Option<PathBuf>,
     python: PathBuf,
     worker: Option<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -209,7 +219,7 @@ fn run_dose_prepare(
     let cancellation = &interrupts.cancellation;
     #[cfg(not(unix))]
     let cancellation = &interrupts;
-    let manifest = prepare_dose_cad(&config, &python, &worker, cancellation)?;
+    let manifest = prepare_dose_cad(&config, &python, &worker, actinv.as_deref(), cancellation)?;
     println!(
         "Prepared event-dose physics manifest: {}",
         manifest.display()
@@ -220,6 +230,7 @@ fn run_dose_prepare(
 fn run_dose_designs(
     designs: PathBuf,
     assumptions: PathBuf,
+    actinv: Option<PathBuf>,
     spatial_dose_curves: Option<PathBuf>,
     python: PathBuf,
     worker: Option<PathBuf>,
@@ -235,6 +246,7 @@ fn run_dose_designs(
     let config = DoseRunConfig {
         designs,
         assumptions,
+        actinv_executable: actinv,
         spatial_dose_curves,
         python,
         worker_script,
