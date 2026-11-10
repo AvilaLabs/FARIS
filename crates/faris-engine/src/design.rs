@@ -75,11 +75,12 @@ pub use life::{
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
 pub use source::{CLOSURE_TOLERANCE, SourceClosure};
 pub use transport::{
-    DESIGN_HISTORY_RATES_OUTPUTS, DESIGN_HISTORY_RATES_VERSION, DesignHistoryRatesArtifact,
-    DesignTransportOptions, DesignTransportReport, FluenceLimit, HistoryRatesArtifactRef,
-    NotEvaluated, PeakFlux, SolidFlux, TransportProgress, TransportProgressFn, VarianceReduction,
-    design_transport, flux_n_m2_s, fuzz_helper_outputs, leading_peak, load_design_history_rates,
-    render_transport_text, span_text,
+    CadOperatingContext, DESIGN_HISTORY_RATES_CAD_VERSION, DESIGN_HISTORY_RATES_OUTPUTS,
+    DESIGN_HISTORY_RATES_VERSION, DesignHistoryRatesArtifact, DesignTransportOptions,
+    DesignTransportReport, FluenceLimit, HistoryRatesArtifactRef, NotEvaluated, PeakFlux,
+    SolidFlux, TransportProgress, TransportProgressFn, VarianceReduction, design_transport,
+    flux_n_m2_s, fuzz_helper_outputs, leading_peak, load_design_history_rates,
+    render_transport_text, resolve_cad_operating_context, span_text,
 };
 pub use transport_progress::{
     SamplingEstimate, StopsAt, duration_text, estimate_sampling, estimate_text, histories_text,

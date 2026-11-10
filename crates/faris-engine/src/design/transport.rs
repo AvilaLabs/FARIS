@@ -54,6 +54,7 @@ pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.5";
 const REQUEST_SCHEMA: &str = "faris-design-transport-request/v3";
 const RESULT_SCHEMA: &str = "faris-design-transport/v3";
 pub const DESIGN_HISTORY_RATES_VERSION: &str = "faris-cad-history-driving-rates/v0.1";
+pub const DESIGN_HISTORY_RATES_CAD_VERSION: &str = "faris-cad-history-driving-rates/v0.2";
 pub const DESIGN_HISTORY_RATES_OUTPUTS: &[Output] = &[
     by_score("mean"),
     by_score("standard_error"),
@@ -112,6 +113,101 @@ pub const DESIGN_HISTORY_RATES_OUTPUTS: &[Output] = &[
     ),
     not_calculated("variance_of_variance", "batch convergence diagnostic"),
 ];
+
+/// Resolved operating context for a checked CAD design. Design/source identity is independent
+/// of the operating-history planning assumptions, which may be explicitly overridden.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CadOperatingContext {
+    pub design_path: PathBuf,
+    pub design_id: String,
+    pub design_sha256: String,
+    pub fusion_power_mw: f64,
+    pub history_assumptions_path: PathBuf,
+    pub history_assumptions_sha256: String,
+    pub history_assumptions_overridden: bool,
+}
+
+/// Resolve source power from the CAD design and planning assumptions from either an explicit
+/// override or the design's hash-bound `operating_scenario` link. No reactor CSG scenario is read.
+pub fn resolve_cad_operating_context(
+    design_path: &Path,
+    assumptions_override: Option<&Path>,
+) -> Result<CadOperatingContext, String> {
+    let design_path = design_path.canonicalize().map_err(|e| e.to_string())?;
+    if !design_path.is_file() {
+        return Err("CAD design input must be a regular file".into());
+    }
+    let design_bytes = read_bounded(&design_path).map_err(|e| e.to_string())?;
+    let design: faris_model::design::Design =
+        serde_json::from_slice(&design_bytes).map_err(|e| format!("CAD design JSON: {e}"))?;
+    if design.schema_version != faris_model::design::DESIGN_VERSION {
+        return Err("CAD design schema version is unsupported".into());
+    }
+    let fusion_power_mw = design
+        .plasma
+        .fusion_power_mw
+        .filter(|p| p.is_finite() && *p > 0.0)
+        .ok_or("CAD design plasma source power must be finite and positive")?;
+    let design_sha256 = sha256_hex(&design_bytes);
+    let (history_assumptions_path, history_assumptions_overridden, expected_hash) = if let Some(
+        path,
+    ) =
+        assumptions_override
+    {
+        (path.to_path_buf(), true, None)
+    } else {
+        let link = &design.operating_scenario;
+        let relative = link
+                .path
+                .as_deref()
+                .ok_or("CAD design has no linked operating-history assumptions; pass an explicit history-assumptions override")?;
+        let expected = link
+            .sha256
+            .as_deref()
+            .ok_or("CAD design operating-history assumptions link has no SHA-256")?;
+        (
+            design_path
+                .parent()
+                .unwrap_or(Path::new("."))
+                .join(relative),
+            false,
+            Some(expected.to_owned()),
+        )
+    };
+    let history_assumptions_path = history_assumptions_path
+        .canonicalize()
+        .map_err(|e| format!("operating-history assumptions: {e}"))?;
+    if !history_assumptions_path.is_file() {
+        return Err("operating-history assumptions must be a regular file".into());
+    }
+    let assumptions_bytes = read_bounded(&history_assumptions_path).map_err(|e| e.to_string())?;
+    let history_assumptions_sha256 = sha256_hex(&assumptions_bytes);
+    if expected_hash
+        .as_deref()
+        .is_some_and(|expected| !expected.eq_ignore_ascii_case(&history_assumptions_sha256))
+    {
+        return Err("linked operating-history assumptions bytes do not match the CAD design's declared hash".into());
+    }
+    let assumptions: faris_model::history::OperatingHistoryAssumptions =
+        serde_json::from_slice(&assumptions_bytes)
+            .map_err(|e| format!("operating-history assumptions JSON: {e}"))?;
+    assumptions.validate()?;
+    let source_identity = faris_model::design::CadSourceIdentity {
+        design_id: design.id.clone(),
+        design_sha256: design_sha256.clone(),
+        fusion_power_mw,
+    };
+    source_identity.validate()?;
+    Ok(CadOperatingContext {
+        design_path,
+        design_id: design.id,
+        design_sha256,
+        fusion_power_mw,
+        history_assumptions_path,
+        history_assumptions_sha256,
+        history_assumptions_overridden,
+    })
+}
 /// The fewest batches a run may stop at, as for the reactor run's sampling plan.
 const MIN_BATCHES: u64 = 30;
 /// Time the run gets beyond its sampling limit to load the geometry, look for a streaming
@@ -2812,6 +2908,31 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cad_operating_context_uses_design_identity_and_verified_linked_assumptions() {
+        let design_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../scenarios/rm-m/rm-m.faris-design.json");
+        let context = resolve_cad_operating_context(&design_path, None).unwrap();
+        assert_eq!(context.design_id, "rm-m");
+        assert_eq!(context.design_sha256, sha256_file(&design_path).unwrap());
+        assert_eq!(context.fusion_power_mw, 525.0);
+        assert!(!context.history_assumptions_overridden);
+        assert_eq!(
+            context.history_assumptions_path.file_name().unwrap(),
+            "rm-m.operating-history.json"
+        );
+
+        let override_context =
+            resolve_cad_operating_context(&design_path, Some(&context.history_assumptions_path))
+                .unwrap();
+        assert!(override_context.history_assumptions_overridden);
+        assert_eq!(override_context.design_sha256, context.design_sha256);
+        assert_eq!(
+            override_context.history_assumptions_sha256,
+            context.history_assumptions_sha256
+        );
+    }
 
     #[test]
     fn history_nuclear_data_identity_rejects_same_path_table_mutation() {

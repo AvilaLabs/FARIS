@@ -101,6 +101,8 @@ fn rates(tbr: f64, flux: f64) -> TransportDrivingRates {
             unit: "W".into(),
             response_id: "heating-total-whole-model".into(),
         }),
+        cad_source_identity: None,
+        supplemental_heating: None,
         scenario_sha256: "a".repeat(64),
         transport_artifact_sha256: "b".repeat(64),
         solver_digest: format!("sha256:{}", "c".repeat(64)),

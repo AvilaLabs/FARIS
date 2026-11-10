@@ -43,6 +43,55 @@ pub struct ScalarRate {
     pub response_id: String,
 }
 
+/// One bounded, hash-identified nuclear-data table used by a supplemental heat transport run.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SupplementalNuclearDataFile {
+    pub scope: String,
+    pub path: String,
+    pub bytes: u64,
+    pub sha256: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nuclides: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub elements: Vec<String>,
+}
+
+/// Provenance for an independently run supplemental whole-model heat response. This remains
+/// separate from the neutron response's solver and nuclear-data identities; no independence is
+/// implied by the separate record.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SupplementalHeatingProvenance {
+    pub heating_report_path: String,
+    pub heating_report_sha256: String,
+    pub worker_request_path: String,
+    pub worker_request_sha256: String,
+    pub worker_result_path: String,
+    pub worker_result_sha256: String,
+    pub worker_helper_path: String,
+    pub worker_helper_sha256: String,
+    pub source_kernel_path: String,
+    pub source_kernel_sha256: String,
+    pub openmc_version: String,
+    pub openmc_library_path: String,
+    pub openmc_library_sha256: String,
+    pub h5m_path: String,
+    pub h5m_sha256: String,
+    pub model_xml_path: String,
+    pub model_xml_sha256: String,
+    pub cross_sections_path: String,
+    pub cross_sections_sha256: String,
+    pub source_definition_sha256: String,
+    pub component_map_sha256: String,
+    pub response_id: String,
+    pub domain: String,
+    pub normalization: String,
+    pub source_neutron_rate_per_s: f64,
+    pub unit: String,
+    pub nuclear_data_files: Vec<SupplementalNuclearDataFile>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TransportDrivingRates {
@@ -65,6 +114,14 @@ pub struct TransportDrivingRates {
     /// None means no total nuclear-heat or net-electricity result is available.
     #[serde(alias = "neutron_deposited_heat_w")]
     pub transport_deposited_heat_w: Option<ScalarRate>,
+    /// Present for CAD-native history rates. It binds source power to the checked CAD design
+    /// without borrowing a scenario's unrelated CSG geometry or material stack.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cad_source_identity: Option<faris_model::design::CadSourceIdentity>,
+    /// Provenance for an additional, separately sampled heat response, when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supplemental_heating: Option<SupplementalHeatingProvenance>,
+    /// Legacy reactor/CAD-import route identity. Empty only when `cad_source_identity` is set.
     pub scenario_sha256: String,
     pub transport_artifact_sha256: String,
     pub solver_digest: String,
@@ -419,6 +476,8 @@ impl TransportDrivingRates {
             component_average_flux_n_m2_s: flux,
             region_flux_n_m2_s: region_flux,
             transport_deposited_heat_w,
+            cad_source_identity: None,
+            supplemental_heating: None,
             scenario_sha256: normalized.scenario_sha256.clone(),
             transport_artifact_sha256: transport_artifact_sha256.into(),
             solver_digest: normalized.solver.digest.clone(),
@@ -585,7 +644,78 @@ impl TransportDrivingRates {
         if let Some(rate) = &self.transport_deposited_heat_w {
             check_rate(rate, "W", true)?;
         }
-        validate_hash(&self.scenario_sha256, false, "scenario_sha256")?;
+        if let Some(provenance) = &self.supplemental_heating {
+            if self.transport_deposited_heat_w.as_ref().is_none_or(|rate| {
+                rate.response_id != provenance.response_id || rate.unit != provenance.unit
+            }) {
+                return Err(
+                    "supplemental heating provenance does not identify the retained heat response"
+                        .into(),
+                );
+            }
+            if provenance.response_id != "heating-total-whole-model"
+                || provenance.domain != "unfiltered_whole_model_all_material_bearing_solids"
+                || provenance.normalization != "eV_per_unit_source_neutron"
+                || provenance.unit != "W"
+                || provenance.source_neutron_rate_per_s.to_bits()
+                    != self.neutron_source_rate_per_s.to_bits()
+                || provenance.openmc_version.trim().is_empty()
+                || provenance.nuclear_data_files.is_empty()
+            {
+                return Err("supplemental heating provenance has an incomplete response, normalization, source, or data scope".into());
+            }
+            for (value, name) in [
+                (&provenance.heating_report_sha256, "heating report"),
+                (&provenance.worker_request_sha256, "heating request"),
+                (&provenance.worker_result_sha256, "heating worker result"),
+                (&provenance.worker_helper_sha256, "heating worker helper"),
+                (&provenance.source_kernel_sha256, "heating source kernel"),
+                (&provenance.openmc_library_sha256, "heating OpenMC library"),
+                (&provenance.h5m_sha256, "heating H5M"),
+                (&provenance.model_xml_sha256, "heating model XML"),
+                (&provenance.cross_sections_sha256, "heating cross sections"),
+                (
+                    &provenance.source_definition_sha256,
+                    "heating source definition",
+                ),
+                (&provenance.component_map_sha256, "heating component map"),
+            ] {
+                validate_hash(value, false, name)?;
+            }
+            for file in &provenance.nuclear_data_files {
+                validate_hash(&file.sha256, false, "supplemental nuclear-data table")?;
+                if file.scope.trim().is_empty()
+                    || file.path.trim().is_empty()
+                    || file.bytes == 0
+                    || (file.nuclides.is_empty() && file.elements.is_empty())
+                {
+                    return Err("supplemental nuclear-data table identity is incomplete".into());
+                }
+            }
+        }
+        match (&self.cad_source_identity, self.scenario_sha256.is_empty()) {
+            (Some(identity), true) => {
+                identity.validate()?;
+                if identity.fusion_power_mw.to_bits() != self.reference_fusion_power_mw.to_bits() {
+                    return Err(
+                        "CAD source identity power differs from the transport driving-rate power"
+                            .into(),
+                    );
+                }
+            }
+            (None, false) => validate_hash(&self.scenario_sha256, false, "scenario_sha256")?,
+            (Some(_), false) => {
+                return Err(
+                    "CAD-native driving rates cannot also claim a scenario identity".into(),
+                );
+            }
+            (None, true) => {
+                return Err(
+                    "driving rates need either a legacy scenario identity or a CAD source identity"
+                        .into(),
+                );
+            }
+        }
         validate_hash(
             &self.transport_artifact_sha256,
             false,
@@ -2193,12 +2323,42 @@ mod tests {
             component_average_flux_n_m2_s: BTreeMap::new(),
             region_flux_n_m2_s: BTreeMap::new(),
             transport_deposited_heat_w: None,
+            cad_source_identity: None,
+            supplemental_heating: None,
             scenario_sha256: "a".repeat(64),
             transport_artifact_sha256: "b".repeat(64),
             solver_digest: format!("sha256:{}", "c".repeat(64)),
             nuclear_data_digest: format!("sha256:{}", "d".repeat(64)),
             covariance: None,
         }
+    }
+
+    #[test]
+    fn cad_native_rates_use_explicit_design_identity_without_scenario_placeholder() {
+        let mut cad_rates = rates();
+        cad_rates.scenario_sha256.clear();
+        cad_rates.cad_source_identity = Some(faris_model::design::CadSourceIdentity {
+            design_id: "checked-cad-control".into(),
+            design_sha256: "e".repeat(64),
+            fusion_power_mw: cad_rates.reference_fusion_power_mw,
+        });
+        assert!(cad_rates.validate().is_ok());
+
+        cad_rates.scenario_sha256 = "f".repeat(64);
+        assert!(
+            cad_rates
+                .validate()
+                .unwrap_err()
+                .contains("cannot also claim a scenario identity")
+        );
+
+        cad_rates.scenario_sha256.clear();
+        cad_rates
+            .cad_source_identity
+            .as_mut()
+            .unwrap()
+            .fusion_power_mw *= 2.0;
+        assert!(cad_rates.validate().unwrap_err().contains("power differs"));
     }
 
     #[test]

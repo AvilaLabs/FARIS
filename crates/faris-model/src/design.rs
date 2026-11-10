@@ -524,6 +524,37 @@ pub struct OperatingScenarioLink {
     pub sha256: Option<String>,
 }
 
+/// Identity of a CAD design and the fusion-power source definition used by its transport run.
+/// This is distinct from the linked operating-history assumptions: planning schedules may be
+/// varied without changing the checked geometry, materials, source profile, or nuclear response.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CadSourceIdentity {
+    pub design_id: String,
+    pub design_sha256: String,
+    pub fusion_power_mw: f64,
+}
+
+impl CadSourceIdentity {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.design_id.trim().is_empty() || self.design_id.len() > 256 {
+            return Err("CAD source identity needs a nonempty design ID".into());
+        }
+        if self.design_sha256.len() != 64
+            || !self
+                .design_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("CAD source identity needs a 64-character SHA-256".into());
+        }
+        if !self.fusion_power_mw.is_finite() || self.fusion_power_mw <= 0.0 {
+            return Err("CAD source identity fusion power must be finite and positive".into());
+        }
+        Ok(())
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The helper's inspection result.
 

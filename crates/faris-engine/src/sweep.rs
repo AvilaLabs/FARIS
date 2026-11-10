@@ -613,6 +613,8 @@ mod tests {
             component_average_flux_n_m2_s: flux,
             region_flux_n_m2_s: Default::default(),
             transport_deposited_heat_w: None,
+            cad_source_identity: None,
+            supplemental_heating: None,
             scenario_sha256: "0".repeat(64),
             transport_artifact_sha256: "0".repeat(64),
             solver_digest: format!("sha256:{}", "1".repeat(64)),

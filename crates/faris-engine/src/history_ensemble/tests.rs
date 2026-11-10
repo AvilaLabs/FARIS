@@ -126,6 +126,8 @@ fn rates_with(relative: f64, correlation: f64) -> TransportDrivingRates {
         component_average_flux_n_m2_s: flux,
         region_flux_n_m2_s: BTreeMap::new(),
         transport_deposited_heat_w: Some(scalar(means[3], total_se(3), "W", "heating-total")),
+        cad_source_identity: None,
+        supplemental_heating: None,
         scenario_sha256: "a".repeat(64),
         transport_artifact_sha256: "b".repeat(64),
         solver_digest: format!("sha256:{}", "c".repeat(64)),
