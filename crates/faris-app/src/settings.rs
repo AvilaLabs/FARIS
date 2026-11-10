@@ -77,7 +77,8 @@ impl Tool {
             Self::OpenmcPython => Some("FARIS_OPENMC_PYTHON"),
             Self::CrossSections => Some("FARIS_CROSS_SECTIONS"),
             Self::PlasmaSource => Some("FARIS_PLASMA_SOURCE_PATH"),
-            Self::WindowPython | Self::OpenmcPackage | Self::Actinv => None,
+            Self::Actinv => Some("FARIS_ACTINV"),
+            Self::WindowPython | Self::OpenmcPackage => None,
         }
     }
 
@@ -437,12 +438,14 @@ mod tests {
         assert!(settings.set_value("no.such", "1").is_err());
         assert_eq!(settings.value(UI_SCALE).as_deref(), Some("1.25"));
         settings.set_tool(Tool::CadPython, "/f/python");
+        settings.set_tool(Tool::Actinv, "/opt/actinv/bin/actinv");
         let file = Path::new("/cfg/settings.json");
         let env = |n: &str| (n == "FARIS_CROSS_SECTIONS").then(|| OsString::from("/x.xml"));
         let resolved = settings.resolve(file, &env);
         let origin = |key: &str| find(&resolved, key).unwrap().origin.layer();
         assert_eq!(origin(UI_SCALE), "user file");
         assert_eq!(origin("tools.cad_python"), "user file");
+        assert_eq!(origin("tools.actinv"), "user file");
         assert_eq!(origin("tools.cross_sections"), "environment");
         assert_eq!(origin("ui.theme"), "default");
         settings.unset_value(UI_SCALE);
@@ -459,6 +462,7 @@ mod tests {
         let mut settings = Settings::default();
         settings.set_tool(Tool::CadPython, "/opt/cad/bin/python");
         settings.set_tool(Tool::PlasmaSource, "/data/plasma");
+        settings.set_tool(Tool::Actinv, "/opt/actinv/bin/actinv");
         settings.last_folders.design_check = Some("/work/check".into());
         settings.extra_search_folders.push("/work/envs".into());
         save(&path, &settings).unwrap();
@@ -469,6 +473,10 @@ mod tests {
         assert_eq!(
             loaded.settings.tool(Tool::CadPython),
             Some("/opt/cad/bin/python")
+        );
+        assert_eq!(
+            loaded.settings.tool(Tool::Actinv),
+            Some("/opt/actinv/bin/actinv")
         );
         assert_eq!(loaded.settings.tool(Tool::OpenmcPython), None);
         assert!(

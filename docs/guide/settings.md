@@ -16,7 +16,7 @@ A setting takes the first value found, looking from the strongest layer to the w
 
 The `units.*` and `format.*` settings choose how quantities, numbers and dates are shown and typed, never what is stored; see [Units and number formats](units.md).
 
-Today the memory settings take effect in the command line. The six tool paths in your file are read by the desktop; the command-line commands that run tools still take them from their own flags and environment variables. The desktop reads `ui.scale` (the interface size, which its size menu saves here; an old `interface.txt` is moved into the file once) and shows where each tool path and the size come from. The desktop also reads `ui.theme` at start: `high-contrast` selects the high-contrast theme (the browser build reads the same choice from its browser storage key `faris-theme`); the other values give the ordinary dark theme.
+Today the memory settings take effect in the command line. The tool paths in your file are read by the desktop; the command-line commands that run tools still take them from their own flags and environment variables. The desktop reads `ui.scale` (the interface size, which its size menu saves here; an old `interface.txt` is moved into the file once) and shows where each tool path and the size come from. The desktop also reads `ui.theme` at start: `high-contrast` selects the high-contrast theme (the browser build reads the same choice from its browser storage key `faris-theme`); the other values give the ordinary dark theme.
 
 ## Your settings file
 

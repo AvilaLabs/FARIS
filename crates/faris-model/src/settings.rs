@@ -87,7 +87,7 @@ const fn def(
     }
 }
 
-/// Every setting. Keys are `section.name`; the six `tools.` keys keep the names the desktop
+/// Every setting. Keys are `section.name`; the `tools.` keys keep the names the desktop
 /// already stores.
 pub static REGISTRY: &[SettingDef] = &[
     def(
@@ -137,6 +137,14 @@ pub static REGISTRY: &[SettingDef] = &[
         "",
         None,
         "Folder of an OpenMC built with the aiming patch.",
+    ),
+    def(
+        "tools.actinv",
+        ValueType::Path,
+        None,
+        "",
+        Some("FARIS_ACTINV"),
+        "ACTINV executable used by dose-governed maintenance and activation workflows.",
     ),
     def(
         "tools.cad_reader",
