@@ -35,6 +35,7 @@ pub struct MaintenanceDosePanel {
     pub open: bool,
     state: LoadState,
     dialog: Option<(DoseField, Receiver<Option<PathBuf>>)>,
+    dialog_error: Option<String>,
     loading: Option<Receiver<Result<DoseMaintenanceResult, String>>>,
     file_name: String,
     selected_design: Option<String>,
@@ -89,6 +90,7 @@ impl Default for MaintenanceDosePanel {
             open: false,
             state: LoadState::Empty,
             dialog: None,
+            dialog_error: None,
             loading: None,
             file_name: String::new(),
             selected_design: None,
@@ -360,11 +362,21 @@ impl MaintenanceDosePanel {
                                     |n| n.to_string_lossy().into_owned(),
                                 );
                                 let (tx, rx) = mpsc::channel();
-                                std::thread::spawn(move || {
-                                    let _ = tx.send(load(path));
-                                });
-                                self.file_name = name;
-                                self.loading = Some(rx);
+                                match crate::thread::Builder::new()
+                                    .name("faris-dose-result-reader".into())
+                                    .spawn(move || {
+                                        let _ = tx.send(load(path));
+                                    }) {
+                                    Ok(_) => {
+                                        self.file_name = name;
+                                        self.loading = Some(rx);
+                                    }
+                                    Err(error) => {
+                                        self.state = LoadState::Failed(format!(
+                                            "Could not start result reader: {error}"
+                                        ));
+                                    }
+                                }
                             }
                             other => {
                                 let value = path.display().to_string();
@@ -385,7 +397,10 @@ impl MaintenanceDosePanel {
                         }
                     }
                 }
-                Err(TryRecvError::Disconnected) => self.dialog = None,
+                Err(TryRecvError::Disconnected) => {
+                    self.dialog = None;
+                    self.dialog_error = Some("File dialog stopped before returning a path.".into());
+                }
                 Err(TryRecvError::Empty) => {}
             }
         }
@@ -447,10 +462,13 @@ impl MaintenanceDosePanel {
         }
         let mut open = self.open;
         egui::Window::new("Dose-governed maintenance result").open(&mut open).default_width(780.0).show(ctx, |ui| {
+            if let Some(error) = &self.dialog_error {
+                ui.colored_label(egui::Color32::from_rgb(180, 45, 45), error);
+            }
             if !crate::browser::IS_BROWSER {
                 ui.collapsing("Run dose-governed maintenance", |ui| {
                     ui.label("Prepare dose physics from a passing checked CAD Design and ImportReport. The preparation config authors the solid-to-history-component map and spatial inputs; FARIS clones materials per solid and builds the full-geometry model.");
-                    path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog);
+                    path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog, &mut self.dialog_error);
                     ui.horizontal(|ui| {
                         if self.prepare.is_none() && ui.button("Prepare CAD dose physics").clicked() {
                             match start_dose_prepare(&self.prepare_config, self.cad_context.clone()) {
@@ -479,9 +497,9 @@ impl MaintenanceDosePanel {
                         for (component, solids) in &context.history_components {
                             ui.label(format!("{component}: {}", solids.join(", ")));
                         }
-                        path_row(ui, "History assumptions override (optional)", &mut self.cad_history_assumptions, DoseField::CadHistoryAssumptions, &mut self.dialog);
-                        path_row(ui, "Prepared dose-physics manifest", &mut self.cad_dose_physics, DoseField::CadDosePhysics, &mut self.dialog);
-                        path_row(ui, "New CAD designs file", &mut self.cad_design_file, DoseField::CadDesignFile, &mut self.dialog);
+                        path_row(ui, "History assumptions override (optional)", &mut self.cad_history_assumptions, DoseField::CadHistoryAssumptions, &mut self.dialog, &mut self.dialog_error);
+                        path_row(ui, "Prepared dose-physics manifest", &mut self.cad_dose_physics, DoseField::CadDosePhysics, &mut self.dialog, &mut self.dialog_error);
+                        path_row(ui, "New CAD designs file", &mut self.cad_design_file, DoseField::CadDesignFile, &mut self.dialog, &mut self.dialog_error);
                         if ui.button("Create hash-bound CAD dose design input").clicked() {
                             match write_cad_designs(
                                 context,
@@ -503,10 +521,10 @@ impl MaintenanceDosePanel {
                         }
                     }
                     ui.label("Provide event-specific D1S/R2S spatial curves. FARIS computes the history coupling and duration; this workflow does not run a general D1S/R2S transport solver.");
-                    path_row(ui, "Designs", &mut self.inputs.designs, DoseField::Designs, &mut self.dialog);
-                    path_row(ui, "Dose limits and calculation settings", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog);
-                    path_row(ui, "Optional spatial dose curve cache", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog);
-                    path_row(ui, "New result file", &mut self.inputs.output, DoseField::Output, &mut self.dialog);
+                    path_row(ui, "Designs", &mut self.inputs.designs, DoseField::Designs, &mut self.dialog, &mut self.dialog_error);
+                    path_row(ui, "Dose limits and calculation settings", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog, &mut self.dialog_error);
+                    path_row(ui, "Optional spatial dose curve cache", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog, &mut self.dialog_error);
+                    path_row(ui, "New result file", &mut self.inputs.output, DoseField::Output, &mut self.dialog, &mut self.dialog_error);
                     ui.horizontal(|ui| {
                         if self.run.is_none() && ui.button("Run bounded dose coupling").clicked() {
                             let cad_designs_match = self.cad_context.is_none()
@@ -534,7 +552,19 @@ impl MaintenanceDosePanel {
             ui.horizontal(|ui| {
                 if ui.button("Open result…").clicked() && self.dialog.is_none() {
                     let (tx, rx) = mpsc::channel(); self.dialog = Some((DoseField::Result, rx));
-                    std::thread::spawn(move || { let path = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file(); let _ = tx.send(path); });
+                    match crate::thread::Builder::new()
+                        .name("faris-dose-result-dialog".into())
+                        .spawn(move || {
+                            let path = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file();
+                            let _ = tx.send(path);
+                        })
+                    {
+                        Ok(_) => self.dialog_error = None,
+                        Err(error) => {
+                            self.dialog = None;
+                            self.dialog_error = Some(format!("Could not start result file dialog: {error}"));
+                        }
+                    }
                 }
                 if !self.file_name.is_empty() { ui.label(&self.file_name); }
                 if self.loading.is_some() { ui.spinner(); ui.label("Reading result"); }
@@ -628,22 +658,32 @@ fn path_row(
     value: &mut String,
     field: DoseField,
     pending: &mut Option<(DoseField, Receiver<Option<PathBuf>>)>,
+    error_message: &mut Option<String>,
 ) {
     ui.horizontal(|ui| {
         ui.label(label);
         ui.add(egui::TextEdit::singleline(value).desired_width(420.0));
         if ui.button("Browse…").clicked() && pending.is_none() {
             let (tx, rx) = mpsc::channel();
-            *pending = Some((field, rx));
-            std::thread::spawn(move || {
-                let dialog = rfd::FileDialog::new().add_filter("JSON", &["json"]);
-                let path = if matches!(field, DoseField::Output | DoseField::CadDesignFile) {
-                    dialog.save_file()
-                } else {
-                    dialog.pick_file()
-                };
-                let _ = tx.send(path);
-            });
+            match crate::thread::Builder::new()
+                .name("faris-dose-input-dialog".into())
+                .spawn(move || {
+                    let dialog = rfd::FileDialog::new().add_filter("JSON", &["json"]);
+                    let path = if matches!(field, DoseField::Output | DoseField::CadDesignFile) {
+                        dialog.save_file()
+                    } else {
+                        dialog.pick_file()
+                    };
+                    let _ = tx.send(path);
+                }) {
+                Ok(_) => {
+                    *pending = Some((field, rx));
+                    *error_message = None;
+                }
+                Err(error) => {
+                    *error_message = Some(format!("Could not start file dialog: {error}"));
+                }
+            }
         }
     });
 }
@@ -672,28 +712,31 @@ fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
     let progress = Arc::new(std::sync::Mutex::new(None));
     let worker_progress = progress.clone();
     let (tx, receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        let result = run_dose_from_files(
-            &config,
-            &worker_cancel,
-            Arc::new(move |p| {
-                if let Ok(mut current) = worker_progress.lock() {
-                    *current = Some(p.line());
+    crate::thread::Builder::new()
+        .name("faris-dose-history-run".into())
+        .spawn(move || {
+            let result = run_dose_from_files(
+                &config,
+                &worker_cancel,
+                Arc::new(move |p| {
+                    if let Ok(mut current) = worker_progress.lock() {
+                        *current = Some(p.line());
+                    }
+                }),
+            )
+            .and_then(|result| {
+                let mut bytes = serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?;
+                if bytes.len() >= MAX_DOSE_RESULT_BYTES {
+                    return Err("dose maintenance result exceeds the 16 MiB output limit".into());
                 }
-            }),
-        )
-        .and_then(|result| {
-            let mut bytes = serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?;
-            if bytes.len() >= MAX_DOSE_RESULT_BYTES {
-                return Err("dose maintenance result exceeds the 16 MiB output limit".into());
-            }
-            bytes.push(b'\n');
-            faris_engine::atomic_file::write_new(&output, &bytes)
-                .map_err(|e| format!("cannot write {}: {e}", output.display()))?;
-            Ok((output, result))
-        });
-        let _ = tx.send(result);
-    });
+                bytes.push(b'\n');
+                faris_engine::atomic_file::write_new(&output, &bytes)
+                    .map_err(|e| format!("cannot write {}: {e}", output.display()))?;
+                Ok((output, result))
+            });
+            let _ = tx.send(result);
+        })
+        .map_err(|error| format!("could not start dose history worker: {error}"))?;
     Ok(DoseRunState {
         cancel,
         receiver,
@@ -713,15 +756,18 @@ fn start_dose_prepare(
     let worker_cancel = cancel.clone();
     let python = PathBuf::from("python3");
     let (tx, receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        let result = cad_context
-            .as_ref()
-            .map_or(Ok(()), |context| {
-                verify_cad_prepare_binding(&config, context)
-            })
-            .and_then(|()| prepare_dose_cad(&config, &python, &worker, &worker_cancel));
-        let _ = tx.send(result);
-    });
+    crate::thread::Builder::new()
+        .name("faris-dose-cad-preparation".into())
+        .spawn(move || {
+            let result = cad_context
+                .as_ref()
+                .map_or(Ok(()), |context| {
+                    verify_cad_prepare_binding(&config, context)
+                })
+                .and_then(|()| prepare_dose_cad(&config, &python, &worker, &worker_cancel));
+            let _ = tx.send(result);
+        })
+        .map_err(|error| format!("could not start CAD dose preparation worker: {error}"))?;
     Ok(DosePrepareState { cancel, receiver })
 }
 

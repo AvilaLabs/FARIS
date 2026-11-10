@@ -30,8 +30,30 @@ use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, Instant},
 };
+
+static NEXT_VOLUME_RUN_NONCE: AtomicU64 = AtomicU64::new(0);
+
+fn create_unique_volume_run_directory(base: &Path) -> Result<PathBuf, DesignError> {
+    for _ in 0..1024 {
+        let nonce = NEXT_VOLUME_RUN_NONCE.fetch_add(1, Ordering::Relaxed);
+        let directory = base.join(format!("run-{}-{nonce}", std::process::id()));
+        match std::fs::create_dir(&directory) {
+            Ok(()) => {
+                return directory
+                    .canonicalize()
+                    .map_err(|e| io_error(&directory, e));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(io_error(&directory, error)),
+        }
+    }
+    Err(DesignError::Tool(
+        "could not allocate a unique stochastic-volume run directory after 1024 attempts".into(),
+    ))
+}
 
 fn missing_python<T>(what: &str, kind: &str) -> ToolResult<T> {
     ToolResult::Unavailable {
@@ -845,13 +867,7 @@ pub(super) fn stochastic_volumes(
 
     let base_dir = request.directory;
     std::fs::create_dir_all(base_dir).map_err(|e| io_error(base_dir, e))?;
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let dir = base_dir.join(format!("run-{}-{stamp}", std::process::id()));
-    std::fs::create_dir(&dir).map_err(|e| io_error(&dir, e))?;
-    let dir = dir.canonicalize().map_err(|e| io_error(&dir, e))?;
+    let dir = create_unique_volume_run_directory(base_dir)?;
     let helper = dir.join("design_volume.py");
     write_text(&helper, DESIGN_VOLUME_HELPER)?;
     let request_path = dir.join("volume_request.json");
@@ -1162,6 +1178,23 @@ mod tests {
     use super::*;
 
     const STEP_SHA: &str = "ab";
+
+    #[test]
+    fn stochastic_volume_runs_get_distinct_counter_named_directories() {
+        let base = tempfile::tempdir().unwrap();
+        let first = create_unique_volume_run_directory(base.path()).unwrap();
+        let second = create_unique_volume_run_directory(base.path()).unwrap();
+        assert_ne!(first, second);
+        assert!(first.is_dir());
+        assert!(second.is_dir());
+        assert!(
+            first
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with(&format!("run-{}-", std::process::id()))
+        );
+    }
 
     struct Recorded {
         dir: tempfile::TempDir,
