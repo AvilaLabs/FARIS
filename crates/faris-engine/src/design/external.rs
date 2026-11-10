@@ -321,6 +321,7 @@ fn reuse(request: &ConvertRequest) -> Result<Option<ConvertOutcome>, DesignError
     }
     let facets_bin = dir.join(&report.facets.bin);
     Ok(Some(ConvertOutcome {
+        directory: dir.to_path_buf(),
         report,
         facets,
         manifest,
@@ -402,6 +403,7 @@ pub(super) fn convert_with_timeout(
     let (facets, manifest) = load_pair(dir, &report.facets.bin, &report.facets.json)?;
     let facets_bin = dir.join(&report.facets.bin);
     Ok(ToolResult::Done(ConvertOutcome {
+        directory: dir.to_path_buf(),
         report,
         facets,
         manifest,

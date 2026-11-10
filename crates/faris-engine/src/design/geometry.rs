@@ -136,6 +136,8 @@ pub struct ConversionFacets {
 }
 
 pub struct ConvertOutcome {
+    /// Directory from the selected converter attempt; products are relative to this directory.
+    pub directory: PathBuf,
     pub report: ConversionReport,
     pub facets: Facets,
     pub manifest: FacetsManifest,
@@ -994,7 +996,6 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         exhausted: false,
         attempt_records: Vec::new(),
     };
-    let mut selected_directory = None;
     let conversion_budget_started = Instant::now();
     if convert_blocked {
         subs6[1].not_evaluated = not_run(
@@ -1108,7 +1109,6 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                                     largest_relative_difference: None,
                                     reason: Some(reason),
                                 });
-                            selected_directory = Some(attempt_dir);
                             converted = Some(out);
                             chord_m = attempt_chord_m;
                             break;
@@ -1170,7 +1170,6 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                             largest_relative_difference: Some(largest),
                             reason: (!reasons.is_empty()).then(|| reasons.join("; ")),
                         });
-                    selected_directory = Some(attempt_dir);
                     converted = Some(out);
                     chord_m = attempt_chord_m;
                     if strict_pass || !can_refine || attempt_index + 1 == maximum_attempts {
@@ -1394,11 +1393,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         let t = &out.report.tolerances;
         records.conversion = Some(ConversionRecord {
             reused: out.reused,
-            directory: selected_directory
-                .as_ref()
-                .expect("every selected conversion has an attempt directory")
-                .display()
-                .to_string(),
+            directory: out.directory.display().to_string(),
             step_sha256: out.report.step.sha256.clone(),
             shape_unit_m,
             chord_cm: t.chord_cm,
@@ -1541,7 +1536,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 "Repair the converted DAGMC volume mapping and run design check again.".into(),
             ));
         } else {
-            let h5m = work.join("convert").join(&converted.report.h5m.file);
+            let h5m = converted.directory.join(&converted.report.h5m.file);
             let surface_ids: Vec<i64> = converted
                 .manifest
                 .surfaces

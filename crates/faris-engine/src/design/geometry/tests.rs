@@ -14,6 +14,7 @@ struct Geo {
     imprinted: Facets,
     conversion_candidates: RefCell<Vec<Facets>>,
     conversion_chords: RefCell<Vec<f64>>,
+    stochastic_volume_h5m: RefCell<Vec<PathBuf>>,
     tessellation_chords: RefCell<Vec<f64>>,
     deviation_chords: RefCell<Vec<f64>>,
     tags: Vec<String>,
@@ -124,6 +125,9 @@ impl Backends for Geo {
                 next_step: "Fix it.".into(),
             });
         }
+        std::fs::create_dir_all(r.directory).unwrap();
+        let h5m_bytes = b"selected nested converter attempt H5M";
+        std::fs::write(r.directory.join("model.h5m"), h5m_bytes).unwrap();
         let facets = if self.conversion_candidates.borrow().is_empty() {
             self.imprinted.clone()
         } else {
@@ -149,8 +153,8 @@ impl Backends for Geo {
             peak_rss_mb: 100.0,
             h5m: geometry::ConversionFile {
                 file: "model.h5m".into(),
-                sha256: manifest.binary_sha256.clone(),
-                bytes: 10,
+                sha256: super::super::sha256_hex(h5m_bytes),
+                bytes: h5m_bytes.len() as u64,
             },
             facets: geometry::ConversionFacets {
                 bin: "model.facets.bin".into(),
@@ -161,6 +165,7 @@ impl Backends for Geo {
             log_tail: Vec::new(),
         };
         Ok(ToolResult::Done(ConvertOutcome {
+            directory: r.directory.to_path_buf(),
             report,
             facets,
             manifest,
@@ -201,6 +206,12 @@ impl Backends for Geo {
         request: &StochasticVolumeRequest,
     ) -> Result<ToolResult<StochasticVolumeOutcome>, DesignError> {
         self.bump(4);
+        self.stochastic_volume_h5m
+            .borrow_mut()
+            .push(request.h5m.to_path_buf());
+        let h5m_bytes = std::fs::read(request.h5m)
+            .expect("stochastic-volume adapter receives the selected attempt H5M");
+        assert_eq!(super::super::sha256_hex(&h5m_bytes), request.h5m_sha256);
         let rows = request
             .targets
             .iter()
@@ -286,6 +297,7 @@ fn geo() -> Geo {
         imprinted: imprinted(),
         conversion_candidates: RefCell::new(Vec::new()),
         conversion_chords: RefCell::new(Vec::new()),
+        stochastic_volume_h5m: RefCell::new(Vec::new()),
         tessellation_chords: RefCell::new(Vec::new()),
         deviation_chords: RefCell::new(Vec::new()),
         tags: vec!["mat:shell".into(), "mat:core".into()],
@@ -427,6 +439,20 @@ fn a_clean_model_passes_checks_6_to_9_and_records_what_was_measured() {
     );
     let g = &report.geometry;
     let conv = g.conversion.as_ref().unwrap();
+    let selected_h5m = backend.stochastic_volume_h5m.borrow()[0].clone();
+    let attempt_dir = selected_h5m
+        .parent()
+        .expect("H5M has its attempt directory");
+    assert_eq!(attempt_dir.file_name().unwrap(), "attempt-01");
+    assert_eq!(
+        attempt_dir.parent().unwrap().file_name().unwrap(),
+        "convert"
+    );
+    assert_eq!(Path::new(&conv.directory), attempt_dir);
+    assert_eq!(
+        super::super::sha256_file(&selected_h5m).unwrap(),
+        conv.h5m_sha256
+    );
     assert!(!conv.reused && conv.chord_cm == 0.1 && conv.angular_rad == 0.1);
     let adaptive = g.adaptive_chord.as_ref().unwrap();
     assert!(adaptive.was_default && !adaptive.exhausted);
@@ -599,9 +625,21 @@ fn default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_ch
         report.geometry.pre_imprint.as_ref().unwrap().chord_m,
         selected
     );
+    let conversion = report.geometry.conversion.as_ref().unwrap();
+    assert_eq!(conversion.chord_cm, selected * 100.0);
+    let selected_h5m = backend.stochastic_volume_h5m.borrow()[0].clone();
+    let attempt_dir = selected_h5m
+        .parent()
+        .expect("H5M has its attempt directory");
+    assert_eq!(attempt_dir.file_name().unwrap(), "attempt-02");
     assert_eq!(
-        report.geometry.conversion.as_ref().unwrap().chord_cm,
-        selected * 100.0
+        attempt_dir.parent().unwrap().file_name().unwrap(),
+        "convert"
+    );
+    assert_eq!(Path::new(&conversion.directory), attempt_dir);
+    assert_eq!(
+        super::super::sha256_file(&selected_h5m).unwrap(),
+        conversion.h5m_sha256
     );
 }
 
