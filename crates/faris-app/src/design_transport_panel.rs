@@ -300,10 +300,11 @@ impl DesignTransportPanel {
             return;
         }
         let mut open = self.open;
+        let screen_height = ctx.input(|input| input.content_rect().height());
         egui::Window::new("Design flux")
             .open(&mut open)
             .default_size([820.0, 780.0])
-            .vscroll(true)
+            .max_height((screen_height - 24.0).max(220.0))
             .show(ctx, |ui| self.view(ui));
         self.open = open;
     }
@@ -359,6 +360,19 @@ impl DesignTransportPanel {
     }
 
     fn view(&mut self, ui: &mut egui::Ui) {
+        let screen_height = ui.ctx().input(|input| input.content_rect().height());
+        let body_height = (screen_height - 132.0).max(160.0);
+        egui::ScrollArea::vertical()
+            .id_salt("design-flux-form")
+            .max_height(body_height)
+            .auto_shrink([false, true])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+            .show(ui, |ui| self.scroll_content(ui));
+        ui.separator();
+        self.run_controls(ui);
+    }
+
+    fn scroll_content(&mut self, ui: &mut egui::Ui) {
         self.poll_pick();
         self.refresh_history_solid_summary();
         let ctx = ui.ctx().clone();
@@ -393,6 +407,9 @@ impl DesignTransportPanel {
              (the TF magnets above 0.1 MeV when it has none), compared with that limit over the \
              design's operating history. Check the design first (the Design check window, or \
              `faris design check --report`) and keep its work folder.",
+        );
+        ui.label(
+            "CAD transport uses the checked design file below. The 3D study view behind this window shows the active scenario; it is not this CAD geometry.",
         );
         // The tools are set once for both windows, in the shared section.
         self.sync_tools();
@@ -450,17 +467,36 @@ impl DesignTransportPanel {
             ui.colored_label(kind.color(), missing_count_text(shown.len()));
         }
 
-        ui.add_space(4.0);
-        if running {
-            if ui
-                .button("Cancel")
-                .on_hover_text(
-                    "Stops OpenMC and any weight-window job and writes no result. The run folder is left as it is.",
-                )
-                .clicked()
+        self.status(ui);
+        if let Some(message) = &self.stale_run_message {
+            ui.colored_label(Kind::NotEvaluated.color(), message);
+        }
+        if let Some(shown) = &self.result {
+            ui.separator();
+            if show_result(ui, shown)
+                && let Some(context) = &shown.history_context
             {
-                self.job.cancel();
+                self.history_handoff = Some(context.clone());
             }
+        }
+    }
+
+    fn run_controls(&mut self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx().clone();
+        if self.job.is_running() {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("CAD transport is running.");
+                if ui
+                    .button("Cancel")
+                    .on_hover_text(
+                        "Stops OpenMC and any weight-window job and writes no result. The run folder is left as it is.",
+                    )
+                    .clicked()
+                {
+                    self.job.cancel();
+                }
+            });
         } else if ui
             .button("Run")
             .on_hover_text(
@@ -494,17 +530,30 @@ impl DesignTransportPanel {
                 Err(problems) => self.problems = problems,
             }
         }
-        self.status(ui);
-        if let Some(message) = &self.stale_run_message {
-            ui.colored_label(Kind::NotEvaluated.color(), message);
-        }
-        if let Some(shown) = &self.result {
-            ui.separator();
-            if show_result(ui, shown)
-                && let Some(context) = &shown.history_context
-            {
-                self.history_handoff = Some(context.clone());
-            }
+        let preview = self
+            .preview
+            .as_ref()
+            .filter(|(inputs, _)| inputs == &self.inputs)
+            .map(|(_, problems)| problems.as_slice())
+            .unwrap_or(&[]);
+        let shown = if self.problems.is_empty() {
+            preview
+        } else {
+            &self.problems
+        };
+        if !shown.is_empty() {
+            let kind = if self.problems.is_empty() {
+                Kind::NotEvaluated
+            } else {
+                Kind::Failed
+            };
+            ui.colored_label(
+                kind.color(),
+                format!(
+                    "{} in the scrollable form above.",
+                    missing_count_text(shown.len())
+                ),
+            );
         }
     }
 
@@ -588,41 +637,46 @@ impl DesignTransportPanel {
                 }
             });
         ui.add_space(6.0);
-        ui.collapsing("Whole-life history rates (optional)", |ui| {
-            ui.weak("Enable this to score CAD-derived history responses in the same OpenMC batches. Source power and identity come from the checked CAD design. FARIS does not infer component mappings or service limits.");
-            if let Some(error) = &self.history_solid_error {
-                ui.weak(format!("CAD solid list unavailable: {error}"));
-            } else if !self.history_solid_summary.is_empty() {
-                ui.strong("Active material solids to map exactly once:");
-                egui::ScrollArea::vertical()
-                    .max_height(100.0)
-                    .show(ui, |ui| {
-                        for solid in &self.history_solid_summary {
-                            ui.label(solid);
-                        }
-                    });
-            }
-            ui.weak("The design's linked OperatingHistoryAssumptions set the default operating plan later in the life study. A planning override can be chosen in the dose-governed maintenance step.");
-            ui.label("Component ID → CAD solid IDs (JSON). Map every non-void solid exactly once; use the CAD replacement groups as the life components where appropriate.");
-            ui.add(
-                egui::TextEdit::multiline(&mut self.inputs.history_components_json)
-                    .desired_rows(3)
-                    .desired_width(f32::INFINITY)
-                    .hint_text(r#"{"blanket":["blanket-solid"],"magnets":["tf-solid"]}"#),
-            );
-            ui.horizontal(|ui| {
-                ui.label("H3 component");
-                ui.text_edit_singleline(&mut self.inputs.h3_component_id);
-                ui.weak("Current history model: blanket");
-            });
-            if !self.inputs.history_components_json.trim().is_empty()
-                && serde_json::from_str::<std::collections::BTreeMap<String, Vec<String>>>(
-                    &self.inputs.history_components_json,
-                )
-                .is_err()
-            {
-                ui.colored_label(kind.color(), "Map must be a JSON object of component IDs to arrays of solid IDs.");
-            }
+        egui::CollapsingHeader::new("Whole-life history rates (optional)")
+            .id_salt("design-flux-history-rates")
+            .default_open(!self.inputs.history_components_json.trim().is_empty())
+            .show(ui, |ui| {
+                ui.weak("Enable this to score CAD-derived history responses in the same OpenMC batches. Source power and identity come from the checked CAD design. FARIS does not infer component mappings or service limits.");
+                if let Some(error) = &self.history_solid_error {
+                    ui.weak(format!("CAD solid list unavailable: {error}"));
+                } else if !self.history_solid_summary.is_empty() {
+                    ui.strong("Active material solids to map exactly once:");
+                    egui::ScrollArea::vertical()
+                        .id_salt("design-flux-active-solids")
+                        .max_height(100.0)
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                        .show(ui, |ui| {
+                            for solid in &self.history_solid_summary {
+                                ui.label(solid);
+                            }
+                        });
+                }
+                ui.weak("The design's linked OperatingHistoryAssumptions set the default operating plan later in the life study. A planning override can be chosen in the dose-governed maintenance step.");
+                ui.label("Component ID → CAD solid IDs (JSON). Map every non-void solid exactly once; use the CAD replacement groups as the life components where appropriate.");
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.inputs.history_components_json)
+                        .desired_rows(3)
+                        .desired_width(f32::INFINITY)
+                        .hint_text(r#"{"blanket":["blanket-solid"],"magnets":["tf-solid"]}"#),
+                );
+                ui.horizontal(|ui| {
+                    ui.label("H3 component");
+                    ui.text_edit_singleline(&mut self.inputs.h3_component_id);
+                    ui.weak("Current history model: blanket");
+                });
+                if !self.inputs.history_components_json.trim().is_empty()
+                    && serde_json::from_str::<std::collections::BTreeMap<String, Vec<String>>>(
+                        &self.inputs.history_components_json,
+                    )
+                    .is_err()
+                {
+                    ui.colored_label(kind.color(), "Map must be a JSON object of component IDs to arrays of solid IDs.");
+                }
         });
         ui.add_space(6.0);
         ui.strong("Tools the run needs");
@@ -986,6 +1040,41 @@ mod tests {
         let text = drawn_text(&ctx, &shown);
         assert!(text.contains("view-only"));
         assert!(!text.contains("Continue CAD life study"));
+    }
+
+    #[test]
+    fn expanded_cad_mapping_keeps_run_visible_in_a_small_window() {
+        let ctx = egui::Context::default();
+        let mut panel = DesignTransportPanel::with_job(Job::default(), RunInputs::default());
+        panel.open = true;
+        panel.inputs.history_components_json = r#"{"blanket":["blanket-solid"]}"#.into();
+        panel.history_solid_summary = (0..24)
+            .map(|index| format!("solid-{index} · component-{index} · material steel"))
+            .collect();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(980.0, 640.0));
+        let output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            },
+            |ui| panel.window(ui.ctx()),
+        );
+        let run_is_visible = output.shapes.iter().any(|clipped| {
+            let egui::Shape::Text(text) = &clipped.shape else {
+                return false;
+            };
+            if text.galley.text() != "Run" {
+                return false;
+            }
+            let bounds = egui::Rect::from_min_size(text.pos, text.galley.size());
+            let visible = bounds.intersect(clipped.clip_rect).intersect(screen);
+            visible.height() >= bounds.height() * 0.8 && visible.width() >= bounds.width() * 0.8
+        });
+        assert!(
+            run_is_visible,
+            "Run must remain visible with the CAD map expanded"
+        );
+        output.drop_without_applying_deltas();
     }
 
     /// The text a frame draws, to check what a person would read.

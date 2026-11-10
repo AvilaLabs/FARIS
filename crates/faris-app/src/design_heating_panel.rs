@@ -338,6 +338,7 @@ impl DesignHeatingPanel {
                 context.history_rates.display()
             ));
             ui.weak("This run also scores the complete active CAD model for the operating-energy ledger. The winding-pack peak remains a separate response. The resulting energy response is bound to the same checked CAD source and transport history.");
+            ui.label("The 3D study view behind this window remains a separate scenario preview; heating uses the checked CAD design above.");
         }
         ui.add_enabled_ui(!self.is_running(), |ui| {
             egui::Grid::new("design-heating-inputs")

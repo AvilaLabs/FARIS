@@ -471,6 +471,7 @@ impl MaintenanceDosePanel {
                         ui.label(format!("Design SHA-256: {}", context.design_sha256));
                         ui.label(format!("Verified same-batch history rates: {}", context.history_rates.display()));
                         ui.weak("The design-linked OperatingHistoryAssumptions are used by default. An explicit override changes planning assumptions only; source power and transport identity remain bound to this CAD design.");
+                        ui.label("The 3D study view behind this window is separate; dose geometry comes from this checked CAD design.");
                         if let Some(note) = &self.cad_history_assumptions_note {
                             ui.weak(note);
                         }
