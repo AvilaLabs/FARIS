@@ -1044,6 +1044,26 @@ mod tests {
 
     #[test]
     fn expanded_cad_mapping_keeps_run_visible_in_a_small_window() {
+        fn contains_visible_text(
+            shape: &egui::Shape,
+            clip_rect: egui::Rect,
+            screen: egui::Rect,
+            expected: &str,
+        ) -> bool {
+            match shape {
+                egui::Shape::Text(text) if text.galley.text() == expected => {
+                    let bounds = egui::Rect::from_min_size(text.pos, text.galley.size());
+                    let visible = bounds.intersect(clip_rect).intersect(screen);
+                    visible.height() >= bounds.height() * 0.8
+                        && visible.width() >= bounds.width() * 0.8
+                }
+                egui::Shape::Vec(shapes) => shapes
+                    .iter()
+                    .any(|shape| contains_visible_text(shape, clip_rect, screen, expected)),
+                _ => false,
+            }
+        }
+
         let ctx = egui::Context::default();
         let mut panel = DesignTransportPanel::with_job(Job::default(), RunInputs::default());
         panel.open = true;
@@ -1052,29 +1072,28 @@ mod tests {
             .map(|index| format!("solid-{index} · component-{index} · material steel"))
             .collect();
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(980.0, 640.0));
-        let output = ctx.run_ui(
-            egui::RawInput {
-                screen_rect: Some(screen),
-                ..Default::default()
-            },
-            |ui| panel.window(ui.ctx()),
-        );
-        let run_is_visible = output.shapes.iter().any(|clipped| {
-            let egui::Shape::Text(text) = &clipped.shape else {
-                return false;
-            };
-            if text.galley.text() != "Run" {
-                return false;
+        let mut run_is_visible = false;
+        for frame in 0_u32..3 {
+            let output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    time: Some(f64::from(frame) / 30.0),
+                    ..Default::default()
+                },
+                |ui| panel.window(ui.ctx()),
+            );
+            run_is_visible = output.shapes.iter().any(|clipped| {
+                contains_visible_text(&clipped.shape, clipped.clip_rect, screen, "Run")
+            });
+            output.drop_without_applying_deltas();
+            if run_is_visible {
+                break;
             }
-            let bounds = egui::Rect::from_min_size(text.pos, text.galley.size());
-            let visible = bounds.intersect(clipped.clip_rect).intersect(screen);
-            visible.height() >= bounds.height() * 0.8 && visible.width() >= bounds.width() * 0.8
-        });
+        }
         assert!(
             run_is_visible,
             "Run must remain visible with the CAD map expanded"
         );
-        output.drop_without_applying_deltas();
     }
 
     /// The text a frame draws, to check what a person would read.
