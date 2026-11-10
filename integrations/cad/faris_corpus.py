@@ -365,15 +365,42 @@ def run_conversion(step: Path, parts, out_dir: Path, chord: float, imprint: bool
     return result
 
 
-def run_deviation(step: Path, facets: Path, parts, out_dir: Path) -> dict:
+def deviation_volume_bindings(parts, manifest: dict) -> list[dict]:
+    """Bind converted volume indices to STEP solids by the converter's material tags."""
+    step_by_tag = {f"mat:{name}": index for index, (name, _shape) in enumerate(parts)}
+    if len(step_by_tag) != len(parts):
+        raise ValueError("generated STEP solid tags are not unique")
+    entries = []
+    seen_tags, seen_volumes = set(), set()
+    for volume in manifest.get("volumes", []):
+        index, tag = volume.get("index"), volume.get("material_tag")
+        if not isinstance(index, int) or isinstance(index, bool) or index < 1:
+            raise ValueError(f"invalid converted volume index: {index!r}")
+        if not isinstance(tag, str) or tag not in step_by_tag:
+            raise ValueError(f"converted volume has no matching STEP material tag: {tag!r}")
+        if tag in seen_tags or index in seen_volumes:
+            raise ValueError("converted volume tags and indices must be one-to-one")
+        seen_tags.add(tag)
+        seen_volumes.add(index)
+        entries.append({"step_index": step_by_tag[tag], "volume": index})
+    if len(entries) != len(parts) or seen_tags != set(step_by_tag):
+        raise ValueError("converted volumes do not bind one-to-one to generated STEP solids")
+    return sorted(entries, key=lambda entry: entry["step_index"])
+
+
+def run_deviation(step: Path, facets: Path, parts, out_dir: Path, *,
+                  volume_map: list[dict] | None = None, tolerance_m: float | None = None) -> dict:
     """GEO-032 on an imprinted model: each solid's largest deviation and whether every point was measured."""
     import faris_cad
     mapping = out_dir / "deviation-map.json"
-    mapping.write_text(json.dumps([{"step_index": i, "volume": i + 1} for i in range(len(parts))]))
+    mapping.write_text(json.dumps(volume_map if volume_map is not None else [
+        {"step_index": i, "volume": i + 1} for i in range(len(parts))
+    ]))
     report = out_dir / "deviation.json"
     args = argparse.Namespace(
         step=step, shape_unit_m=1.0e-3, shape_cache=None, facets=facets, map=mapping, workers=1,
         block_points=512, occt_points=2000, report=report,
+        tolerance_m=tolerance_m, max_bound_queries=100_000, max_bound_depth=18,
     )
     try:
         faris_cad.deviation(args)
@@ -555,7 +582,11 @@ def qualify_default_converter(out: Path, work: Path) -> int:
                     row["volume_gate"] = (
                         "PASS" if all(r["within_default_0_1_percent"] for r in binding_rows) else "FAIL"
                     )
-                    deviation = run_deviation(step, facet_file, parts, convert_dir)
+                    volume_map = deviation_volume_bindings(parts, manifest)
+                    deviation = run_deviation(
+                        step, facet_file, parts, convert_dir,
+                        volume_map=volume_map, tolerance_m=chord_m,
+                    )
                     deviation_report = convert_dir / "deviation.json"
                     if deviation_report.is_file():
                         row["deviation_report"] = {

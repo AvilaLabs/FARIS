@@ -34,6 +34,32 @@ class FacetedVolumeTests(unittest.TestCase):
         ))
         self.assertAlmostEqual(faris_corpus.faceted_volumes_m3(data)[1], -1.0)
 
+    def test_deviation_binding_follows_material_tags_when_volume_order_changes(self):
+        parts = [("core", object()), ("blanket", object()), ("shield", object())]
+        manifest = {"volumes": [
+            {"index": 1, "material_tag": "mat:shield"},
+            {"index": 2, "material_tag": "mat:core"},
+            {"index": 3, "material_tag": "mat:blanket"},
+        ]}
+        self.assertEqual(faris_corpus.deviation_volume_bindings(parts, manifest), [
+            {"step_index": 0, "volume": 2},
+            {"step_index": 1, "volume": 3},
+            {"step_index": 2, "volume": 1},
+        ])
+
+    def test_deviation_binding_rejects_missing_or_duplicate_tags(self):
+        parts = [("core", object()), ("blanket", object())]
+        with self.assertRaisesRegex(ValueError, "one-to-one"):
+            faris_corpus.deviation_volume_bindings(parts, {"volumes": [
+                {"index": 1, "material_tag": "mat:core"},
+                {"index": 2, "material_tag": "mat:core"},
+            ]})
+        with self.assertRaisesRegex(ValueError, "matching STEP"):
+            faris_corpus.deviation_volume_bindings(parts, {"volumes": [
+                {"index": 1, "material_tag": "mat:core"},
+                {"index": 2, "material_tag": None},
+            ]})
+
 
 if __name__ == "__main__":
     unittest.main()
