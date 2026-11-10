@@ -61,6 +61,9 @@ pub const RECORDED_NOTE: &str = "Recorded with ACTINV for the four packaged arra
 
 const NET_UNAVAILABLE: &str = "The operating history recorded no cumulative net electricity at its end (the history assumptions carry no energy assumptions, or no snapshot was recorded), so none is inferred here.";
 
+/// The typed maintenance result records point estimates without propagated uncertainty fields.
+const MAINTENANCE_NO_INTERVAL: &str = "No propagated interval is recorded. Reason: the typed maintenance result stores point estimates only; it has no propagated transport, activation or operating-schedule uncertainty fields. Next step: propagate those uncertainties through the maintenance calculation and record the resulting intervals.";
+
 struct Loaded {
     file_name: String,
     result: Box<MaintenanceResult>,
@@ -812,6 +815,29 @@ fn validated_value(
         .on_hover_text(validation_hover_text(quantity));
 }
 
+/// Show validation state and the explicit uncertainty status for a calculated maintenance value.
+/// Authored durations/work/thresholds/counts deliberately continue to use plain labels.
+fn maintenance_calculated_value(
+    ui: &mut egui::Ui,
+    value: impl Into<String>,
+    quantity: faris_model::validation::Quantity,
+) {
+    ui.monospace(format!(
+        "{} {} · no interval",
+        value.into(),
+        validation_tag(quantity)
+    ))
+    .on_hover_text(format!(
+        "{}. {}",
+        validation_hover_text(quantity),
+        MAINTENANCE_NO_INTERVAL
+    ));
+}
+
+fn maintenance_uncertainty_detail() -> &'static str {
+    MAINTENANCE_NO_INTERVAL
+}
+
 /// A time in service in the unit the user chose (years until they choose), unit attached.
 fn years_text(seconds: f64, decimals: usize) -> String {
     crate::quantity_text::quantity("service_time", "yr", seconds, decimals)
@@ -919,6 +945,9 @@ pub fn event_detail(event: &EventRecord) -> String {
             days_text(event.work_s, 1)
         )),
         _ => lines.push("computed: not evaluated".into()),
+    }
+    if event.duration_computed_s.is_some() {
+        lines.push(format!("Uncertainty: {}", maintenance_uncertainty_detail()));
     }
     if event.window_limited {
         lines.push("Window-limited: the decay curve ended before reaching q*, so the cooldown is a lower bound.".into());
@@ -1121,14 +1150,17 @@ fn summary_table(ui: &mut egui::Ui, result: &MaintenanceResult) {
 fn net_cell(ui: &mut egui::Ui, summary: &HistorySummary) {
     match net_text(summary) {
         Some(text) => {
-            validated_value(
+            maintenance_calculated_value(
                 ui,
                 text,
                 faris_model::validation::Quantity::NetElectricPower,
             );
         }
         None => {
-            ui.weak("unavailable").on_hover_text(NET_UNAVAILABLE);
+            ui.weak("unavailable").on_hover_text(format!(
+                "{NET_UNAVAILABLE}\n{}",
+                maintenance_uncertainty_detail()
+            ));
         }
     }
 }
@@ -1138,7 +1170,7 @@ fn summary_row(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
     ui.strong(name);
     ui.label(years_text(fixed.history_end_s, 1))
         .on_hover_text(outcome_label(&fixed.outcome));
-    validated_value(
+    maintenance_calculated_value(
         ui,
         format!("{:.1}", days(fixed.total_replacement_downtime_s)),
         faris_model::validation::Quantity::Availability,
@@ -1146,17 +1178,17 @@ fn summary_row(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
     let computed = design.computed.summary.as_ref();
     match (design.computed.status, computed) {
         (Status::Evaluated, Some(c)) => {
-            validated_value(
+            maintenance_calculated_value(
                 ui,
                 format!("{:.1}", days(c.total_replacement_downtime_s)),
                 faris_model::validation::Quantity::Availability,
             );
-            validated_value(
+            maintenance_calculated_value(
                 ui,
                 availability_text(fixed),
                 faris_model::validation::Quantity::Availability,
             );
-            validated_value(
+            maintenance_calculated_value(
                 ui,
                 availability_text(c),
                 faris_model::validation::Quantity::Availability,
@@ -1482,7 +1514,7 @@ fn event_row(ui: &mut egui::Ui, event: &EventRecord) {
         }
         (None, Some(total), Some(cool)) => {
             ui.horizontal(|ui| {
-                validated_value(ui, format!("{:.1}", days(total)), faris_model::validation::Quantity::DecayHeat);
+                maintenance_calculated_value(ui, format!("{:.1}", days(total)), faris_model::validation::Quantity::DecayHeat);
                 if event.window_limited {
                     badge::badge(
                         ui,
@@ -1492,7 +1524,7 @@ fn event_row(ui: &mut egui::Ui, event: &EventRecord) {
                     );
                 }
             });
-            validated_value(
+            maintenance_calculated_value(
                 ui,
                 format!("{:.1}", days(cool)),
                 faris_model::validation::Quantity::DecayHeat,
@@ -1664,6 +1696,56 @@ mod tests {
             assert!(detail.contains(&note.next_step));
             assert!(validation_tag(quantity).contains(note.state.label()));
         }
+    }
+
+    #[test]
+    fn event_row_renders_uncertainty_for_computed_but_not_authored_only_duration() {
+        fn texts(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        texts(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        fn rendered_event(event: &EventRecord) -> Vec<String> {
+            let ctx = egui::Context::default();
+            let mut output = ctx.run_ui(Default::default(), |ui| {
+                egui::Grid::new("maintenance-event-uncertainty-test")
+                    .show(ui, |ui| event_row(ui, event));
+            });
+            let mut rendered = Vec::new();
+            for clipped in &output.shapes {
+                texts(&clipped.shape, &mut rendered);
+            }
+            output.textures_delta.clear();
+            rendered
+        }
+
+        let calculated = rendered_event(&event(1, Some(42.0), false));
+        let calculated_value = calculated.iter().find(|text| text.contains("no interval"));
+        assert!(calculated_value.is_some_and(|text| {
+            text.contains(&validation_tag(
+                faris_model::validation::Quantity::DecayHeat,
+            ))
+        }));
+        let calculated_detail = event_detail(&event(1, Some(42.0), false));
+        assert!(
+            calculated_detail
+                .contains("Reason: the typed maintenance result stores point estimates only")
+        );
+        assert!(calculated_detail.contains("Next step:"));
+
+        let authored_only = rendered_event(&event(1, None, false));
+        assert!(authored_only.iter().any(|text| text == "30.0"));
+        assert!(
+            !authored_only
+                .iter()
+                .any(|text| text.contains("no interval"))
+        );
     }
 
     const Y: f64 = JULIAN_YEAR_SECONDS;
