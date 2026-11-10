@@ -2146,6 +2146,11 @@ fn build_history_rates_artifact(
             Some(identity.clone()),
         ),
     };
+    let (solver_identity, nuclear_data_identity) = history_tool_identities(
+        &worker.openmc,
+        &worker.openmc_library_sha256,
+        cross_sections_path,
+    )?;
     let normalized = NormalizedTransportResult {
         schema_version: "faris-normalized-transport/v0.1".into(),
         scenario_id,
@@ -2159,16 +2164,8 @@ fn build_history_rates_artifact(
                 "openmc-plasma-source/tokamak-profile:{source_definition_sha256}"
             ),
         },
-        solver: TransportToolIdentity {
-            name: "OpenMC C API".into(),
-            version: worker.openmc.clone(),
-            digest: worker.openmc_library_sha256.clone(),
-        },
-        nuclear_data: TransportToolIdentity {
-            name: "cross_sections.xml".into(),
-            version: "sha256-pinned".into(),
-            digest: sha256_file(cross_sections_path)?,
-        },
+        solver: solver_identity,
+        nuclear_data: nuclear_data_identity,
         histories: worker.histories,
         source_reaction_rate_per_s: reaction_rate_per_s(
             fusion_power_mw,
@@ -2260,6 +2257,35 @@ fn build_history_rates_artifact(
         },
         driving_rates,
     })
+}
+
+fn history_tool_identities(
+    openmc_version: &str,
+    openmc_library_sha256: &str,
+    cross_sections_path: &Path,
+) -> Result<(TransportToolIdentity, TransportToolIdentity), String> {
+    Ok((
+        TransportToolIdentity {
+            name: "OpenMC C API".into(),
+            version: openmc_version.into(),
+            digest: sha256_identity(openmc_library_sha256, "OpenMC library")?,
+        },
+        TransportToolIdentity {
+            name: "cross_sections.xml".into(),
+            version: "sha256-pinned".into(),
+            digest: sha256_identity(&sha256_file(cross_sections_path)?, "cross_sections.xml")?,
+        },
+    ))
+}
+
+/// Convert an already measured SHA-256 hex digest into the identity syntax required by
+/// `TransportToolIdentity`. This only prefixes the recorded identity; it never derives a hash
+/// from a display version or another descriptive string.
+fn sha256_identity(hex: &str, label: &str) -> Result<String, String> {
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(format!("{label} identity is not a 64-hex SHA-256 digest"));
+    }
+    Ok(format!("sha256:{}", hex.to_ascii_lowercase()))
 }
 
 fn validate_history_nuclear_data_identity(
@@ -3122,6 +3148,39 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_tool_identities_pass_the_driving_rate_sha256_validation_boundary() {
+        // This is the OpenMC C library SHA-256 recorded by the completed tiny CAD history run;
+        // the display version (`0.15.3`) is deliberately not the identity.
+        let solver_library_sha256 =
+            "ba09ae9d19c4c789d8230abe62984de00d2326723b306c440506f099c2e46216";
+        let dir = tempfile::tempdir().unwrap();
+        let cross_sections = dir.path().join("cross_sections.xml");
+        std::fs::write(&cross_sections, b"<cross_sections/>").unwrap();
+        let cross_sections_sha256 = sha256_file(&cross_sections).unwrap();
+        let (solver, nuclear_data) =
+            history_tool_identities("0.15.3", solver_library_sha256, &cross_sections).unwrap();
+        assert_eq!(solver.digest, format!("sha256:{solver_library_sha256}"));
+        assert_eq!(
+            nuclear_data.digest,
+            format!("sha256:{cross_sections_sha256}")
+        );
+        assert!(history_tool_identities("0.15.3", "0.15.3", &cross_sections).is_err());
+        let mut rates = crate::fixtures::rates_without_covariance(0.01, 'c');
+        rates.solver_digest = solver_library_sha256.into();
+        rates.nuclear_data_digest = cross_sections_sha256.clone();
+        assert!(
+            rates
+                .validate()
+                .unwrap_err()
+                .contains("solver_digest must be a SHA-256 identity")
+        );
+        rates.solver_digest = solver.digest;
+        rates.nuclear_data_digest = nuclear_data.digest;
+        // Exercise the same strict SHA-256 identity validator called by the artifact builder.
+        rates.validate().unwrap();
+    }
 
     #[test]
     fn cad_operating_context_uses_design_identity_and_verified_linked_assumptions() {
