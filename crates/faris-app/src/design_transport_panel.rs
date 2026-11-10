@@ -183,7 +183,8 @@ impl DesignTransportPanel {
                 ).is_ok(),
             "result_visible": shown.is_some(),
             "saved_report_view_only": shown.is_some_and(|result| result.opened_from.is_some()),
-            "result_status": shown.map(|result| result.report.status.as_str()),
+            "result_target_reached": shown.map(|result| result.report.target_reached),
+            "result_stop_reason": shown.map(|result| result.report.stop_reason.as_str()),
             "history_rates_path": shown.and_then(|result| result.report.history_rates_artifact.as_ref().map(|reference| reference.path.as_str())),
             "history_context": context.map(|value| serde_json::json!({
                 "design": value.design,
