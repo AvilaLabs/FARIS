@@ -1236,7 +1236,7 @@ mod tests {
         assert!(
             verify_cad_prepare_binding(&config, &context)
                 .unwrap_err()
-                .contains("mapping differs")
+                .contains("map differs")
         );
         let other_xs = dir.path().join("other-cross-sections.xml");
         std::fs::write(&other_xs, "{}").unwrap();
