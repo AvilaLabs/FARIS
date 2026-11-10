@@ -2868,13 +2868,13 @@ mod tests {
             target_reached: true,
             variance_of_variance: Some(0.02),
             whole_model: HistoryEnergyScore {
-                mean_ev_per_source: 10.0,
+                mean_ev_per_source: 100.0,
                 standard_error_ev_per_source: 1.0,
             },
             components: BTreeMap::from([(
                 "blanket".into(),
                 HistoryEnergyScore {
-                    mean_ev_per_source: 10.0,
+                    mean_ev_per_source: 100.0,
                     standard_error_ev_per_source: 1.0,
                 },
             )]),
@@ -2888,7 +2888,7 @@ mod tests {
                 mean: 0.0,
                 standard_error: 0.0,
                 within_3se: true,
-                roundoff_tolerance: 64.0 * f64::EPSILON * 20.0,
+                roundoff_tolerance: 64.0 * f64::EPSILON * 200.0,
             },
             cross_run_covariance: "unknown_to_flux_and_breeder_H3".into(),
         };
@@ -2912,7 +2912,7 @@ mod tests {
             .components
             .get_mut("blanket")
             .unwrap()
-            .mean_ev_per_source = 9.0;
+            .mean_ev_per_source = 99.0;
         assert!(!history_energy_response_valid(
             &wrong_partition,
             &context,
@@ -2964,21 +2964,21 @@ mod tests {
             target_reached: true,
             variance_of_variance: Some(0.02),
             whole_model: HistoryEnergyScore {
-                mean_ev_per_source: 3.0,
+                mean_ev_per_source: 3.0e52,
                 standard_error_ev_per_source: (a + b + 2.0 * c).sqrt(),
             },
             components: BTreeMap::from([
                 (
                     "first".into(),
                     HistoryEnergyScore {
-                        mean_ev_per_source: 1.0,
+                        mean_ev_per_source: 1.0e52,
                         standard_error_ev_per_source: a.sqrt(),
                     },
                 ),
                 (
                     "second".into(),
                     HistoryEnergyScore {
-                        mean_ev_per_source: 2.0,
+                        mean_ev_per_source: 2.0e52,
                         standard_error_ev_per_source: b.sqrt(),
                     },
                 ),
@@ -2994,7 +2994,7 @@ mod tests {
                 mean: 0.0,
                 standard_error: 0.0,
                 within_3se: true,
-                roundoff_tolerance: 64.0 * f64::EPSILON * 6.0,
+                roundoff_tolerance: 64.0 * f64::EPSILON * 6.0e52,
             },
             cross_run_covariance: "unknown_to_flux_and_breeder_H3".into(),
         };
