@@ -234,6 +234,8 @@ def validate_seed_plan() -> dict[str, Any]:
 def run_pass(*, label: str, model, directory: Path, executable: Path, library: Path,
              library_sha256: str, env: dict[str, str], threads: int, expected_batches: int,
              expected_seed: int, window_mesh=None) -> dict[str, Any]:
+    import openmc
+
     directory.mkdir()
     before = sorted(path.name for path in directory.iterdir())
     if before:
@@ -292,7 +294,7 @@ def run_pass(*, label: str, model, directory: Path, executable: Path, library: P
             "path": str(statepoints[0]), "sha256": sha256(statepoints[0]),
             "current_batch": int(statepoint.current_batch), "n_batches": int(statepoint.n_batches),
             "n_particles": int(statepoint.n_particles), "n_realizations": int(statepoint.n_realizations),
-            "seed": int(statepoint.seed), "version": list(statepoint.version),
+            "seed": int(statepoint.seed), "version": [int(value) for value in statepoint.version],
             "run_mode": statepoint.run_mode,
             "void_flux_mean_per_source_neutron": mean,
             "void_flux_standard_error_per_source_neutron": standard_error,

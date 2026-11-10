@@ -1,0 +1,60 @@
+{
+  "schema": "faris-explicit-void-window-control/v1",
+  "date": "2026-11-10",
+  "requirement": "NUC-056",
+  "status": "PASS",
+  "scope": "Explicit CSG detector void cell 12. The checked CAD void inventory and implicit complement remain open.",
+  "solver": "OpenMC 0.15.3",
+  "runs": {
+    "analogue": {
+      "seed": 101,
+      "histories": 1000000,
+      "lost_particle_events": 0,
+      "mean_per_source_neutron": 0.007088476215835515,
+      "standard_error_per_source_neutron": 0.00024206753826856004,
+      "statepoint_sha256": "42f1c2e439d853d3e0c936dad85e6b160552957c277fe8427b7fe67384e647a1",
+      "loss_receipt_sha256": "0dc45948a08aeda70b7254c784b3af336ce0e770001c29c1f7c64e14a73dc8c3"
+    },
+    "windowed": {
+      "seed": 202,
+      "histories": 200000,
+      "lost_particle_events": 0,
+      "mean_per_source_neutron": 0.007526922706855767,
+      "standard_error_per_source_neutron": 0.0002287056302088903,
+      "statepoint_sha256": "cb49610d4cc9b2be476cee7e21f9b755615cae6d513038a86ed2c54269bc41bb",
+      "loss_receipt_sha256": "1f173637c5a48a56644f7dbdb08f74d76e773c44b86b5b62e8fc6065da3a9061"
+    }
+  },
+  "criteria": {
+    "absolute_z_max": 3.0,
+    "analog_rse": 0.034149446354603825,
+    "pass": true,
+    "relative_standard_error_max": 0.05,
+    "windowed_rse": 0.030385011128196887,
+    "z": 1.3165732686626632
+  },
+  "comparison_assumption": "Combined standard error from independent analogue and windowed runs; no cross-run covariance or generator-map uncertainty estimated.",
+  "execution_script_sha256": "2a5f548836b83b01e96f61be84ed9a4d05419ba98bdde461a6049667c1689ec7",
+  "postprocessor_sha256": "feb0019264a2dc48133d6797229e8f9c4f253ac52afd70b52de5f64090a9eb2b",
+  "evidence": {
+    "path": "runs/continuation/nuc056-void-window-control-postprocess-20261110-v1/control-postprocessed.json",
+    "sha256": "b830517814ca50f24937be0e23a52e3cbc981aec9e137c045ace17a569f95bb3"
+  },
+  "retained_attempts": [
+    {
+      "path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/nuc056-void-window-control-actual-20261110-v1",
+      "reason": "NameError: run_pass referenced openmc without importing it; analogue statepoint and zero-loss receipt retained.",
+      "status": "FAILED_AFTER_ANALOGUE_PASS"
+    },
+    {
+      "path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/nuc056-void-window-control-actual-20261110-v2",
+      "reason": "NumPy int32 statepoint version was not JSON serializable; all three solver passes and receipts retained and postprocessed here.",
+      "status": "SIMULATIONS_COMPLETE_RECEIPT_FAILED"
+    },
+    {
+      "path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/nuc056-void-window-control-actual-20261110-v3",
+      "reason": "Stopped on coordinator instruction after duplicate generation pass; no result used in this receipt.",
+      "status": "STOPPED_AS_REDUNDANT"
+    }
+  ]
+}

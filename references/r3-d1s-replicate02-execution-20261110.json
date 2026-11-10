@@ -1,0 +1,50 @@
+{
+  "schema": "faris-r3-d1s-execution-only/v1",
+  "date": "2026-11-10",
+  "status": "EXECUTION_RECORDED_SCIENTIFIC_QUALIFICATION_NOT_EVALUATED",
+  "campaign": {
+    "plan_sha256": "ae5ea69867bc47281140be03119846508da232a503ccee7787fbebbd8fe2bfdb",
+    "task_index": 8,
+    "replicate": 2
+  },
+  "execution": {
+    "solver": "OpenMC",
+    "openmc_version": "0.15.3",
+    "threads": 4,
+    "seed": 830060011,
+    "batches_completed": 174,
+    "particles_per_batch": 5000,
+    "histories_realized": 870000,
+    "stop_reason": "time_budget",
+    "time_budget_seconds": 7000.0,
+    "solver_elapsed_seconds": 7038.7846540559985,
+    "solver_status": 0,
+    "lost_particle_assessment": {
+      "fraction_limit": 1e-06,
+      "histories": 870000,
+      "lost_particles": 0,
+      "scope": "all particle species transported in this C API run",
+      "status": "PASS"
+    }
+  },
+  "data_readiness": {
+    "sha256": "d5f82bba9f91aa5c2a643134a9a2a8462ef081b316feea0149fb6073336dd08f",
+    "audited_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "usable": false,
+    "matches_audit": false,
+    "nuclides_missing": []
+  },
+  "evidence": {
+    "launch_receipt": {
+      "path": "runs/continuation/r3-d1s-rep02-launch-v1/receipt.json",
+      "sha256": "9f25d75a049f6b047144d263ddbf949d175a4b8532f00d38723452f10e025e2e"
+    },
+    "run_record": {
+      "path": "runs/continuation/r3-method-recovery-20261110-v3/rep-02/d1s/d1s_record.json",
+      "sha256": "81f62c2bcafc7d91e9a7fe4c04a631fd238d9a51f3df70aff7c8e59ea199c231"
+    },
+    "solver_model_sha256": "2325a79d82b57684966275c2735a069627fb21ec2ab54b05b2b8c578da3b15d6",
+    "activation_chain_sha256": "d3b829467cfdda9c624aaeb5709825df378b908ecc63c3f984ade51f8d0444a0"
+  },
+  "scope": "Execution and loss accounting only. Library readiness is unqualified. Matched D1S/R2S dose comparison is pending."
+}
