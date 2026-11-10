@@ -711,6 +711,22 @@ def read_microxs_chunk(path: Path, fluxes_path: Path, start: int, stop: int):
     return micros
 
 
+def _capi_input_identity(xs_path: Path, flux_path: Path, index: dict[str, Path], nuclides) -> dict:
+    """Hash only the exact review-index, flux, and nuclide files used by CAPI checks."""
+    used = []
+    for name in sorted(set(map(str, nuclides))):
+        path = index.get(name)
+        if path is None or not Path(path).is_file():
+            raise ValueError(f"CAPI input identity lacks an indexed HDF5 file for {name}")
+        resolved = Path(path).resolve(strict=True)
+        used.append({"nuclide": name, "path": str(resolved), "sha256": sha256_file(resolved)})
+    return {
+        "cross_sections_xml": {"path": str(xs_path), "sha256": sha256_file(xs_path)},
+        "fluxes": {"path": str(flux_path), "sha256": sha256_file(flux_path)},
+        "used_nuclide_hdf5": used,
+    }
+
+
 def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_edges_eV,
                            checks: list[dict], *, temperature_k: float = 293.6,
                            temperature_tolerance_k: float = 1.0, max_nuclides: int = 3,
@@ -728,6 +744,8 @@ def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_e
         raise ValueError("CAPI reference is bounded to one through three nuclides")
     xs_path = Path(cross_sections_xml).resolve(strict=True)
     flux_path = Path(fluxes_path).resolve(strict=True)
+    xs_hash_before = sha256_file(xs_path)
+    flux_hash_before = sha256_file(flux_path)
     edges = np.asarray(energy_edges_eV, dtype=np.float64)
     flux_rows = np.load(flux_path, mmap_mode="r", allow_pickle=False)
     if edges.ndim != 1 or np.any(np.diff(edges) <= 0.0) or flux_rows.ndim != 2 or flux_rows.shape[1] != edges.size - 1:
@@ -737,6 +755,7 @@ def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_e
     seen = set()
     prepared = []
     index = AC._cross_section_index(xs_path)
+    normalized_checks = []
     for check in checks:
         if set(check) != {"nuclide", "reaction", "domain_index"}:
             raise ValueError("each CAPI reference check must name exactly nuclide, reaction, and domain_index")
@@ -746,6 +765,15 @@ def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_e
         if (name, reaction, domain) in seen or domain < 0 or domain >= flux_rows.shape[0]:
             raise ValueError("CAPI reference check is duplicate or names an invalid domain row")
         seen.add((name, reaction, domain))
+        normalized_checks.append((name, reaction, domain))
+    if sha256_file(xs_path) != xs_hash_before:
+        raise ValueError("cross_sections.xml changed while the CAPI nuclide index was being read")
+    identities_before = _capi_input_identity(xs_path, flux_path, index,
+                                             [name for name, _, _ in normalized_checks])
+    if identities_before["cross_sections_xml"]["sha256"] != xs_hash_before or \
+            identities_before["fluxes"]["sha256"] != flux_hash_before:
+        raise ValueError("cross_sections.xml or flux array changed during CAPI input identity capture")
+    for name, reaction, domain in normalized_checks:
         spectrum = np.asarray(flux_rows[domain], dtype=np.float64)
         if not np.all(np.isfinite(spectrum)) or np.any(spectrum < 0.0) or float(np.sum(spectrum)) <= 0.0:
             raise ValueError(f"CAPI reference domain {domain} has no valid positive spectrum")
@@ -806,6 +834,10 @@ def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_e
             openmc.config.pop("cross_sections", None)
         else:
             openmc.config["cross_sections"] = previous_cross_sections
+    identities_after = _capi_input_identity(xs_path, flux_path, index,
+                                            [name for name, _, _ in normalized_checks])
+    if identities_after != identities_before:
+        raise ValueError("cross_sections.xml, flux array, or a used nuclide HDF5 changed during CAPI comparison")
     if sha256_file(library_path) != library_hash:
         raise ValueError("OpenMC C API shared library changed during sample comparison")
     if api_error is not None:
@@ -815,8 +847,12 @@ def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_e
         "status": "PASS_NUMERICAL_SAMPLE_CHECK",
         "openmc_version": str(openmc.__version__),
         "openmc_c_api_library": {"path": str(library_path), "sha256": library_hash},
-        "cross_sections_xml": {"path": str(xs_path), "sha256": sha256_file(xs_path)},
-        "fluxes": {"path": str(flux_path), "sha256": sha256_file(flux_path)},
+        "cross_sections_xml": identities_before["cross_sections_xml"],
+        "fluxes": identities_before["fluxes"],
+        "used_nuclide_hdf5": identities_before["used_nuclide_hdf5"],
+        "data_identity": {"pre_comparison": identities_before, "post_comparison": identities_after,
+                          "stable": True},
+        "data_identity_scope": "Exact index, flux and listed nuclide HDF5 byte identities were checked before and after this sample comparison; identity is not data-quality qualification.",
         "energy_edges_eV_sha256": hashlib.sha256(edges.astype("<f8", copy=False).tobytes()).hexdigest(),
         "checks": results,
         "reference_scope": "CAPI load_nuclide plus collapse_rate only; no transport solver was started",

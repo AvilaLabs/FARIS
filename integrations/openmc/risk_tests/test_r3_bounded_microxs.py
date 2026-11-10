@@ -12,6 +12,7 @@ import types
 import unittest
 import unittest.mock
 import zipfile
+from contextlib import nullcontext
 from pathlib import Path
 
 import h5py
@@ -644,6 +645,93 @@ class BoundedWorkflowTests(unittest.TestCase):
         self.assertEqual(medium["group_mean_xs_bytes"], fine["group_mean_xs_bytes"])
         self.assertLess(fine["bounded_output_bytes_upper_bound"], 40 * 1024 * 1024)
         self.assertGreater(fine["direct_peak_bytes_estimate"], 8 * BC.GIB)
+
+
+class CapiInputIdentityTests(unittest.TestCase):
+    @staticmethod
+    def _inputs(root: Path):
+        xs_root = root / "xs"
+        xs_root.mkdir()
+        hdf_paths = {name: xs_root / f"{name}.h5" for name in ("Fe56", "Ni58")}
+        nuclide_reactions = {"Fe56": (102, 16), "Ni58": (102,)}
+        kT = 293.6 * 8.617333262145e-5
+        edges = np.asarray(BC.VITAMIN_J_42_EDGES_E_V, dtype=np.float64)
+        for name, path in hdf_paths.items():
+            with h5py.File(path, "w") as handle:
+                group = handle.create_group(name)
+                energy = group.create_group("energy")
+                energy.create_dataset("294K", data=edges)
+                kts = group.create_group("kTs")
+                kts.create_dataset("294K", data=kT)
+                reactions = group.create_group("reactions")
+                for mt in nuclide_reactions[name]:
+                    reaction = reactions.create_group(f"reaction_{mt:03d}")
+                    reaction.attrs["mt"] = mt
+                    temp = reaction.create_group("294K")
+                    dataset = temp.create_dataset("xs", data=np.full(edges.size, 2.0))
+                    dataset.attrs["threshold_idx"] = 0
+        index = xs_root / "cross_sections.xml"
+        index.write_text("<cross_sections>" + "".join(
+            f'<library materials="{name}" path="{path.name}" type="neutron" />'
+            for name, path in hdf_paths.items()) + "</cross_sections>", encoding="utf-8")
+        flux_path = root / "fluxes.npy"
+        np.save(flux_path, np.ones((1, 42), dtype=np.float64), allow_pickle=False)
+        library_path = root / "libopenmc.so"
+        library_path.write_bytes(b"mock OpenMC C library")
+        return index, flux_path, hdf_paths, library_path
+
+    @staticmethod
+    def _mock_openmc(library_path: Path, on_collapse=None):
+        class FakeNuclide:
+            def collapse_rate(self, mt, temperature, edges, flux):
+                if on_collapse is not None:
+                    on_collapse()
+                return 2.0
+
+        lib = types.SimpleNamespace(
+            _dll=types.SimpleNamespace(_name=str(library_path)),
+            TemporarySession=nullcontext,
+            load_nuclide=lambda name: FakeNuclide(),
+        )
+        return types.SimpleNamespace(__version__="0.15.3", lib=lib, config={})
+
+    def _checks(self):
+        return [
+            {"nuclide": "Fe56", "reaction": "(n,gamma)", "domain_index": 0},
+            {"nuclide": "Fe56", "reaction": "(n,2n)", "domain_index": 0},
+            {"nuclide": "Ni58", "reaction": "(n,gamma)", "domain_index": 0},
+        ]
+
+    def test_capi_report_binds_exact_xml_flux_and_used_nuclide_hashes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            index, fluxes, hdfs, library = self._inputs(Path(temp))
+            fake_openmc = self._mock_openmc(library)
+            with unittest.mock.patch.dict(sys.modules, {"openmc": fake_openmc}):
+                report = BC.compare_capi_reference(index, fluxes, BC.VITAMIN_J_42_EDGES_E_V,
+                                                   self._checks())
+            self.assertEqual(report["status"], "PASS_NUMERICAL_SAMPLE_CHECK")
+            self.assertEqual(report["cross_sections_xml"]["sha256"], BC.sha256_file(index))
+            self.assertEqual(report["fluxes"]["sha256"], BC.sha256_file(fluxes))
+            self.assertEqual([(x["nuclide"], x["sha256"]) for x in report["used_nuclide_hdf5"]],
+                             [(name, BC.sha256_file(hdfs[name])) for name in ("Fe56", "Ni58")])
+            self.assertTrue(report["data_identity"]["stable"])
+            self.assertEqual(report["data_identity"]["pre_comparison"],
+                             report["data_identity"]["post_comparison"])
+            self.assertIn("not data-quality qualification", report["data_identity_scope"])
+            self.assertEqual(len(report["checks"]), 3)
+
+    def test_capi_comparison_refuses_a_used_hdf5_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            index, fluxes, hdfs, library = self._inputs(Path(temp))
+            def mutate_hdf():
+                with hdfs["Fe56"].open("ab") as stream:
+                    stream.write(b"changed after reference input capture")
+
+            fake_openmc = self._mock_openmc(library, on_collapse=mutate_hdf)
+            with unittest.mock.patch.dict(sys.modules, {"openmc": fake_openmc}):
+                with self.assertRaisesRegex(ValueError, "used nuclide HDF5 changed"):
+                    BC.compare_capi_reference(index, fluxes, BC.VITAMIN_J_42_EDGES_E_V,
+                                              self._checks())
 
 
 if __name__ == "__main__":
