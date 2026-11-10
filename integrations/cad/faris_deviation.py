@@ -529,6 +529,8 @@ class SolidFaces:
             return self._full_torus_faces
         from OCP.BRep import BRep_Tool
         from OCP.BRepCheck import BRepCheck_Analyzer
+        from OCP.BRepGProp import BRepGProp
+        from OCP.GProp import GProp_GProps
         from OCP.TopAbs import TopAbs_EDGE, TopAbs_WIRE
         from OCP.TopExp import TopExp_Explorer
         from OCP.TopoDS import TopoDS
@@ -539,6 +541,11 @@ class SolidFaces:
             if self.kind[i] != "torus":
                 continue
             if not BRepCheck_Analyzer(face).IsValid():
+                continue
+            surface_props = GProp_GProps()
+            BRepGProp.SurfaceProperties_s(face, surface_props)
+            area = surface_props.Mass()
+            if not math.isfinite(area) or area <= 0.0:
                 continue
             major, minor = self.params[i]["major"], self.params[i]["minor"]
             if not (math.isfinite(major) and math.isfinite(minor) and major > minor > 0.0):
@@ -1070,36 +1077,60 @@ def full_torus_triangle_bounds(triangles, params):
     ``f=hypot(rho-major, axial)``. Away from the axis and from the major circle,
     the Hessian norm of f is bounded by the expression below. Taylor's theorem
     and barycentric variance then bound its deviation from linear interpolation
-    on a triangle by K * max_edge**2 / 6.
+    on a triangle by K * max_edge**2 / 6. Projection lengths and intermediate
+    lower/upper bounds are inflated outwards before computing the curvature bound;
+    invalid frames and non-finite intermediates leave the triangle unresolved.
     """
     tris = np.asarray(triangles, dtype=np.float64)
     if tris.ndim != 3 or tris.shape[1:] != (3, 3) or not np.isfinite(tris).all():
         return np.full(len(tris) if tris.ndim else 0, np.inf)
     out = np.full(len(tris), np.inf)
+    eps = np.finfo(np.float64).eps
     for face in params:
         origin, axis = face["o"], face["z"]
+        major, minor = float(face["major"]), float(face["minor"])
+        if (np.shape(origin) != (3,) or np.shape(axis) != (3,)
+                or not np.isfinite(origin).all() or not np.isfinite(axis).all()
+                or not math.isfinite(major) or not math.isfinite(minor)
+                or not major > minor > 0.0):
+            continue
+        axis_norm = float(np.linalg.norm(axis))
+        if not math.isfinite(axis_norm) or abs(axis_norm - 1.0) > 64.0 * eps:
+            continue
         rel = tris - origin
         axial = np.einsum("ntk,k->nt", rel, axis)
         perp = rel - axial[..., None] * axis
         rho = np.linalg.norm(perp, axis=2)
-        f = np.hypot(rho - face["major"], axial)
+        f = np.hypot(rho - major, axial)
         edges = np.stack((tris[:, 0]-tris[:, 1], tris[:, 1]-tris[:, 2], tris[:, 2]-tris[:, 0]), axis=1)
         diameter = np.linalg.norm(edges, axis=2).max(axis=1)
-        rho_lo = rho.min(axis=1) - diameter
-        rho_hi = rho.max(axis=1)
-        f_lo = f.min(axis=1) - diameter
+        scale = np.maximum(1.0, np.maximum(np.abs(tris).max(axis=(1, 2)),
+                          np.maximum(float(np.abs(origin).max()), np.maximum(major, minor))))
+        # Cover projection/norm roundoff, including cancellation against a distant origin.
+        # Every geometric input below is inflated before it is used in a certified bound.
+        slack = 1024.0 * eps * scale
+        diameter_hi = np.nextafter(diameter + slack, np.inf)
+        rho_lo = np.nextafter(rho.min(axis=1) - diameter_hi - slack, -np.inf)
+        rho_hi = np.nextafter(rho.max(axis=1) + slack, np.inf)
+        f_lo = np.nextafter(f.min(axis=1) - diameter_hi - slack, -np.inf)
         valid = (np.isfinite(rho_lo) & np.isfinite(rho_hi) & np.isfinite(f_lo)
-                 & (rho_lo > 0.0) & (f_lo > 0.0))
+                 & np.isfinite(diameter_hi) & (rho_lo > 0.0) & (f_lo > 0.0))
         if not valid.any():
             continue
-        curvature = np.maximum(1.0 / f_lo[valid],
-            np.maximum(np.abs(rho_lo[valid]-face["major"]),
-                       np.abs(rho_hi[valid]-face["major"])) / (rho_lo[valid]*f_lo[valid]))
-        vertex_deviation = np.abs(f - face["minor"]).max(axis=1)
-        scale = np.maximum(1.0, np.maximum(np.abs(tris).max(axis=(1, 2)),
-                                          np.maximum(face["major"], face["minor"])))
-        bound = vertex_deviation[valid] + curvature * diameter[valid]**2 / 6.0
-        bound += max(CLASSIFY_TOLERANCE, FAST_MARGIN) + 64.0*np.finfo(np.float64).eps*scale[valid]
+        numerator = np.maximum(np.abs(rho_lo[valid]-major), np.abs(rho_hi[valid]-major))
+        numerator = np.nextafter(numerator + slack[valid], np.inf)
+        denominator = np.nextafter(rho_lo[valid] * f_lo[valid], 0.0)
+        if np.any(denominator <= 0.0):
+            continue
+        curvature = np.maximum(np.nextafter(1.0 / f_lo[valid], np.inf),
+                               np.nextafter(numerator / denominator, np.inf))
+        curvature = np.nextafter(curvature + 1024.0 * eps * np.maximum(1.0, curvature), np.inf)
+        vertex_deviation = np.nextafter(np.abs(f - minor).max(axis=1) + slack, np.inf)
+        diameter_sq_hi = np.nextafter(diameter_hi[valid] * diameter_hi[valid], np.inf)
+        interpolation = np.nextafter(curvature * diameter_sq_hi, np.inf)
+        interpolation = np.nextafter(interpolation / 6.0, np.inf)
+        bound = np.nextafter(vertex_deviation[valid] + interpolation, np.inf)
+        bound = np.nextafter(bound + max(CLASSIFY_TOLERANCE, FAST_MARGIN), np.inf)
         out[valid] = np.minimum(out[valid], bound)
     return out
 
