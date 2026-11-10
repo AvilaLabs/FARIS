@@ -1,0 +1,109 @@
+{
+  "agreement_criterion": {
+    "limit": 1e-06,
+    "quantity": "absolute availability difference",
+    "unchanged": true
+  },
+  "artifacts": [
+    {
+      "bytes": 4279,
+      "path": "runs/continuation/peer-lifecycle-one-boundary-outage-20261110-v3/process/run-record.json",
+      "sha256": "727b8a345c956f44abffdcab950df697804ca9ab262c75c5bf53d0c29964ba2a"
+    },
+    {
+      "bytes": 3556,
+      "path": "runs/continuation/peer-lifecycle-one-boundary-outage-20261110-v3/process/availability.json",
+      "sha256": "2f1cfe58957092d65de798373c337a6bb6007389d9ec7100ced4b93d302407e2"
+    },
+    {
+      "bytes": 4300,
+      "path": "runs/continuation/peer-lifecycle-one-boundary-outage-20261110-v3/bluemira/run-record.json",
+      "sha256": "31af62d3ea4407537312394e2cf9c805fa6ae95e2898c429843d0cc89e69b696"
+    },
+    {
+      "bytes": 14885750,
+      "path": "runs/continuation/peer-lifecycle-one-boundary-outage-20261110-v3/bluemira/timeline.json",
+      "sha256": "de3a297c7144626df5d0de53fb70ed20e65df121164df88422f6431598eb5ee5"
+    }
+  ],
+  "case_id": "no-port-breeder-one-boundary-outage-control",
+  "case_manifest": {
+    "bytes": 8736,
+    "path": "integrations/lifecycle_peer/cases/controlled_fixed/manifest.json",
+    "sha256": "bb4f7cfdd27ea569e349bfb386b96a6146298517f24163c3791c5cc5bf4e5bbc"
+  },
+  "checks": {
+    "bluemira_horizon_matches_authored": true,
+    "bluemira_native_metrics_present": true,
+    "bluemira_one_boundary_blanket_replacement": true,
+    "bluemira_operational_load_factor_is_unity": true,
+    "bluemira_timeline_artifact_matches_metrics": true,
+    "bluemira_zero_unplanned": true,
+    "bluemira_zero_work_divertor_compatibility_phases": true,
+    "peer_availability_agrees": false,
+    "process_fixed_duration_is_authored": true,
+    "process_horizon_is_authored": true,
+    "process_native_availability_matches_control": true,
+    "process_zero_unplanned": true
+  },
+  "evidence_class": "verification",
+  "interpretation": "The native pulse timeline has less burn time than the continuous damage budget. Keep the measured outputs and failed agreement check; do not replace actual Timeline full-power time with the continuous budget, tune the input pulse interval, or widen the tolerance. Archived 30-year FARIS results are separate context; this receipt does not establish a new native FARIS matched result.",
+  "native_metrics": {
+    "bluemira": {
+      "blanket_replacements": 1,
+      "calendar_years": 5.2254429994676395,
+      "continuous_damage_budget_fpy_input": 5.061190855587917,
+      "divertor_replacements": 4,
+      "full_power_years": 5.059375617917712,
+      "native_timeline_artifact_matches_metrics": true,
+      "native_timeline_maintenance_phase_names": [
+        "Phase M1.1",
+        "Phase M1.2",
+        "Phase M1.3",
+        "Phase M2.1",
+        "Phase M2.2"
+      ],
+      "native_timeline_operation_phase_names": [
+        "Phase P1.1",
+        "Phase P1.2",
+        "Phase P1.3",
+        "Phase P2.1",
+        "Phase P2.2",
+        "Phase P2.2"
+      ],
+      "operational_load_factor_input": 1.0,
+      "overall_availability": 0.968219463581012,
+      "planned_maintenance": 5184000.0,
+      "ramp_time": 1.0886399999999999e-18,
+      "rng_seed": 20261109,
+      "source_api": "bluemira.fuel_cycle.lifecycle.LifeCycle.make_timeline",
+      "timeline_metrics_basis": "actual pulse-resolved bluemira Timeline.plant_life and Timeline.ft[-1]; not the continuous LifeCycle.fpy budget",
+      "unplanned_downtime": 0.0,
+      "version": "2.14.0"
+    },
+    "process": {
+      "blanket_lifetime_fpy_input": 2.530595427793958,
+      "divertor_lifetime_fpy_input": 5.061190855587916,
+      "plant_availability_fraction": 0.9685633442013221,
+      "plant_horizon_years_input": 5.225442889963153,
+      "replacement_duration_years": {
+        "blanket": 0.16427104722792607,
+        "combined": 0.0,
+        "divertor": 0.0
+      },
+      "source_api": "process.models.availability.Availability.run(WARD_TAYLOR)",
+      "version": "3.4.2"
+    }
+  },
+  "observed_availability_difference": 0.0003438806203100997,
+  "observed_bluemira_damage_budget_minus_pulse_timeline_fpy": 0.0018152376702049722,
+  "raw_comparison": {
+    "bytes": 10040,
+    "path": "runs/continuation/peer-lifecycle-one-boundary-outage-20261110-v3/comparison.json",
+    "sha256": "3b94459a0ce07dc06fe524d5534ab0919c1bda937af769fb5d3916fa31069278"
+  },
+  "raw_run_directory": "runs/continuation/peer-lifecycle-one-boundary-outage-20261110-v3",
+  "schema": "faris-peer-lifecycle-observation/v1",
+  "scope": "Actual pinned PROCESS Ward\u2013Taylor availability submodel and bluemira pulse-resolved LifeCycle under the authored one-blanket-outage control. Not whole-system PROCESS, native FARIS-matched verification, or physical validation.",
+  "status": "INCOMPLETE"
+}
