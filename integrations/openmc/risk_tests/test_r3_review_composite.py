@@ -144,7 +144,7 @@ class ReviewCompositeTests(unittest.TestCase):
                 temp = reaction.create_group(temperature)
                 temp.create_dataset("xs", data=np.array([0.0, 1.0, 2.0]))
 
-    def _write_audit_inputs(self, base: Path, *, s_energy=20e6, missing_u237=False):
+    def _write_audit_inputs(self, base: Path, *, s_energy=50e6, missing_u237=False):
         chain = base / "chain.xml"
         chain.write_text(
             '<depletion_chain><nuclide name="U235"><reaction type="(n,gamma)" target="U236" />'
@@ -160,7 +160,7 @@ class ReviewCompositeTests(unittest.TestCase):
         rows = []
         for name in names:
             path = datadir / f"{name}.h5"
-            self._write_xs(path, name, max_energy=s_energy if name == "U236" else 20e6,
+            self._write_xs(path, name, max_energy=s_energy if name == "U236" else 50e6,
                            reaction_mts=() if missing_u237 and name == "U237" else (102,))
             rows.append(f'<library materials="{name}" path="{path.name}" type="neutron" />')
         index.write_text("<cross_sections>" + "".join(rows) + "</cross_sections>", encoding="utf-8")
@@ -181,7 +181,7 @@ class ReviewCompositeTests(unittest.TestCase):
     def test_audit_refuses_incomplete_channel_and_high_energy_coverage(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
-            chain, materials, index = self._write_audit_inputs(base, s_energy=19e6, missing_u237=True)
+            chain, materials, index = self._write_audit_inputs(base, s_energy=49e6, missing_u237=True)
             report = RC.audit_review_index(review_index=index, chain_xml=chain, materials_xml=materials,
                                            reaction_mt={"(n,gamma)": 102}, output_path=base / "audit.json")
             self.assertEqual(report["status"], "INCOMPLETE")
@@ -189,6 +189,15 @@ class ReviewCompositeTests(unittest.TestCase):
             reasons = " ".join(item["reason"] for item in report["malformed_or_insufficient_files"])
             self.assertIn("ends below", reasons)
             self.assertTrue(report["missing_reaction_channels"])
+
+    def test_audit_does_not_allow_energy_boundary_below_activation_groups(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            chain, materials, index = self._write_audit_inputs(base)
+            with self.assertRaisesRegex(ValueError, "frozen 50 MeV"):
+                RC.audit_review_index(review_index=index, chain_xml=chain, materials_xml=materials,
+                                      reaction_mt={"(n,gamma)": 102}, output_path=base / "audit.json",
+                                      minimum_energy_ev=20e6)
 
 
 if __name__ == "__main__":

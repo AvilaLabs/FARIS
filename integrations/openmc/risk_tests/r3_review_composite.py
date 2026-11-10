@@ -26,7 +26,7 @@ import r3_activation_coverage as AC
 SCHEMA = "faris-r3-review-composite/v1"
 PLAN_SCHEMA = "faris-r3-review-composite-plan/v1"
 AUDIT_SCHEMA = "faris-r3-review-composite-audit/v1"
-MIN_ENERGY_EV = 20.0e6  # Existing R3 TF fast-flux response upper boundary.
+MIN_ENERGY_EV = 50.0e6  # Frozen R3 VITAMIN-J-42 activation upper boundary.
 TEMPERATURE = "294K"  # Existing RM-M OpenMC nearest-temperature setting.
 TENDL_INDEX_SHA256 = "317b9d1674a78077a454eae8cde7212561ac46a96f65e66c2d4eca00b141ac94"
 TENDL_ARCHIVE_SHA256 = "c35e1b26fa3c2f86d9eebc1767abac3bf82017354ccf11db347c6711b55aa1b3"
@@ -329,6 +329,10 @@ def audit_review_index(*, review_index: Path, chain_xml: Path, materials_xml: Pa
     import h5py
     import numpy as np
 
+    if not math.isfinite(minimum_energy_ev) or minimum_energy_ev < MIN_ENERGY_EV:
+        raise ValueError(f"review audit energy coverage must reach at least the frozen 50 MeV activation-group edge")
+    if not temperature:
+        raise ValueError("review audit requires a named neutron-library temperature")
     review_index, chain_xml, materials_xml = map(Path, (review_index, chain_xml, materials_xml))
     if output_path.exists():
         raise ValueError(f"refusing to overwrite existing review audit: {output_path}")
@@ -486,8 +490,8 @@ def main(argv=None) -> int:
                           "index": plan["index_review"]["index_path"],
                           "plan": str(args.out_dir / "review-plan.json")}, indent=2))
         return 0
-    if not math.isfinite(args.minimum_energy_ev) or args.minimum_energy_ev <= 0.0:
-        parser.error("--minimum-energy-ev must be finite and positive")
+    if not math.isfinite(args.minimum_energy_ev) or args.minimum_energy_ev < MIN_ENERGY_EV:
+        parser.error("--minimum-energy-ev cannot be below the frozen 50 MeV activation-group upper edge")
     try:
         from openmc.data import REACTION_MT
     except ImportError as exc:

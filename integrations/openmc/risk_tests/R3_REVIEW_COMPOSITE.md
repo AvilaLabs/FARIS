@@ -20,8 +20,10 @@ PYTHONPATH=integrations/openmc/risk_tests "$OPENMC_PY" \
 
 The full audit is an explicit, serialized I/O task. It hashes each
 chain-required HDF5 file, verifies the reachable depletion-chain channels,
-checks their 294 K datasets, and confirms energy grids reach the R3 20 MeV
-response upper boundary. It also checks chain, materials, index, and data file
+checks their 294 K datasets, and confirms energy grids reach the frozen R3
+VITAMIN-J-42 activation upper boundary of 50 MeV. This is stricter than the
+20 MeV upper edge of the separate TF fast-flux response and is not configurable
+downward. It also checks chain, materials, index, and data file
 identities remain stable during the audit. Use the exact serialized materials
 XML bound to the planned R3 RM-M model:
 
