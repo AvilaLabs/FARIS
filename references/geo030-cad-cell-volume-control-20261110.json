@@ -1,0 +1,48 @@
+{
+  "schema": "faris-geo030-cad-cell-volume-control/v1",
+  "date": "2026-11-10",
+  "requirement": "GEO-030",
+  "status": "PASS",
+  "criterion": "Each explicit DAGMC cell is compared against its bound CAD volume. Pass when the absolute difference is at most 0.5% of CAD volume or three measured standard errors.",
+  "openmc_version": "0.15.3",
+  "worker": {
+    "path": "integrations/openmc/design_volume.py",
+    "sha256": "2c51f478417d8d71e88ad634b8acd5d8cc0790cb78e23ef890d950999358e70e"
+  },
+  "corpus": {
+    "cases": 24,
+    "explicit_cells_passed": 72,
+    "points_per_case": 100000,
+    "comparison": {
+      "path": "runs/continuation/geo030-corpus-direct-v1/geo012-corpus-openmc-100k-20261110/geo030_comparison.json",
+      "sha256": "11bec07da9d8f7860ff9155e1318ac83aa235b252dc4f8b4058b2094bd600d74"
+    },
+    "execution": {
+      "path": "runs/continuation/geo030-corpus-direct-v1/geo012-corpus-openmc-100k-20261110/execution.json",
+      "sha256": "914ef5ef63da0c2821bd48610f0d4846e05135267a94a29aa45c0f4d4446c932"
+    }
+  },
+  "rm_m_v3": {
+    "explicit_cells_passed": 30,
+    "points": 1000000,
+    "comparison": {
+      "path": "runs/continuation/geo030-rm-m-direct-v1/rm-m-volume-1m-20261110/geo030_comparison.json",
+      "sha256": "a415770204394a5cbc81e991575c192651527a964a58f02bb82551d8fab1344b"
+    },
+    "volume_result_sha256": "9cce59f690ea0594aba88a702e11fae23837a0bd0f682927fe7045e58723ef22",
+    "h5m_sha256": "25d125f609293bbbce37482984eb9144de851d53c23b42a227d00ad762ce979d"
+  },
+  "analytic_tori": {
+    "verified_tests": 8,
+    "test_source": {
+      "path": "controls/test_region_volumes.py",
+      "sha256": "dbaa56cd5f133204563401bc089404c1418773b6b948275753c4c959440a7ea5"
+    },
+    "evidence": "Independent midpoint quadrature, exact partition identity, and high-precision control compare analytic volume formulas within the 0.1% target."
+  },
+  "existing_native_import": {
+    "path": "references/native-cad-default-control-20261110.json",
+    "sha256": "c4bfc02d66549fffd2937a1c56ada3174494e6208a01e7c9aaa7c3efd990b2ad"
+  },
+  "scope": "The 24 corpus cases and RM-M use the existing OpenMC volume worker directly with dummy H1 initialization. A separate native tori-7 run exercises the integrated check. These measurements establish geometry volume conservation for the checked cells."
+}

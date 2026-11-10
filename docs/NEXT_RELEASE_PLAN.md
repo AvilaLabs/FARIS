@@ -25,7 +25,10 @@ cgroup ([PERF-041 receipt](../references/default-size-four-arrangement-memory-20
 GEO-021 meets the seeded overlap criterion. All six STEP fixtures reported
 the overlapping pair and common volume and blocked import before imprinting
 ([GEO-021 receipt](../references/geo021-seeded-overlap-control-20261110.json)).
-The tables now record 26 of 44 release-gate IDs as Met. Release-candidate
+GEO-030 meets the per-cell volume criterion. OpenMC checked all 72 explicit
+cells in the 24-case corpus and all 30 explicit RM-M cells against CAD volumes
+([GEO-030 receipt](../references/geo030-cad-cell-volume-control-20261110.json)).
+The tables now record 27 of 44 release-gate IDs as Met. Release-candidate
 checks and physical validation are tracked separately. The NUC-053 control does not assert formal PRNG
 stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The
