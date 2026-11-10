@@ -10,6 +10,17 @@ The combined work, FARIS together with the permissive crates it links (including
 
 SHA-256 labels identify original source-file bytes before Markdown framing.
 
+## External reference data
+
+The JADE HCPB/WCLL ITER 1D TBM response candidates are sourced from JADE-V-V,
+`JADE-RAW-RESULTS` commit `e3b442cf8e5eb3f41c500535931ddb8a6b0919e7`, under
+EUPL-1.2. The raw CSV files and metadata are fetched by SHA-256 into an external
+cache and are not distributed in this repository. Attribution, pinned hashes,
+response mappings, and eligibility limits are documented in
+[`TBM_1D_REFERENCE.md`](TBM_1D_REFERENCE.md). The translated IAEA-NDS benchmark
+inputs used for identity checks are from `open-benchmarks` commit
+`872543644e2353ab238242a27c2ce975eb935f32`, CC-BY-4.0.
+
 Recreate the metadata with `cargo metadata --locked --offline --format-version 1
 --filter-platform x86_64-unknown-linux-gnu`, then run
 `python3 scripts/collect_dependency_notices.py --metadata METADATA.json
