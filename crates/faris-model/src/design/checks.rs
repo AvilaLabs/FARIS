@@ -891,7 +891,7 @@ pub fn check_5(design: &Design) -> (Vec<Finding>, Vec<Notice>) {
                     group.id
                 ),
                 "NOT_EVALUATED: a computed replacement duration needs the dose-rate rule of \
-                 stage S3, which does not exist yet; use a fixed duration until then",
+                 stage S3; prepare dose physics and run the maintenance workflow, because import checks do not calculate durations",
             ));
         }
     }

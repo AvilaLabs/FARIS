@@ -121,7 +121,7 @@ pub enum MaintenanceCommand {
     },
     /// Clone checked CAD materials per solid and build the event-dose physics adapter.
     DosePrepare {
-        /// faris-maintenance-dose-cad-config/v0.1 preparation request.
+        /// faris-maintenance-dose-cad-config/v0.2 preparation request.
         #[arg(long)]
         config: PathBuf,
         /// The explicitly selected `actinv` executable for decay-heat execution.

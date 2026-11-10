@@ -171,12 +171,22 @@ point sampling and a note to tighten the tolerance.
 
 ### GEO-032: faceting deviation
 
-A Python helper projects each triangle's centroid and edge midpoints onto the
-owning CAD solid's faces (OCCT point projection, worker processes) and reports
-the maximum distance per solid. Vertices lie on the CAD surface by
-construction, so the sample points are where deviation is largest. The report
-calls the result "sampled maximum". A solid above the declared chord tolerance
-blocks.
+A Python helper reports diagnostic distances at triangle centroids and edge
+midpoints, separately from a uniform upper bound over every triangle point.
+A sampled maximum alone cannot pass the gate. A bound over the tolerance, or
+an unresolved bound after its query/depth budget, blocks readiness.
+
+Verified convex planar faces use a vertex-distance bound. A complete torus
+face can use a curvature bound only after validating its BRep, positive area,
+full periodic ranges, and single canonical seam wire; a UV range alone does
+not establish that the face has no holes or other trims. For the distance
+`f` to the torus's major circle, the helper bounds the Hessian norm by `K`
+throughout the triangle. Barycentric interpolation then bounds the distance
+to the torus surface by `max_vertex |f - minor_radius| + K D² / 6`, where `D`
+is the largest triangle edge. Computation rounds outward and rejects singular
+or non-finite bounds. Vertex positions are checked rather than assumed exact.
+Other faces retain the bounded 1-Lipschitz subdivision path. Uncertain trims
+never enter the complete-torus shortcut.
 
 ### Waivers (GEO-026)
 
