@@ -40,7 +40,8 @@ use std::time::Duration;
 pub const RESULT_SCHEMA: &str = "faris-activation-result/v0.1";
 pub const REQUEST_SCHEMA: &str = "faris-activation-request/v0.1";
 pub const PHOTON_SOURCE_SCHEMA: &str = "faris-decay-photon-source/v0.1";
-const CACHE_SCHEMA: &str = "faris-activation-zone-cache/v0.1";
+// v0.2 invalidates typed results that labelled reaction-ledger rates as atom amounts.
+const CACHE_SCHEMA: &str = "faris-activation-zone-cache/v0.2";
 
 /// Groups of the neutron activation library ACTINV ships (`fispact-709`).
 pub const GROUPS: usize = 709;
@@ -633,7 +634,8 @@ pub struct DataGap {
     pub count: usize,
     /// Up to 25 sorted identifiers (`Z=100 A=261 isomer 0` for numeric ACTINV keys).
     pub items: Vec<String>,
-    /// Atoms per g ACTINV puts on the missing items, when it gives an amount.
+    /// Atoms per g for directly quantified missing populations or chain leakage. ACTINV's
+    /// reaction-ledger values are rates per target atom and are never reported here.
     pub amount_atoms_per_g: Option<f64>,
     pub effect: String,
     pub next_step: String,
@@ -901,16 +903,14 @@ fn id_label(key: &str) -> String {
     }
 }
 
-fn listed(value: Option<&Value>) -> (usize, Vec<String>, Option<f64>) {
+fn listed(value: Option<&Value>) -> (usize, Vec<String>) {
     match value {
         Some(Value::Object(m)) => {
             let mut items: Vec<String> = m.keys().map(|k| id_label(k)).collect();
             items.sort();
-            let amount: f64 = m.values().filter_map(Value::as_f64).sum();
-            let has_amount = m.values().any(Value::is_number);
             let n = items.len();
             items.truncate(MAX_LISTED_ITEMS);
-            (n, items, has_amount.then_some(amount))
+            (n, items)
         }
         Some(Value::Array(a)) => {
             let mut items: Vec<String> = a
@@ -927,25 +927,29 @@ fn listed(value: Option<&Value>) -> (usize, Vec<String>, Option<f64>) {
             items.sort();
             let n = items.len();
             items.truncate(MAX_LISTED_ITEMS);
-            (n, items, None)
+            (n, items)
         }
         Some(Value::Number(n)) => {
             let c = n.as_u64().unwrap_or(0) as usize;
-            (c, Vec::new(), None)
+            (c, Vec::new())
         }
-        _ => (0, Vec::new(), None),
+        _ => (0, Vec::new()),
     }
 }
 
-/// Every place ACTINV's ledger says a nuclide, target, product or branch lacked data.
+/// Convert ACTINV ledger notices to diagnostics without interpreting its per-target rates as
+/// zone populations. ACTINV's `products_no_evaluated_decay_data` and
+/// `isomer_state_absent_from_decay_library_used_ground` map values are reaction rates per target
+/// atom; `targets_absent_from_decay_library` is a library target list, and the decay-chain
+/// daughter/fission counts describe the assembled chain. None quantify atoms in this zone.
 fn data_gaps(result: &Value, final_leakage_atoms_per_g: f64) -> Vec<DataGap> {
     let ledger = result.get("ledger").unwrap_or(&Value::Null);
     let table: [(&str, &str, &str, &str, bool); 9] = [
         (
             "products_no_evaluated_decay_data",
             "products with no decay data",
-            "Their decay heat, activity and photon emission are not in the totals, so the totals are lower bounds.",
-            "Check the nuclides against the decay library, or add decay data for them (ACTINV data override) and rerun.",
+            "ACTINV lists reaction products absent from decay data. Its ledger values are rates per target atom, not populated atoms in this zone; omitted emissions may matter if these products are actually produced.",
+            "Check population-weighted production or leakage for these products, then supply decay data for any populated product before relying on the totals.",
             true,
         ),
         (
@@ -965,55 +969,55 @@ fn data_gaps(result: &Value, final_leakage_atoms_per_g: f64) -> Vec<DataGap> {
         (
             "fission_no_yields_to_leakage",
             "fissioning parents without fission-yield data",
-            "Fission products of these parents are routed out of the chain, so totals are lower bounds.",
+            "ACTINV lists fission production rates per target atom for parents without yield data; those rates do not establish atom populations in this zone.",
             "Supply fission-yield files for these parents (ACTINV fission_yields) and rerun.",
             true,
         ),
         (
             "targets_absent_from_decay_library",
             "targets absent from the decay library",
-            "Reactions on these nuclides are in the library but the nuclides have no decay record; listed so they are not read as zero.",
-            "Decide whether they matter for the zone's composition; supply decay data if so.",
+            "ACTINV lists activation-library targets absent from the assembled decay network; this library list does not establish that the zone contains or produces them.",
+            "Check whether any listed target is populated or produced in this zone, and supply decay data if it is relevant.",
             false,
         ),
         (
             "isomer_state_absent_from_decay_library_used_ground",
             "isomer states without decay data (ground-state data used)",
-            "The ground-state decay data stand in for the isomer; its own half-life and emissions are not used.",
-            "Supply isomer decay data if the isomer matters for the cooling times asked for.",
+            "ACTINV records per-target reaction rates for product isomers represented with ground-state data; the ledger does not establish that these isomers are populated in this zone.",
+            "Check population-weighted production for the listed isomers, and supply isomer decay data for any relevant populated state.",
             false,
         ),
         (
             "decay_daughters_missing",
             "decay daughters missing from the chain",
-            "Decay branches ending on a nuclide ACTINV does not track.",
-            "Inspect the ACTINV ledger for the named daughters.",
+            "The assembled decay chain has branches to daughters it does not track; this count is not specific to populated nuclides in the zone.",
+            "Check whether a populated or reachable zone nuclide uses these branches, then extend the decay chain if needed.",
             false,
         ),
         (
             "spontaneous_fission_branches_to_leakage",
             "spontaneous-fission branches routed out of the chain",
-            "Spontaneous fission is not followed; the branches are counted as leakage.",
-            "Only matters for actinide-bearing materials; use an actinide-capable setup.",
+            "The assembled decay chain contains spontaneous-fission branches that are not followed; this chain-wide count does not show that a zone nuclide reaches those branches.",
+            "Check whether a populated or reachable zone nuclide uses these branches, then use a chain that follows the relevant fission products.",
             false,
         ),
         (
             "library_target_limitations",
             "library target limitations",
-            "ACTINV records evaluation limits for these targets (for example reconstructed resonances).",
-            "Read the named limitation in the ACTINV ledger before relying on these reactions.",
+            "ACTINV records index limitations for targets in the initial material; these notes identify data handling but do not quantify a missing zone population or emission.",
+            "Review each named target and limitation before relying on its reaction data.",
             false,
         ),
     ];
     let mut gaps = Vec::new();
     for (key, category, effect, next_step, lower_bound) in table {
-        let (count, items, amount) = listed(ledger.get(key));
+        let (count, items) = listed(ledger.get(key));
         if count > 0 {
             gaps.push(DataGap {
                 category: format!("{category} ({key})"),
                 count,
                 items,
-                amount_atoms_per_g: amount,
+                amount_atoms_per_g: None,
                 effect: effect.into(),
                 next_step: next_step.into(),
                 lower_bound,

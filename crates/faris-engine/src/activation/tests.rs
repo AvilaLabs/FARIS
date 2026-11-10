@@ -519,6 +519,21 @@ fn an_identical_request_is_served_from_the_cache_and_a_changed_data_file_is_not(
     assert_eq!((s2.actinv_runs, s2.cache_hits), (0, 1));
     assert_eq!(first, second);
     assert_eq!(calls(rig.scratch.path()), 1);
+    // Old typed entries can carry reaction rates mislabeled as atom amounts.
+    // Their schema must force a fresh conversion even if the problem is identical.
+    for entry in std::fs::read_dir(rig.scratch.path().join("cache")).unwrap() {
+        let path = entry.unwrap().path();
+        let mut old: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        old["schema"] = json!("faris-activation-zone-cache/v0.1");
+        std::fs::write(path, serde_json::to_vec(&old).unwrap()).unwrap();
+    }
+    let (refreshed, refresh_stats) =
+        run_activation(&request, &rig.config, &Cancellation::default()).unwrap();
+    assert_eq!(
+        (refresh_stats.actinv_runs, refresh_stats.cache_hits),
+        (1, 0)
+    );
+    assert_eq!(first, refreshed);
     // A corrupt cache entry is ignored, not trusted.
     for entry in std::fs::read_dir(rig.scratch.path().join("cache")).unwrap() {
         std::fs::write(entry.unwrap().path(), "{").unwrap();
@@ -608,8 +623,8 @@ fn nuclides_lacking_data_are_listed_and_make_the_totals_a_lower_bound() {
         .expect("the products without decay data are a gap");
     assert_eq!(gap.count, missing.len());
     assert!(gap.lower_bound);
-    assert!(gap.amount_atoms_per_g.unwrap() > 0.0);
-    assert!(gap.effect.contains("lower bound") && !gap.next_step.is_empty());
+    assert_eq!(gap.amount_atoms_per_g, None);
+    assert!(gap.effect.contains("rates per target atom") && !gap.next_step.is_empty());
     assert!(gap.items[0].starts_with("Z="));
     assert_eq!(zone.completeness, Completeness::LowerBound);
     assert_eq!(result.totals[0].completeness, Completeness::LowerBound);
@@ -637,15 +652,25 @@ fn nuclides_lacking_data_are_listed_and_make_the_totals_a_lower_bound() {
     assert!(zone2.gaps.is_empty());
     assert!(zone2.points.iter().all(|p| p.kind == Kind::Calculated));
 
-    // A new missing product is named and amounts are kept, never dropped to zero.
+    // Reaction-ledger coefficients are not atom amounts, while direct leakage is.
     clean["ledger"]["products_no_evaluated_decay_data"] = json!({"270601_0": 1.5e-3});
+    clean["steps"].as_array_mut().unwrap().last_mut().unwrap()["leakage_atoms_per_g"] =
+        json!(7.5e-4);
     let zone3 = zone_from_actinv_result(&request.zones[0], &request, data, "h", &clean).unwrap();
     assert_eq!(zone3.completeness, Completeness::LowerBound);
-    assert_eq!(
-        zone3.gaps[0].items,
-        vec!["Z=270 A=601 isomer 0".to_string()]
-    );
-    assert_eq!(zone3.gaps[0].amount_atoms_per_g, Some(1.5e-3));
+    let products_gap = zone3
+        .gaps
+        .iter()
+        .find(|gap| gap.category.contains("products_no_evaluated_decay_data"))
+        .unwrap();
+    assert_eq!(products_gap.items, vec!["Z=270 A=601 isomer 0".to_string()]);
+    assert_eq!(products_gap.amount_atoms_per_g, None);
+    let leakage_gap = zone3
+        .gaps
+        .iter()
+        .find(|gap| gap.category.contains("leakage_atoms_per_g"))
+        .unwrap();
+    assert_eq!(leakage_gap.amount_atoms_per_g, Some(7.5e-4));
 }
 
 // Verifies: ACT-041

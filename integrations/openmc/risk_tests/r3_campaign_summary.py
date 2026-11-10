@@ -17,8 +17,10 @@ from pathlib import Path
 import statistics
 import sys
 
+import r3_scenario as sc
+
 GRIDS_CM = (100, 50, 25)
-COOLING_LABELS = ("1h", "1d", "1w", "1mo", "1y", "10y", "100y")
+COOLING_LABELS = tuple(sc.COOLING_LABELS.values())
 
 
 def _json(path: Path) -> dict:

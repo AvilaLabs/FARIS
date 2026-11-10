@@ -69,9 +69,10 @@ class CampaignSummaryTests(unittest.TestCase):
             self.fixture(root)
             result = summary.summarize(root)
         self.assertEqual(result["replicate_count"], 2)
-        self.assertEqual(len(result["points"]), 2 * 3 * 7)
+        self.assertEqual(len(result["points"]), 2 * 3 * 3)
+        self.assertEqual(summary.COOLING_LABELS, ("1 d", "7 d", "30 d"))
         group = next(g for g in result["cross_replicate_by_grid"]
-                     if g["activation_cell_cm"] == 50 and g["cooling_time"] == "1d")
+                     if g["activation_cell_cm"] == 50 and g["cooling_time"] == "1 d")
         self.assertEqual(group["available_replicates"], 2)
         self.assertEqual(len(group["ratio_values_by_replicate"]), 2)
         self.assertEqual([v["replicate"] for v in group["ratio_values_by_replicate"]], [1, 2])
@@ -80,7 +81,7 @@ class CampaignSummaryTests(unittest.TestCase):
         self.assertIn("unknown", point["ratio_uncertainty"])
         self.assertTrue(result["scientific_verdict"].startswith("INCONCLUSIVE"))
         cross = next(x for x in result["cross_grid_by_replicate"]
-                     if x["replicate"] == 1 and x["cooling_time"] == "1d")
+                     if x["replicate"] == 1 and x["cooling_time"] == "1 d")
         self.assertEqual([x["activation_cell_cm"] for x in cross["ordered_grid_values"]], [100, 50, 25])
         self.assertAlmostEqual(
             cross["adjacent_grid_differences"][0]["difference_fine_minus_coarse"], -0.005
@@ -101,7 +102,7 @@ class CampaignSummaryTests(unittest.TestCase):
             # Its artifact is present but a failed source task cannot contribute a value.
             result = summary.summarize(root)
         missing = next(p for p in result["points"] if p["replicate"] == 1 and
-                       p["activation_cell_cm"] == 25 and p["cooling_time"] == "1h")
+                       p["activation_cell_cm"] == 25 and p["cooling_time"] == "1 d")
         self.assertEqual(missing["status"], "MISSING_OR_FAILED")
         self.assertIsNone(missing.get("ratio_d1s_over_r2s"))
 
@@ -141,7 +142,7 @@ class CampaignSummaryTests(unittest.TestCase):
             write_json(path, state)
             result = summary.summarize(root)
         cross = next(x for x in result["cross_grid_by_replicate"]
-                     if x["replicate"] == 1 and x["cooling_time"] == "1d")
+                     if x["replicate"] == 1 and x["cooling_time"] == "1 d")
         self.assertEqual([x["status"] for x in cross["ordered_grid_values"]],
                          ["AVAILABLE", "MISSING_OR_FAILED", "AVAILABLE"])
         self.assertIsNone(cross["adjacent_grid_differences"][0]["difference_fine_minus_coarse"])
