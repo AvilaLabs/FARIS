@@ -140,7 +140,10 @@ shared library, and run the live control with:
 ```bash
 /home/connoravila/micromamba/envs/openmc0153dd/bin/python \
   integrations/openmc/risk_tests/build_mcnp_imp0_runtime.py \
-  --cross-sections /path/to/fns-fendl32-with-photon-overlay/cross_sections.xml
+  --cmake /home/connoravila/nuclear-data/p17-toolchain/root/usr/bin/cmake \
+  --cmake-library-path /home/connoravila/nuclear-data/p17-toolchain/root/usr/lib/x86_64-linux-gnu \
+  --cross-sections /path/to/fns-fendl32-with-photon-overlay/cross_sections.xml \
+  --output-dir runs/continuation/toolchains/faris-openmc-0153-imp0-20261109-v4
 ```
 
 Use the actual full neutron catalogue needed by FNS (including C, N, O and Pb);
@@ -154,7 +157,16 @@ diff. It copies that AIM-patched tree without `.git`, `build`, or `install`,
 verifies source and vendored-submodule identities before and after copying, and
 applies the imp0 patch only to the copy. The earlier `0feb9f3` development
 repository is a small patch-authoring subset and is not a buildable OpenMC
-source tree. The resulting toolchain and `build-receipt.json` are stored under
+source tree. Because the source copy has no `.git` and its upstream
+`.git_archival.txt` contains unexpanded `$Format` placeholders, the driver uses
+OpenMC's supported `ARCHIVAL_FILE` fallback. It writes that metadata outside
+the source tree with the verified base commit and the explicit
+`v0.15.3-faris-aim-imp0` build label, then checks the generated `version.h`
+reports version 0.15.3, the exact base commit, and no development suffix. The
+receipt records the metadata and generator hashes along with both patch hashes.
+The CMake executable and its `LD_LIBRARY_PATH` are explicit and bounded to the
+CMake subprocesses; runtime validation uses only the isolated OpenMC build and
+its dependency environment. The resulting toolchain and `build-receipt.json` are stored under
 `runs/continuation/toolchains/`; the live control receipt is written separately
 to `runs/continuation/mcnp-imp0-control-20261109-v1/control.json` only when all
 checks pass. This driver does not modify installed OpenMC environments.
