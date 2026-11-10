@@ -724,6 +724,32 @@
       "fixed_in": "9f28378",
       "disposition": "The data-only dose preflight rejected the checked CAD source XML because it used built-in recursive normal, tabular and mixture energy distributions and included zero-strength mesh bins. The actual v11 attempt stopped before transport. Preflight now validates those bounded built-in energy forms and allows nonnegative bin strengths while still requiring the outer and source-unit normalization, finite weights, strict XML fields and configured depth, node, component and parameter limits. Executable file or function sources remain unsupported. The retained 36.8 MB model passed direct preflight in 1.38 s; the v12 dose diagnostic is live, and no scientific or dose PASS is claimed.",
       "regression_test": "integrations/openmc/test_maintenance_actinv_backend.py::test_safe_source_preflight_accepts_bounded_recursive_energy_mixtures"
+    },
+    {
+      "id": "FARIS-056",
+      "title": "Web build could not compile native dialog calls and OS-string audit metadata",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "c177076",
+      "disposition": "The Web target failed to compile because dose-worker audit metadata serialized OsString values directly and the dose and transport panels called native rfd dialogs directly. Audit metadata now has a portable representation without changing the execution OsString, and panels use the platform-aware dialog wrapper. The Web app check, native build and five worker checks passed after the fix. This was a build portability failure, not a dose result.",
+      "regression_test": "crates/faris-engine/src/maintenance/spatial_dose_worker.rs::worker_environment_audit_metadata_serializes_os_values_portably"
+    },
+    {
+      "id": "FARIS-057",
+      "title": "Random-ray retagging rejected disjoint explicit void groups in real DAGMC geometry",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "76a56e7",
+      "disposition": "The retag helper required exactly one mat:void NAME group, while the genuine RM-M v3 geometry uses three disjoint explicit groups. It therefore rejected the checked geometry before random-ray preparation. The helper now requires the exact union of declared void volume IDs across disjoint groups, exactly one complement group, and preserves all non-NAME datasets. Eight synthetic tests pass; the actual 90 MB H5M retag, 30-role check and finalizer also passed. This does not accept Monte Carlo results or establish physical qualification.",
+      "regression_test": "integrations/openmc/risk_tests/test_retag_dagmc_materials.py::test_retags_multiple_disjoint_explicit_void_groups_by_exact_union"
     }
   ]
 }
