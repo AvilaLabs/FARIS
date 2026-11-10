@@ -10,6 +10,7 @@ use faris_engine::{
     },
     jobs::Cancellation,
 };
+use faris_model::units::DAY_S;
 use std::{
     path::PathBuf,
     sync::{
@@ -374,7 +375,7 @@ impl DesignHeatingPanel {
                     );
                     ui.end_row();
                     ui.label("Time limit (s)");
-                    ui.add(egui::DragValue::new(&mut self.max_seconds).range(1..=86_400));
+                    ui.add(egui::DragValue::new(&mut self.max_seconds).range(1..=DAY_S as u64));
                     ui.end_row();
                     ui.label("Mean relative error target");
                     ui.add(egui::DragValue::new(&mut self.target_error).range(0.001..=0.5).speed(0.005));

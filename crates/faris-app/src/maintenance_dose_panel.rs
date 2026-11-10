@@ -21,6 +21,7 @@ use std::{
 };
 
 use crate::design_transport_panel::CadHistoryContext;
+use faris_model::units::DAY_S;
 use faris_model::validation::{Quantity, note};
 
 const MAX_RESULT_BYTES: u64 = MAX_DOSE_RESULT_BYTES as u64;
@@ -266,13 +267,13 @@ impl MaintenanceDosePanel {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(format!(
                             "Fixed-duration model downtime: {:.3} d",
-                            design.fixed.total_replacement_downtime_s / 86_400.0
+                            design.fixed.total_replacement_downtime_s / DAY_S
                         ));
                         ui.label(format!("Computed state: {:?}", design.computed.status));
                         if let Some(summary) = &design.computed.summary {
                             ui.label(format!(
                                 "Computed downtime: {:.3} d",
-                                summary.total_replacement_downtime_s / 86_400.0
+                                summary.total_replacement_downtime_s / DAY_S
                             ));
                             ui.label(format!(
                                 "Availability fixed/computed: {:.2}% / {:.2}%",
@@ -336,7 +337,7 @@ impl MaintenanceDosePanel {
                         if let Some(summary) = &design.computed.summary {
                             ui.label(format!(
                                 "Replacement downtime: {:.3} d",
-                                summary.total_replacement_downtime_s / 86_400.0
+                                summary.total_replacement_downtime_s / DAY_S
                             ));
                             ui.label(format!("Availability: {:.2}%", 100.0 * summary.availability));
                             if let Some(net) = summary.lifetime_net_electricity_mwh {
@@ -576,7 +577,7 @@ impl MaintenanceDosePanel {
                     match crate::thread::Builder::new()
                         .name("faris-dose-result-dialog".into())
                         .spawn(move || {
-                            let path = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file();
+                            let path = crate::dialog::FileDialog::new().add_filter("JSON", &["json"]).pick_file();
                             let _ = tx.send(path);
                         })
                     {
@@ -697,7 +698,7 @@ fn path_row(
             match crate::thread::Builder::new()
                 .name("faris-dose-input-dialog".into())
                 .spawn(move || {
-                    let dialog = rfd::FileDialog::new().add_filter("JSON", &["json"]);
+                    let dialog = crate::dialog::FileDialog::new().add_filter("JSON", &["json"]);
                     let path = if matches!(field, DoseField::Output | DoseField::CadDesignFile) {
                         dialog.save_file()
                     } else {
@@ -967,13 +968,13 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
     ui.horizontal_wrapped(|ui| {
         ui.label(format!(
             "Fixed downtime: {:.3} days",
-            design.fixed.total_replacement_downtime_s / 86_400.0
+            design.fixed.total_replacement_downtime_s / DAY_S
         ));
         ui.label(format!("Computed status: {:?}", design.computed.status));
         if let Some(summary) = &design.computed.summary {
             ui.label(format!(
                 "Computed: {:.3} days",
-                summary.total_replacement_downtime_s / 86_400.0
+                summary.total_replacement_downtime_s / DAY_S
             ));
         }
         ui.label(format!(
@@ -1058,10 +1059,10 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
                             "{} + {:.3} d",
                             event
                                 .cooldown_s
-                                .map_or("—".into(), |s| format!("{:.3}", s / 86_400.0)),
-                            event.work_s / 86_400.0
+                                .map_or("—".into(), |s| format!("{:.3}", s / DAY_S)),
+                            event.work_s / DAY_S
                         ));
-                        ui.label(format!("{:.3} d", event.duration_used_s / 86_400.0));
+                        ui.label(format!("{:.3} d", event.duration_used_s / DAY_S));
                         ui.label(ratio);
                         let color = if comparison == "INCONCLUSIVE_COVARIANCE" {
                             egui::Color32::from_rgb(165, 90, 20)
@@ -1139,7 +1140,7 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
                             }
                             ui.end_row();
                             for point in &curve.points {
-                                ui.label(format!("{:.4}", point.cooling_s / 86_400.0));
+                                ui.label(format!("{:.4}", point.cooling_s / DAY_S));
                                 ui.label(
                                     point
                                         .d1s_sv_h

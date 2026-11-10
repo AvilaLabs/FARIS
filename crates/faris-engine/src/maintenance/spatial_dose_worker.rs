@@ -15,6 +15,7 @@ use super::{DoseEventCurveProvider, ReplacementEvent, irradiation};
 use crate::history::HistoryResult;
 use crate::jobs::{Cancellation, ExecutionStatus, JobResult, JobSpec, ResourceLimits, run_job};
 use faris_model::maintenance::{DoseMethod, PHOTON_EFFECTIVE_DOSE_RATE_QUANTITY};
+use faris_model::units::DAY_S;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -194,10 +195,11 @@ pub fn prepare_dose_cad(
     }
     validate_bounds(&config.activation_mesh, "activation mesh")?;
     validate_sampling(&config.sampling)?;
-    if !actinv_prepare.timeout_s.is_finite()
-        || !(1.0..=86_400.0).contains(&actinv_prepare.timeout_s)
-    {
-        return Err("ACTINV timeout_s must be finite and in 1..=86400".into());
+    if !actinv_prepare.timeout_s.is_finite() || !(1.0..=DAY_S).contains(&actinv_prepare.timeout_s) {
+        return Err(format!(
+            "ACTINV timeout_s must be finite and in 1..={}",
+            DAY_S as u64
+        ));
     }
     let actinv_executable = selected_actinv
         .canonicalize()
@@ -1911,8 +1913,8 @@ impl DosePhysicsManifest {
             if !backend.data_dir.is_dir() {
                 return Err("ACTINV data_dir must be an existing directory".into());
             }
-            if !backend.timeout_s.is_finite() || !(1.0..=86_400.0).contains(&backend.timeout_s) {
-                return Err("ACTINV timeout_s must lie in 1..=86400".into());
+            if !backend.timeout_s.is_finite() || !(1.0..=DAY_S).contains(&backend.timeout_s) {
+                return Err(format!("ACTINV timeout_s must lie in 1..={}", DAY_S as u64));
             }
             for (name, reference) in [
                 ("ACTINV executable", &mut backend.executable),
@@ -2804,9 +2806,12 @@ fn validate_sampling(s: &DoseSampling) -> Result<(), String> {
             "VITAMIN-J-42" | "CCFE-709" | "FISPACT-709"
         )
         || !s.run_budget_s.is_finite()
-        || !(1.0..=86_400.0).contains(&s.run_budget_s)
+        || !(1.0..=DAY_S).contains(&s.run_budget_s)
     {
-        return Err("dose sampling needs a supported energy structure, positive seed and 1–86400 s run budget".into());
+        return Err(format!(
+            "dose sampling needs a supported energy structure, positive seed and 1–{} s run budget",
+            DAY_S as u64
+        ));
     }
     Ok(())
 }
@@ -2979,8 +2984,8 @@ fn launch_bounded(
         "output_directory": &out,
         "working_directory": &working_directory,
         "environment": {
-            "PATH": &path,
-            "PYTHONPATH": &python_path,
+            "PATH": os_string_metadata(&path),
+            "PYTHONPATH": os_string_metadata(&python_path),
             "PYTHONDONTWRITEBYTECODE": "1",
         },
         "job": &result,
@@ -2995,6 +3000,20 @@ fn launch_bounded(
         &metadata,
     )?;
     Ok(result)
+}
+
+/// Serialize an OS value for audit metadata without changing the value passed to
+/// the worker. Most paths are UTF-8 and retain the existing JSON string shape;
+/// non-UTF-8 values use Rust's escaped `OsStr` debug form instead of being
+/// silently replaced with lossy Unicode characters.
+fn os_string_metadata(value: &std::ffi::OsStr) -> serde_json::Value {
+    match value.to_str() {
+        Some(value) => json!(value),
+        None => json!({
+            "encoding": "rust-osstr-debug",
+            "value": format!("{value:?}"),
+        }),
+    }
 }
 
 fn resolve_python(selected: &Path) -> Result<PathBuf, String> {
@@ -3062,7 +3081,7 @@ fn tail_job_output(result: &JobResult) -> String {
 
 #[cfg(test)]
 mod bounded_worker_tests {
-    use super::{make_ref, verify_selected_actinv, worker_environment};
+    use super::{make_ref, os_string_metadata, verify_selected_actinv, worker_environment};
     use std::{
         collections::BTreeMap,
         ffi::{OsStr, OsString},
@@ -3117,6 +3136,26 @@ mod bounded_worker_tests {
         )
         .unwrap_err();
         assert!(error.contains("holding openmc_plasma_source"));
+    }
+
+    #[test]
+    fn worker_environment_audit_metadata_serializes_os_values_portably() {
+        let unicode = OsString::from("/opt/python/bin:/usr/bin");
+        assert_eq!(
+            os_string_metadata(&unicode),
+            serde_json::json!("/opt/python/bin:/usr/bin")
+        );
+
+        // This byte sequence is a valid non-UTF-8 Unix OsStr and confirms the
+        // audit representation handles values serde_json cannot serialize.
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            let non_unicode = OsString::from_vec(vec![b'/', 0xff]);
+            let metadata = os_string_metadata(&non_unicode);
+            assert_eq!(metadata["encoding"], "rust-osstr-debug");
+            assert_eq!(metadata["value"], format!("{non_unicode:?}"));
+        }
     }
 
     #[test]

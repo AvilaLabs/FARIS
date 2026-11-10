@@ -61,11 +61,33 @@ fn design_file_waivers_example_parses_and_names_waivable_checks() {
 #[test]
 fn maintenance_examples_parse_and_validate() {
     let blocks = json_blocks("docs/guide/maintenance.md");
-    assert_eq!(blocks.len(), 2, "a new json example needs a check here");
+    assert_eq!(blocks.len(), 3, "a new json example needs a check here");
+
+    let mut legacy_designs_block = None;
+    let mut cad_designs_block = None;
+    let mut assumptions_block = None;
+    for block in &blocks {
+        let value: serde_json::Value = serde_json::from_str(block).unwrap();
+        match value["schema_version"].as_str().unwrap_or_default() {
+            "faris-maintenance-designs/v0.1" => {
+                assert!(legacy_designs_block.replace(block.as_str()).is_none());
+            }
+            faris_engine::maintenance::files::CAD_DOSE_DESIGNS_VERSION => {
+                assert!(cad_designs_block.replace(block.as_str()).is_none());
+            }
+            "faris-maintenance-assumptions/v0.1" => {
+                assert!(assumptions_block.replace(block.as_str()).is_none());
+            }
+            schema => panic!("unexpected maintenance example schema: {schema}"),
+        }
+    }
+    let legacy_designs_block = legacy_designs_block.expect("one legacy designs example");
+    let cad_designs_block = cad_designs_block.expect("one CAD-native designs example");
+    let assumptions_block = assumptions_block.expect("one assumptions example");
 
     // The designs file: its parser checks that the five named files exist, so make them.
     let dir = tempfile::tempdir().unwrap();
-    let designs: serde_json::Value = serde_json::from_str(&blocks[0]).unwrap();
+    let designs: serde_json::Value = serde_json::from_str(legacy_designs_block).unwrap();
     for entry in designs["designs"].as_object().unwrap().values() {
         for key in [
             "scenario",
@@ -79,12 +101,12 @@ fn maintenance_examples_parse_and_validate() {
             std::fs::write(path, b"{}").unwrap();
         }
     }
-    let resolved =
-        parse_designs(blocks[0].as_bytes(), dir.path()).expect("the designs example parses");
+    let resolved = parse_designs(legacy_designs_block.as_bytes(), dir.path())
+        .expect("the designs example parses");
     assert_eq!(resolved.keys().collect::<Vec<_>>(), ["port__reference"]);
 
     let assumptions: MaintenanceAssumptions =
-        serde_json::from_str(&blocks[1]).expect("the assumptions example parses");
+        serde_json::from_str(assumptions_block).expect("the assumptions example parses");
     assumptions
         .validate()
         .expect("the assumptions example validates");
@@ -97,6 +119,65 @@ fn maintenance_examples_parse_and_validate() {
             );
         }
     }
+
+    // Resolve the CAD-native example with the production designs parser. The docs' illustrative
+    // file names are backed by a committed checked CAD design and its hash-linked operating
+    // assumptions; no CAD, STEP, or solver work is performed here.
+    let cad_dir = tempfile::tempdir().unwrap();
+    let fixture_dir = root().join("scenarios/rm-m");
+    std::fs::copy(
+        fixture_dir.join("rm-m.faris-design.json"),
+        cad_dir
+            .path()
+            .join("synthetic-tiny-tokamak.faris-design.json"),
+    )
+    .unwrap();
+    std::fs::copy(
+        fixture_dir.join("rm-m.operating-history.json"),
+        cad_dir.path().join("rm-m.operating-history.json"),
+    )
+    .unwrap();
+    for relative in [
+        "runs/cad-history/history-driving-rates.json",
+        "runs/cad-dose/dose-physics.json",
+    ] {
+        let path = cad_dir.path().join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"{}").unwrap();
+    }
+    let resolved = parse_designs(cad_designs_block.as_bytes(), cad_dir.path())
+        .expect("the CAD dose designs example parses and resolves");
+    assert_eq!(
+        resolved.keys().collect::<Vec<_>>(),
+        ["synthetic-tiny-tokamak-control"]
+    );
+    let design = &resolved["synthetic-tiny-tokamak-control"];
+    assert!(design.cad_dose_only);
+    assert!(design.cad_design_native);
+    assert_eq!(
+        design.design_file.as_deref(),
+        Some(
+            cad_dir
+                .path()
+                .join("synthetic-tiny-tokamak.faris-design.json")
+                .as_path()
+        )
+    );
+    assert_eq!(
+        design.history_run,
+        cad_dir
+            .path()
+            .join("runs/cad-history/history-driving-rates.json")
+    );
+    assert_eq!(
+        design.dose_physics.as_deref(),
+        Some(
+            cad_dir
+                .path()
+                .join("runs/cad-dose/dose-physics.json")
+                .as_path()
+        )
+    );
 }
 
 // Verifies: QA-016

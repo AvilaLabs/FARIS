@@ -388,7 +388,7 @@ impl DesignTransportPanel {
                 let _ = crate::thread::Builder::new()
                     .name("faris-design-report-dialog".into())
                     .spawn(move || {
-                        let path = rfd::FileDialog::new()
+                        let path = crate::dialog::FileDialog::new()
                             .add_filter("JSON", &["json"])
                             .pick_file();
                         let _ = tx.send(path);

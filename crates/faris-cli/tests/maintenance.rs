@@ -154,7 +154,7 @@ fn run_validates_its_inputs_before_running_anything() {
             r#"{"schema_version": "faris-maintenance-assumptions/v0.1", "governing_quantity": "dose",
                 "classes": {"m": {"component_id": "m", "governing": ["m"], "work_s": 1.0,
                                   "threshold": {"kind": "q_star", "q_star_w_per_m3": 1.0}}}}"#,
-            "dose-governed durations are not supported in 0.2",
+            "dose-governed durations require faris-maintenance-assumptions/v0.2 and hash-bound spatial dose curves at the named task location",
         ),
         (
             r#"{"schema_version": "faris-maintenance-designs/v0.1", "designs": {"a": {
