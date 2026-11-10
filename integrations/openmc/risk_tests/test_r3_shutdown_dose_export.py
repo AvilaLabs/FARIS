@@ -13,18 +13,26 @@ import zipfile
 from types import SimpleNamespace
 import unittest
 
-import numpy as np
-
 try:
+    import numpy as np
     import h5py
-except ImportError:
-    h5py = None
+except ImportError as exc:
+    if os.environ.get("FARIS_REQUIRE_OPENMC") == "1":
+        raise
+    EXPORT_TEST_DEPS_MISSING = str(exc)
+    h5py = np = None
+else:
+    EXPORT_TEST_DEPS_MISSING = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r3_scenario as sc  # noqa: E402
 import r3_activation_coverage as AC  # noqa: E402
-import r3_shutdown_dose_export as EX  # noqa: E402
-from r3_r2s import sampling_settings  # noqa: E402
+if EXPORT_TEST_DEPS_MISSING is None:
+    import r3_shutdown_dose_export as EX  # noqa: E402
+    from r3_r2s import sampling_settings  # noqa: E402
+else:
+    EX = None
+    sampling_settings = None
 
 
 def _fixture(root: Path, method: str, basis_hashes=None):
@@ -208,6 +216,8 @@ def _fixture(root: Path, method: str, basis_hashes=None):
 
 
 @unittest.skipUnless(h5py is not None, "exporter tests require h5py to inspect actual H5M coordinates")
+@unittest.skipIf(EXPORT_TEST_DEPS_MISSING is not None,
+                 f"shutdown-dose exporter fixtures require h5py and NumPy: {EXPORT_TEST_DEPS_MISSING}")
 class R3ShutdownDoseExportTest(unittest.TestCase):
     def test_bounded_evidence_bundle_is_content_addressed_and_reopens_all_chunk_sources(self):
         with tempfile.TemporaryDirectory() as temp:

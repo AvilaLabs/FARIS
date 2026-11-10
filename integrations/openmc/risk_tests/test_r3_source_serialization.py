@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -12,17 +13,24 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import r3_shutdown_dose_export as DX  # noqa: E402
-import r3_dose_statistics as DS  # noqa: E402
-import r3_scenario as sc  # noqa: E402
-import r3_d1s as D1S  # noqa: E402
-import r3_r2s as R2S  # noqa: E402
-import rm_m_openmc as RM  # noqa: E402
-
-if importlib.util.find_spec("openmc") is None:
+try:
+    import h5py  # noqa: F401
+    import numpy  # noqa: F401
+    import openmc
+    import openmc.deplete  # noqa: F401
+except ImportError as exc:
+    if os.environ.get("FARIS_REQUIRE_OPENMC") == "1":
+        raise
+    OPENMC_TEST_DEPS_MISSING = str(exc)
     openmc = None
 else:
-    import openmc  # noqa: E402
+    OPENMC_TEST_DEPS_MISSING = None
+    import r3_shutdown_dose_export as DX  # noqa: E402
+    import r3_dose_statistics as DS  # noqa: E402
+    import r3_scenario as sc  # noqa: E402
+    import r3_d1s as D1S  # noqa: E402
+    import r3_r2s as R2S  # noqa: E402
+    import rm_m_openmc as RM  # noqa: E402
 
 
 def _actual_basis_smoke(method: str, model_dir: Path, out: Path) -> dict:
@@ -59,7 +67,8 @@ def _actual_basis_smoke(method: str, model_dir: Path, out: Path) -> dict:
             "source_mesh_id": source_mesh_id}
 
 
-@unittest.skipIf(openmc is None, "OpenMC is not installed in this Python")
+@unittest.skipIf(OPENMC_TEST_DEPS_MISSING is not None,
+                 f"source serialization tests require h5py, NumPy, and OpenMC: {OPENMC_TEST_DEPS_MISSING}")
 class R3SourceSerializationTest(unittest.TestCase):
     def _mesh(self, mesh_id: int, upper_right=(2.0, 2.0, 2.0)):
         mesh = openmc.RegularMesh(mesh_id=mesh_id)
@@ -217,7 +226,9 @@ class R3SourceSerializationTest(unittest.TestCase):
                         "print(json.dumps(_actual_basis_smoke(sys.argv[2],Path(sys.argv[3]),Path(sys.argv[4]))))")
                 result = subprocess.run(
                     [sys.executable, "-c", code, str(Path(__file__).resolve().parent), method,
-                     str(model_dir), str(out)], check=True, capture_output=True, text=True)
+                     str(model_dir), str(out)], check=False, capture_output=True, text=True)
+                if result.returncode != 0:
+                    self.fail(f"{method} OpenMC API preflight failed before transport: {result.stderr}")
                 resulting[method] = json.loads(result.stdout.strip().splitlines()[-1])
 
             self.assertEqual(set(resulting["d1s"]["hashes"]),

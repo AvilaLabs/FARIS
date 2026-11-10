@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import hashlib
+import struct
 from pathlib import Path
 
 import rm_m_spec as spec
@@ -37,11 +38,43 @@ RATIO_BAND = (0.85, 1.15)
 VOXEL_R_LIMIT = 0.10
 CONSERVATION_LIMIT = 1.0e-6
 ACTIVATION_GROUPS = "VITAMIN-J-42"
+ACTIVATION_GROUP_BASIS = {
+    "VITAMIN-J-42": {"group_count": 42, "energy_edges_sha256": "1a3ebfef2e84b797cbeab9199fd590a17942d969c92f0f2d551080d31f69fbd6",
+                     "basis_kind": "historical OpenMC VITAMIN-J-42; 1 keV lower edge"},
+    "VITAMIN-J-175-plus-0-to-50MeV": {"group_count": 177, "energy_edges_sha256": "f37cec76b0b7cbc4aa0a097b5d82dcfede9216122de8b0f668e0eee8a4b112c9",
+                                       "basis_kind": "OpenMC VITAMIN-J-175 edges extended to 0 eV and 50 MeV; below-data-edge activation contribution unresolved",
+                                       "openmc_group_structure": "VITAMIN-J-175"},
+    "SCALE-252-plus-0-to-50MeV": {"group_count": 253, "energy_edges_sha256": "452d3185b702c116eb68f2e9c27a52d0991899d1f8ec33b611f55d77b0345b26",
+                                   "basis_kind": "OpenMC SCALE-252 edges extended to 50 MeV; below-data-edge activation contribution unresolved",
+                                   "openmc_group_structure": "SCALE-252"},
+}
+ACTIVATION_GROUP_OPTIONS = tuple(ACTIVATION_GROUP_BASIS)
 FULL_EMISSION_PROTOCOL = "r3-full-emission-reference/v1"
 DEFAULT_ACTIVATION_CELL_CM = 100.0
 MAX_ACTIVATION_CELLS = 262_144
 ACTIVATION_GROUP_COUNT = 42
 ACTIVATION_ESTIMATED_MEMORY_LIMIT_BYTES = 256 * 1024 * 1024
+
+
+def activation_group_edges(openmc, group_structure: str, historical_edges) -> tuple[float, ...]:
+    """Return the exact pinned edge list for a predeclared activation basis."""
+    identity = ACTIVATION_GROUP_BASIS.get(group_structure)
+    if identity is None:
+        raise ValueError(f"unsupported R3 activation energy basis: {group_structure}")
+    if group_structure == ACTIVATION_GROUPS:
+        edges = tuple(map(float, historical_edges))
+    else:
+        edges = tuple(map(float, openmc.mgxs.GROUP_STRUCTURES[identity["openmc_group_structure"]]))
+        if edges[0] > 0.0:
+            edges = (0.0, *edges)
+        if edges[-1] < 50.0e6:
+            edges = (*edges, 50.0e6)
+    if len(edges) - 1 != identity["group_count"] or any(b <= a for a, b in zip(edges, edges[1:])):
+        raise ValueError(f"OpenMC edges do not match expected {group_structure} basis dimensions")
+    digest = hashlib.sha256(struct.pack("<" + "d" * len(edges), *edges)).hexdigest()
+    if digest != identity["energy_edges_sha256"]:
+        raise ValueError(f"OpenMC edges do not match pinned {group_structure} basis hash")
+    return edges
 
 
 def mesh_volume_cm3() -> float:
@@ -50,7 +83,8 @@ def mesh_volume_cm3() -> float:
 
 
 def activation_grid_spec(lower_left_cm, upper_right_cm, cell_cm: float = DEFAULT_ACTIVATION_CELL_CM,
-                         max_cells: int = MAX_ACTIVATION_CELLS) -> dict:
+                         max_cells: int = MAX_ACTIVATION_CELLS,
+                         energy_group_count: int = ACTIVATION_GROUP_COUNT) -> dict:
     """Align a coarse activation grid around verified H5M vertex bounds, with explicit caps."""
     lower = tuple(map(float, lower_left_cm))
     upper = tuple(map(float, upper_right_cm))
@@ -65,7 +99,9 @@ def activation_grid_spec(lower_left_cm, upper_right_cm, cell_cm: float = DEFAULT
                        for lo, hi in zip(aligned_lower, upper))
     aligned_upper = tuple(lo + n * cell_cm for lo, n in zip(aligned_lower, dimensions))
     cell_count = math.prod(dimensions)
-    estimated_bytes = cell_count * (8 * (4 + ACTIVATION_GROUP_COUNT) + 128)
+    if not isinstance(energy_group_count, int) or energy_group_count < 1:
+        raise ValueError("activation energy-group count must be positive")
+    estimated_bytes = cell_count * (8 * (4 + energy_group_count) + 128)
     if cell_count > min(max_cells, MAX_ACTIVATION_CELLS):
         raise ValueError(f"activation grid has {cell_count} cells; cap is {min(max_cells, MAX_ACTIVATION_CELLS)}")
     if estimated_bytes > ACTIVATION_ESTIMATED_MEMORY_LIMIT_BYTES:
@@ -77,9 +113,10 @@ def activation_grid_spec(lower_left_cm, upper_right_cm, cell_cm: float = DEFAULT
         "cell_cm": float(cell_cm), "lower_left_cm": list(aligned_lower),
         "upper_right_cm": list(aligned_upper), "dimension": list(dimensions),
         "cell_count": cell_count, "max_cells": min(max_cells, MAX_ACTIVATION_CELLS),
+        "energy_group_count": energy_group_count,
         "estimated_mesh_array_bytes": estimated_bytes,
         "memory_estimate_scope": (
-            "4 material-volume slots, 42-group flux values, and 128 bytes/cell bookkeeping only; "
+            f"4 material-volume slots, {energy_group_count}-group flux values, and 128 bytes/cell bookkeeping only; "
             "excludes sparse material-domain multiplicity, MicroXS tensors, depletion inventories, and solver allocations"
         ),
     }

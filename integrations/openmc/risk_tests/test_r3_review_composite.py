@@ -4,14 +4,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
 
-import h5py
-import numpy as np
+try:
+    import h5py
+    import numpy as np
+except ImportError as exc:
+    if os.environ.get("FARIS_REQUIRE_OPENMC") == "1":
+        raise
+    HDF_TEST_DEPS_MISSING = str(exc)
+    h5py = np = None
+else:
+    HDF_TEST_DEPS_MISSING = None
 
 import r3_review_composite as RC
 
@@ -27,6 +36,8 @@ def _json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
 
 
+@unittest.skipIf(HDF_TEST_DEPS_MISSING is not None,
+                 f"review composite fixtures require h5py and NumPy: {HDF_TEST_DEPS_MISSING}")
 class ReviewCompositeTests(unittest.TestCase):
     def _fixture_build_inputs(self, base: Path):
         candidate_dir = base / "candidate"

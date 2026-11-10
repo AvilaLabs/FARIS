@@ -40,6 +40,7 @@ import h5py
 import numpy as np
 
 import r3_activation_coverage as AC
+import r3_scenario as SC
 
 SCHEMA = "faris-r3-bounded-microxs/v2"
 PLAN_SCHEMA = "faris-r3-bounded-microxs-plan/v2"
@@ -65,6 +66,20 @@ VITAMIN_J_42_EDGES_E_V = (
     20000000.0, 30000000.0, 50000000.0,
 )
 VITAMIN_J_42_EDGE_SHA256 = "1a3ebfef2e84b797cbeab9199fd590a17942d969c92f0f2d551080d31f69fbd6"
+
+
+def validate_energy_group_basis(group_structure: str, energy_edges_eV) -> tuple[np.ndarray, str]:
+    """Require an explicitly named and hash-pinned activation energy basis."""
+    identity = SC.ACTIVATION_GROUP_BASIS.get(group_structure)
+    if identity is None:
+        raise ValueError(f"unsupported bounded R3 activation group basis: {group_structure}")
+    edges = np.asarray(energy_edges_eV, dtype=np.float64)
+    if edges.ndim != 1 or not np.all(np.isfinite(edges)) or np.any(np.diff(edges) <= 0.0):
+        raise ValueError("R3 energy group edges must be finite and strictly ascending")
+    digest = hashlib.sha256(edges.astype("<f8", copy=False).tobytes()).hexdigest()
+    if edges.size - 1 != identity["group_count"] or digest != identity["energy_edges_sha256"]:
+        raise ValueError(f"energy edges do not match the frozen {group_structure} basis")
+    return edges, digest
 GIB = 1024 ** 3
 DEFAULT_MAX_OUTPUT_BYTES = 8 * GIB
 DEFAULT_DISK_RESERVE_BYTES = 8 * GIB
@@ -405,7 +420,8 @@ def collapse_metadata_memory_preflight(cross_sections_xml: Path, required_nuclid
                                        reactions: list[str], reaction_mt: dict[str, int],
                                        domain_count: int, domain_chunk: int,
                                        temperature_k: float = 293.6,
-                                       temperature_tolerance_k: float = 1.0) -> dict:
+                                       temperature_tolerance_k: float = 1.0,
+                                       group_count: int = 42) -> dict:
     """Bound pointwise-array working memory using HDF5 metadata only."""
     index = AC._cross_section_index(Path(cross_sections_xml).resolve(strict=True))
     sizes = {}
@@ -422,7 +438,9 @@ def collapse_metadata_memory_preflight(cross_sections_xml: Path, required_nuclid
         max_source = max(max_source, spec["source_array_bytes"])
         max_chunk = max(max_chunk, spec["largest_hdf_chunk_bytes"])
     chunk = min(int(domain_chunk), int(domain_count))
-    working = 4 * max_source + max_chunk + chunk * (42 + len(reactions) * 3) * 8 + 128 * 1024 * 1024
+    if group_count < 1:
+        raise ValueError("energy group count must be positive")
+    working = 4 * max_source + max_chunk + chunk * (group_count + len(reactions) * 3) * 8 + 128 * 1024 * 1024
     return {"required_nuclide_count": len(required_nuclides), "reaction_count": len(reactions),
             "max_pointwise_source_array_bytes": max_source, "largest_hdf5_chunk_bytes": max_chunk,
             "domain_chunk": chunk, "working_bytes_estimate": working,
@@ -444,7 +462,8 @@ def prepare_plan(plan_path: Path, *, fluxes_path: Path, volumes_path: Path, chai
                  domain_chunk: int = 64, output_budget_bytes: int = DEFAULT_MAX_OUTPUT_BYTES,
                  disk_reserve_bytes: int = DEFAULT_DISK_RESERVE_BYTES,
                  memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
-                 reaction_mt: dict[str, int] | None = None) -> dict:
+                 reaction_mt: dict[str, int] | None = None,
+                 energy_group_structure: str = "VITAMIN-J-42") -> dict:
     """Create a frozen preflight plan at a new path; no solver is run."""
     plan_path = Path(plan_path).resolve()
     if plan_path.exists():
@@ -465,9 +484,9 @@ def prepare_plan(plan_path: Path, *, fluxes_path: Path, volumes_path: Path, chai
     if not math.isfinite(temperature_k) or temperature_k <= 0.0 or \
             not math.isfinite(temperature_tolerance_k) or temperature_tolerance_k <= 0.0:
         raise ValueError("temperature and temperature tolerance must be finite and positive")
-    edges = np.asarray(energy_edges_eV, dtype=np.float64)
-    if edges.ndim != 1 or edges.size < 2 or not np.all(np.isfinite(edges)) or np.any(np.diff(edges) <= 0.0):
-        raise ValueError("R3 energy group edges must be finite and strictly ascending")
+    edges, edges_hash = validate_energy_group_basis(energy_group_structure, energy_edges_eV)
+    if edges.size < 2:
+        raise ValueError("R3 energy group edges must contain at least two boundaries")
     fluxes = np.load(paths["fluxes"], mmap_mode="r", allow_pickle=False)
     if fluxes.ndim != 2 or fluxes.shape[1] != edges.size - 1 or not np.issubdtype(fluxes.dtype, np.number):
         raise ValueError("fluxes.npy must have exactly one column per declared energy group")
@@ -487,11 +506,9 @@ def prepare_plan(plan_path: Path, *, fluxes_path: Path, volumes_path: Path, chai
     chain_reactions, reachable, required, reactions = _chain_spec(paths["chain"], roots, reaction_mt)
     if required != coverage["required_microxs_nuclides"]:
         raise ValueError("chain requirement list differs from the independent activation coverage guard")
-    if int(fluxes.shape[1]) != 42:
-        raise ValueError("this predeclared R3 bounded collapse currently requires the VITAMIN-J-42 42-group basis")
-    edges_hash = hashlib.sha256(np.asarray(edges, dtype="<f8").tobytes()).hexdigest()
-    if edges_hash != VITAMIN_J_42_EDGE_SHA256:
-        raise ValueError("bounded R3 collapse requires the pinned OpenMC VITAMIN-J-42 group edges")
+    group_count = int(edges.size - 1)
+    if int(fluxes.shape[1]) != group_count:
+        raise ValueError("flux group column count differs from the declared activation basis")
     hdf_by_nuclide = AC._cross_section_index(paths["cross_sections"])
     hdf_hashes = {item["nuclide"]: item["sha256"] for item in coverage["indexed_data_files"]}
     specs = {}
@@ -543,7 +560,7 @@ def prepare_plan(plan_path: Path, *, fluxes_path: Path, volumes_path: Path, chai
         "reaction_mt": {name: reaction_mt[name] for name in reactions},
         "energy_edges_eV": edges.tolist(),
         "energy_edges_sha256": edges_hash,
-        "energy_group_structure": "VITAMIN-J-42",
+        "energy_group_structure": energy_group_structure,
         "temperature": {"requested_K": temperature_k, "method": "nearest", "tolerance_K": temperature_tolerance_k,
                         "per_nuclide_hdf": specs},
         "mesh_material_domain_order": "row-major np.where(mesh_material_volumes.materials > -1), identical to OpenMC 0.15.3 MeshMaterialFilter.from_volumes",
@@ -730,7 +747,8 @@ def _capi_input_identity(xs_path: Path, flux_path: Path, index: dict[str, Path],
 def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_edges_eV,
                            checks: list[dict], *, temperature_k: float = 293.6,
                            temperature_tolerance_k: float = 1.0, max_nuclides: int = 3,
-                           relative_tolerance: float = 2.0e-12) -> dict:
+                           relative_tolerance: float = 2.0e-12,
+                           energy_group_structure: str = "VITAMIN-J-42") -> dict:
     """Compare the offline collapse to pinned OpenMC CAPI for <=3 actual nuclides.
 
     This initializes OpenMC's C API only to load one requested nuclide at a
@@ -746,12 +764,10 @@ def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_e
     flux_path = Path(fluxes_path).resolve(strict=True)
     xs_hash_before = sha256_file(xs_path)
     flux_hash_before = sha256_file(flux_path)
-    edges = np.asarray(energy_edges_eV, dtype=np.float64)
+    edges, edges_hash = validate_energy_group_basis(energy_group_structure, energy_edges_eV)
     flux_rows = np.load(flux_path, mmap_mode="r", allow_pickle=False)
     if edges.ndim != 1 or np.any(np.diff(edges) <= 0.0) or flux_rows.ndim != 2 or flux_rows.shape[1] != edges.size - 1:
         raise ValueError("CAPI reference flux and energy groups have inconsistent dimensions")
-    if hashlib.sha256(edges.astype("<f8", copy=False).tobytes()).hexdigest() != VITAMIN_J_42_EDGE_SHA256:
-        raise ValueError("CAPI reference requires the pinned VITAMIN-J-42 group boundaries")
     seen = set()
     prepared = []
     index = AC._cross_section_index(xs_path)
@@ -853,7 +869,8 @@ def compare_capi_reference(cross_sections_xml: Path, fluxes_path: Path, energy_e
         "data_identity": {"pre_comparison": identities_before, "post_comparison": identities_after,
                           "stable": True},
         "data_identity_scope": "Exact index, flux and listed nuclide HDF5 byte identities were checked before and after this sample comparison; identity is not data-quality qualification.",
-        "energy_edges_eV_sha256": hashlib.sha256(edges.astype("<f8", copy=False).tobytes()).hexdigest(),
+        "energy_edges_eV_sha256": edges_hash,
+        "energy_group_structure": energy_group_structure,
         "checks": results,
         "reference_scope": "CAPI load_nuclide plus collapse_rate only; no transport solver was started",
         "qualification_limit": "A bounded sample agreement validates the collapse implementation only; full-chain data coverage, evaluation provenance, decay data and model adequacy remain separate gates.",

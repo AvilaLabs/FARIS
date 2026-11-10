@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import sys
 import tempfile
 import types
@@ -15,20 +16,47 @@ import zipfile
 from contextlib import nullcontext
 from pathlib import Path
 
-import h5py
-import numpy as np
-import openmc
-import openmc.deplete
+try:
+    import h5py
+    import numpy as np
+    import openmc
+    import openmc.deplete
+except ImportError as exc:
+    if os.environ.get("FARIS_REQUIRE_OPENMC") == "1":
+        raise
+    OPENMC_TEST_DEPS_MISSING = str(exc)
+    h5py = np = openmc = None
+else:
+    OPENMC_TEST_DEPS_MISSING = None
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import r3_bounded_microxs as BC  # noqa: E402
+    import r3_scenario as SC  # noqa: E402
 import xml.etree.ElementTree as ET
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import r3_bounded_microxs as BC  # noqa: E402
+
+_requires_openmc = unittest.skipIf(
+    OPENMC_TEST_DEPS_MISSING is not None,
+    f"bounded MicroXS tests require h5py, NumPy, and OpenMC: {OPENMC_TEST_DEPS_MISSING}")
 
 
+@_requires_openmc
 class CollapseMathTests(unittest.TestCase):
     def test_pinned_vitamin_j_42_edges_have_the_openmc_0153_hash(self):
         edges = np.asarray(BC.VITAMIN_J_42_EDGES_E_V, dtype="<f8")
         self.assertEqual(hashlib.sha256(edges.tobytes()).hexdigest(), BC.VITAMIN_J_42_EDGE_SHA256)
+
+    def test_extended_bases_match_pinned_openmc_edges_and_zero_lower_bound(self):
+        for name in SC.ACTIVATION_GROUP_OPTIONS:
+            with self.subTest(name=name):
+                edges = np.asarray(SC.activation_group_edges(openmc, name, BC.VITAMIN_J_42_EDGES_E_V))
+                validated, digest = BC.validate_energy_group_basis(name, edges)
+                self.assertEqual(digest, SC.ACTIVATION_GROUP_BASIS[name]["energy_edges_sha256"])
+                self.assertEqual(validated.size - 1, SC.ACTIVATION_GROUP_BASIS[name]["group_count"])
+                if name != SC.ACTIVATION_GROUPS:
+                    self.assertEqual(edges[0], 0.0)
+                    self.assertEqual(edges[-1], 50.0e6)
+                    self.assertEqual(openmc.EnergyFilter(edges).values[0], 0.0)
+        self.assertEqual(openmc.mgxs.EnergyGroups(group_edges=np.array([0.0, 1.0e-5, 50.0e6])).group_edges[0], 0.0)
 
     def test_constant_and_linear_bins_match_hand_integrals(self):
         edges = np.array([0.0, 1.0, 2.0, 4.0])
@@ -44,6 +72,11 @@ class CollapseMathTests(unittest.TestCase):
         # Threshold starts at 1.5 eV, where XS is 2 b; linear through 4 b at 2.5
         means = BC.group_mean_xs(grid, np.array([2.0, 4.0, 6.0]), 1, edges)
         np.testing.assert_allclose(means, [0.0, 1.25, 4.0, 2.75, 0.0], rtol=0.0, atol=1e-14)
+
+    def test_collapse_accepts_zero_energy_edge_with_pointwise_grid_clipping(self):
+        means = BC.group_mean_xs(np.array([0.5, 1.5]), np.array([2.0, 2.0]), 0,
+                                 np.array([0.0, 1.0, 2.0]))
+        np.testing.assert_allclose(means, [1.0, 1.0], rtol=0.0, atol=1e-14)
 
     def test_flux_collapse_uses_actual_domain_flux_and_matches_zero_flux_api(self):
         group_means = np.array([[1.0, 3.0, 5.0], [2.0, 2.0, 8.0]])
@@ -191,6 +224,7 @@ def _fixture(directory: Path, *, with_gamma: bool = True):
             "volumes": volumes, "fluxes": fluxes}
 
 
+@_requires_openmc
 class BoundedWorkflowTests(unittest.TestCase):
     def _fake_activation_receipts(self, root, plan_path, activation_plan, paths):
         output = Path(activation_plan["output_run_dir"])
@@ -564,7 +598,7 @@ class BoundedWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             paths = _fixture(root)
-            with self.assertRaisesRegex(ValueError, "pinned OpenMC VITAMIN-J-42"):
+            with self.assertRaisesRegex(ValueError, "frozen VITAMIN-J-42"):
                 BC.prepare_plan(root / "plan.json", fluxes_path=paths["fluxes"], volumes_path=paths["volumes"],
                                 chain_path=paths["chain"], cross_sections_xml=paths["xsec"],
                                 materials_xml=paths["materials"], energy_edges_eV=np.linspace(0, 4.2, 43),
@@ -647,6 +681,7 @@ class BoundedWorkflowTests(unittest.TestCase):
         self.assertGreater(fine["direct_peak_bytes_estimate"], 8 * BC.GIB)
 
 
+@_requires_openmc
 class CapiInputIdentityTests(unittest.TestCase):
     @staticmethod
     def _inputs(root: Path):

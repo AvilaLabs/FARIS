@@ -44,6 +44,10 @@ import rm_m_spec as spec  # noqa: E402
 import r3_bounded_microxs as BM  # noqa: E402
 
 CHAIN = Path.home() / "nuclear-data/p32-work/chain/depletion/chain.xml"
+CE_DATA_LOWER_EDGE_EV = 1.0e-5
+CE_DATA_DIAGNOSTIC_EDGES_EV = (0.0, CE_DATA_LOWER_EDGE_EV, 5.0e7)
+CE_DATA_DIAGNOSTIC_MAX_BINS = 8192
+CE_DATA_DIAGNOSTIC_BYTES_PER_BIN = 24
 
 
 def scoring_mesh(openmc):
@@ -65,6 +69,149 @@ def dose_tally(openmc, mesh, name="photon_dose"):
 
 def model_nuclides(openmc, model) -> list[str]:
     return sorted({n for m in model.materials for n in m.get_nuclides()})
+
+
+def below_data_edge_diagnostic_plan(openmc, model, cross_sections_xml: Path = RM.FARIS_XS) -> tuple[list, dict]:
+    """Plan same-solve tallies for flux and MT102 response below the CE data grid."""
+    import h5py
+
+    materials = sorted(list(model.materials), key=lambda m: (str(m.name), int(m.id)))
+    if not materials or len({int(m.id) for m in materials}) != len(materials):
+        raise ValueError("below-data-edge diagnostic requires nonempty materials with unique IDs")
+    if len({str(m.name) for m in materials}) != len(materials):
+        raise ValueError("below-data-edge diagnostic requires unique material names")
+    index = AC._cross_section_index(Path(cross_sections_xml).resolve(strict=True))
+    rows = []
+    captures = []
+    data_files = {}
+    for material in materials:
+        nuclides = sorted(set(str(n) for n in material.get_nuclides()))
+        for nuclide in nuclides:
+            path = index.get(nuclide)
+            if path is None or not path.is_file():
+                raise ValueError(f"below-data-edge diagnostic has no indexed CE data for {nuclide}")
+            with h5py.File(path, "r") as handle:
+                temp_name = BM._nearest_temperature(handle, nuclide, RM.DATA_TEMPERATURE_K, 1.0)
+                edge = float(handle[f"{nuclide}/energy/{temp_name}"][0])
+                if f"{nuclide}/reactions/reaction_102/{temp_name}/xs" not in handle:
+                    raise ValueError(f"{nuclide} has no MT102 data for the same-solve below-data-edge diagnostic")
+            data_files[nuclide] = {"path": str(path), "sha256": AC.sha256_file(path)}
+            if not math.isclose(edge, CE_DATA_LOWER_EDGE_EV, rel_tol=0.0, abs_tol=1.0e-14):
+                raise ValueError(f"{nuclide} CE data lower edge {edge:.17g} eV differs from pinned diagnostic edge {CE_DATA_LOWER_EDGE_EV:.17g} eV")
+        row = {"name": str(material.name), "id": int(material.id), "nuclides": nuclides}
+        rows.append(row)
+        if nuclides:
+            tally = openmc.Tally(name=f"r3_below_data_capture_{int(material.id)}")
+            tally.filters = [openmc.MaterialFilter([material]), openmc.EnergyFilter(CE_DATA_DIAGNOSTIC_EDGES_EV)]
+            tally.nuclides = nuclides
+            tally.scores = ["102"]
+            captures.append(tally)
+    flux = openmc.Tally(name="r3_below_data_material_flux")
+    flux.filters = [openmc.MaterialFilter(materials), openmc.EnergyFilter(CE_DATA_DIAGNOSTIC_EDGES_EV)]
+    flux.nuclides = ["total"]
+    flux.scores = ["flux"]
+    bins = len(materials) * 2 + sum(len(row["nuclides"]) * 2 for row in rows)
+    estimate = bins * CE_DATA_DIAGNOSTIC_BYTES_PER_BIN
+    if bins > CE_DATA_DIAGNOSTIC_MAX_BINS or estimate > 256 * 1024:
+        raise ValueError(f"below-data-edge diagnostic tally estimate exceeds its bound: {bins} bins, {estimate} bytes")
+    plan = {"schema": "faris-r3-below-data-edge-diagnostic/v1",
+            "purpose": "same-solve CE flux and MT102 capture below the first pointwise data edge; diagnostic only",
+            "energy_edges_eV": list(CE_DATA_DIAGNOSTIC_EDGES_EV),
+            "energy_bins": ["below CE data edge: 0-1e-5 eV", "at/above CE data edge: 1e-5-50 MeV"],
+            "ce_data_lower_edge_eV": CE_DATA_LOWER_EDGE_EV,
+            "transport_cutoff_eV": float((model.settings.cutoff or {}).get("energy_neutron", 0.0)),
+            "reaction_mt": 102, "reaction": "(n,gamma)", "materials": rows,
+            "ce_nuclide_data_files": data_files,
+            "flux_tally": flux.name, "capture_tallies": [t.name for t in captures],
+            "capture_result_layout": "OpenMC C API flattened filter bins in Energy x Nuclide x Score order; two energy bins per material-nuclide",
+            "group_mean_xs_policy": "pointwise collapse clips outside the tabulated interval; below-data-edge group mean is zero",
+            "activation_response_below_data_edge": "unresolved until this same-solve CE MT102 diagnostic is measured; no chain-completeness claim",
+            "interpretation": "CE below-edge captures use OpenMC's first-segment extrapolation; quantify separately from the bounded activation collapse",
+            "tally_bin_count_estimate": bins, "tally_bytes_estimate": estimate,
+            "tally_bytes_per_bin_estimate": CE_DATA_DIAGNOSTIC_BYTES_PER_BIN}
+    if plan["transport_cutoff_eV"] != 0.0:
+        raise ValueError("below-data-edge diagnostic requires the unchanged default zero neutron energy cutoff")
+    plan["configuration_sha256"] = _canonical_sha256(plan)
+    return [flux, *captures], plan
+
+
+def _canonical_sha256(value: dict) -> str:
+    import hashlib
+    raw = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _paired_energy_fraction(low_batches: list[float], high_batches: list[float]) -> dict:
+    if len(low_batches) < 2 or len(low_batches) != len(high_batches):
+        return {"fraction": None, "standard_error": None, "status": "UNAVAILABLE"}
+    low = [float(x) for x in low_batches]
+    high = [float(x) for x in high_batches]
+    den = math.fsum(low) + math.fsum(high)
+    if not math.isfinite(den) or den <= 0.0 or any(not math.isfinite(x) or x < 0.0 for x in low + high):
+        return {"fraction": None, "standard_error": None, "status": "UNAVAILABLE"}
+    fraction = math.fsum(low) / den
+    residual = [a - fraction * (a + b) for a, b in zip(low, high)]
+    mean_total = den / len(low)
+    mean_residual = math.fsum(residual) / len(residual)
+    variance = math.fsum((x - mean_residual) ** 2 for x in residual) / (len(residual) - 1)
+    return {"fraction": fraction, "standard_error": math.sqrt(variance / len(residual)) / mean_total,
+            "status": "AVAILABLE", "uncertainty_scope": "paired batch delta-method SE; shared-history covariance retained"}
+
+
+def summarize_below_data_edge_batches(plan: dict, cumulative_by_tally: dict[str, list[list[float]]],
+                                      batches: int, particles_per_batch: int) -> dict:
+    """Retain batch results and calculate paired below/above flux and capture fractions."""
+    ids = plan.get("tally_ids", {})
+    flux_key = str(ids.get(plan["flux_tally"], ""))
+    flux_rows = cumulative_by_tally.get(flux_key, [])
+    if len(flux_rows) != batches or any(len(row) != 2 * len(plan["materials"]) for row in flux_rows):
+        raise ValueError("below-data-edge flux diagnostic batch count or material-energy shape mismatch")
+
+    def increments(rows, width, label):
+        if len(rows) != batches or any(len(row) != width for row in rows):
+            raise ValueError(f"below-data-edge {label} batch count or result shape mismatch")
+        values = [[float(value) for value in row] for row in rows]
+        if any(not math.isfinite(value) or value < 0.0 for row in values for value in row):
+            raise ValueError(f"below-data-edge {label} has non-finite or negative cumulative scores")
+        prior = [0.0] * width
+        by_bin = [[] for _ in range(width)]
+        for row in values:
+            delta = [value - old for value, old in zip(row, prior)]
+            if any(not math.isfinite(value) or value < 0.0 for value in delta):
+                raise ValueError(f"below-data-edge {label} has invalid batch increments")
+            for index, value in enumerate(delta):
+                by_bin[index].append(value)
+            prior = row
+        return values, by_bin
+
+    flux_cumulative, flux_deltas = increments(flux_rows, 2 * len(plan["materials"]), "flux")
+    materials = []
+    for i, material in enumerate(plan["materials"]):
+        low, high = flux_deltas[2 * i], flux_deltas[2 * i + 1]
+        capture_key = str(ids.get(f"r3_below_data_capture_{material['id']}", ""))
+        nuclides = material["nuclides"]
+        cap_rows = cumulative_by_tally.get(capture_key, [])
+        if nuclides:
+            cap_cumulative, cap_deltas = increments(cap_rows, 2 * len(nuclides), f"MT102 {material['name']}")
+        else:
+            cap_cumulative, cap_deltas = [], []
+        captures = []
+        for j, nuclide in enumerate(nuclides):
+            # OpenMC's flattened filter/nuclide axes are Energy x Nuclide x Score.
+            below, above = cap_deltas[j], cap_deltas[len(nuclides) + j]
+            captures.append({"nuclide": nuclide,
+                             "below_vs_tallied_capture_fraction": _paired_energy_fraction(below, above),
+                             "raw_batch_increments_below_and_above": {"below": below, "above": above}})
+        materials.append({"name": material["name"], "id": material["id"],
+                          "flux_below_vs_tallied_fraction": _paired_energy_fraction(low, high),
+                          "raw_batch_flux_increments_below_and_above": {"below": low, "above": high},
+                          "captures_mt102": captures,
+                          "raw_batch_capture_cumulative_flattened": cap_cumulative})
+    return {"plan": plan, "batches": batches, "particles_per_batch": particles_per_batch,
+            "histories": batches * particles_per_batch, "materials": materials,
+            "raw_batch_flux_cumulative_flattened": flux_cumulative,
+            "raw_batch_cumulative_by_tally": cumulative_by_tally,
+            "uncertainty_scope": "paired batch delta-method SE; shared-history covariance retained where available"}
 
 
 def build_models(openmc, model_dir: Path, mesh, n_particles, n_batches, p_particles, p_batches, seeds):
@@ -92,7 +239,8 @@ def build_models(openmc, model_dir: Path, mesh, n_particles, n_batches, p_partic
     return neutron, photon, ids, dag
 
 
-def activation_domain(openmc, model_dir: Path, dag, cell_cm: float) -> tuple[object, dict]:
+def activation_domain(openmc, model_dir: Path, dag, cell_cm: float,
+                      energy_group_count: int = sc.ACTIVATION_GROUP_COUNT) -> tuple[object, dict]:
     """Build a coarse activation mesh from verified H5M vertex bounds and its pinned model card."""
     import hashlib
 
@@ -117,7 +265,7 @@ def activation_domain(openmc, model_dir: Path, dag, cell_cm: float) -> tuple[obj
         raise ValueError("OpenMC DAGMC bounds differ from the actual H5M node-coordinate bounds")
     if vertices["max_vertex_radius_cm"] > bounding_radius:
         raise ValueError("H5M vertex bounds exceed the model card's authored containment sphere")
-    grid = sc.activation_grid_spec(lower, upper, cell_cm)
+    grid = sc.activation_grid_spec(lower, upper, cell_cm, energy_group_count=energy_group_count)
     mesh = openmc.RegularMesh(name="r3-full-geometry-activation")
     mesh.lower_left = tuple(grid["lower_left_cm"])
     mesh.upper_right = tuple(grid["upper_right_cm"])
@@ -157,6 +305,20 @@ def timed(record, name, fn):
         entry["peak_rss_mb"] = max(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
                                    resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss) / 1024.0
     return entry["ok"]
+
+
+def mark_neutron_only_complete(record: dict) -> dict:
+    """Mark an intentional neutron-stage-only run without implying R2S dose results."""
+    record["workflow_status"] = "NEUTRON_STAGE_COMPLETE"
+    record["scientific_interpretation_status"] = "NOT_EVALUATED"
+    record["activation_status"] = "NOT_RUN"
+    record["microxs_status"] = "NOT_RUN"
+    record["photon_transport_status"] = "NOT_RUN"
+    record["shutdown_dose_status"] = "NOT_RUN"
+    record["qualification_verdict"] = (
+        "NOT_PROVIDED: neutron flux and optional below-data-edge diagnostic only; "
+        "no activation, photon transport, shutdown dose, or qualification result")
+    return record
 
 
 def tree_file_bytes(root: Path) -> int:
@@ -226,7 +388,9 @@ def sampling_settings(args) -> dict:
         "photon_max_batches": args.photon_max_batches,
         "photon_budget_s": args.photon_budget,
         "seeds": [args.seed, args.seed + 1],
-        "activation_groups": sc.ACTIVATION_GROUPS,
+        "activation_groups": getattr(args, "activation_groups", sc.ACTIVATION_GROUPS),
+        "below_data_edge_diagnostic": getattr(args, "below_data_edge_diagnostic", False),
+        "stop_after_neutron": getattr(args, "stop_after_neutron", False),
         "activation_cell_cm": args.activation_cell_cm,
         "mat_vol_samples": args.mat_vol_samples,
         "timesteps": sc.TIMESTEPS,
@@ -248,6 +412,12 @@ def main() -> int:
     ap.add_argument("--mat-vol-samples", type=int, default=50000)
     ap.add_argument("--activation-cell-cm", type=float, default=sc.DEFAULT_ACTIVATION_CELL_CM,
                     help="coarse full-H5M activation mesh cell size; starting discretization, not adequacy claim")
+    ap.add_argument("--activation-groups", choices=sc.ACTIVATION_GROUP_OPTIONS, default=sc.ACTIVATION_GROUPS,
+                    help="pinned activation energy basis; historical VITAMIN-J-42 remains the default")
+    ap.add_argument("--below-data-edge-diagnostic", action="store_true", default=False,
+                    help="add same-solve 0-1e-5 eV material flux and per-nuclide MT102 capture tallies to bounded neutron transport")
+    ap.add_argument("--stop-after-neutron", action="store_true", default=False,
+                    help="stop after saving the bounded neutron flux, diagnostic, and protocol artifacts; do not run activation or photon dose")
     ap.add_argument("--activation-backend", choices=("bounded", "direct"), default="bounded",
                     help="bounded streams group-mean XS and activates domain chunks; direct retains R2SManager dense arrays")
     ap.add_argument("--microxs-output-budget-gib", type=float, default=8.0,
@@ -274,6 +444,15 @@ def main() -> int:
     import openmc.deplete
     import numpy as np
 
+    group_edges = sc.activation_group_edges(openmc, args.activation_groups, BM.VITAMIN_J_42_EDGES_E_V)
+    group_count = len(group_edges) - 1
+    if args.activation_backend == "direct" and args.activation_groups != sc.ACTIVATION_GROUPS:
+        raise ValueError("extended activation bases currently require the bounded backend")
+    if args.below_data_edge_diagnostic and args.activation_backend != "bounded":
+        raise ValueError("below-data-edge diagnostic currently requires the bounded backend")
+    if args.stop_after_neutron and args.activation_backend != "bounded":
+        raise ValueError("--stop-after-neutron currently requires the bounded backend")
+
     os.environ["OMP_NUM_THREADS"] = str(args.threads)
     os.environ["PATH"] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
     openmc.config["chain_file"] = str(CHAIN)
@@ -286,6 +465,10 @@ def main() -> int:
     mesh = scoring_mesh(openmc)
     neutron, photon, ids, dag = build_models(openmc, args.model_dir, mesh, args.neutron_particles, args.neutron_batches,
                                              args.photon_particles, args.photon_max_batches, (args.seed, args.seed + 1))
+    neutron_dir = out / "neutron_transport"
+    neutron_dir.mkdir()
+    neutron_materials_xml = neutron_dir / "materials.xml"
+    neutron.materials.export_to_xml(path=neutron_materials_xml)
     nuclides = model_nuclides(openmc, neutron)
     chain = openmc.deplete.Chain.from_xml(str(CHAIN))
     coverage = AC.assess_coverage(CHAIN, RM.FARIS_XS, nuclides, openmc.data.REACTION_MT)
@@ -301,11 +484,15 @@ def main() -> int:
               "activation_chain_coverage": coverage,
               "activation_data_status": coverage["status"],
               "activation_microxs_requested_nuclides": coverage["required_microxs_nuclides"],
+              "neutron_materials_xml": {"path": neutron_materials_xml.relative_to(out).as_posix(),
+                                         "sha256": RM.sha256(neutron_materials_xml)},
               "mesh": {"lower_left_cm": sc.MESH_LOWER_CM, "upper_right_cm": sc.MESH_UPPER_CM, "dimension": sc.MESH_DIMENSION},
               "settings": sampling_settings(args),
               "workarounds": ["output_dir passed as pathlib.Path", "micro_kwargs nuclides = model nuclides", "photon source_rejection_fraction = 1e-4",
                             "openmc.config['cross_sections'] set to the audited library (manager sub-models do not inherit it)"],
               "nuclides": nuclides}
+    record["activation_group_basis"] = {**sc.ACTIVATION_GROUP_BASIS[args.activation_groups],
+                                         "energy_edges_eV": list(group_edges)}
     record["runtime_identity"] = DS.runtime_identity(openmc)
     record["neutron_transport_integrity"] = {
         "status": "NOT_EVALUATED",
@@ -326,7 +513,9 @@ def main() -> int:
         save()
         return 2
 
-    activation_mesh, activation_domain_data = activation_domain(openmc, args.model_dir, dag, args.activation_cell_cm)
+    activation_mesh, activation_domain_data = activation_domain(openmc, args.model_dir, dag, args.activation_cell_cm,
+                                                                group_count)
+    activation_domain_data["activation_group_structure"] = args.activation_groups
     domain_bytes = DX._json_bytes(activation_domain_data)
     record["activation_domain"] = {**DX._write_bytes(out / "activation_domain.json", domain_bytes),
                                     "path": "activation_domain.json"}
@@ -342,15 +531,13 @@ def main() -> int:
     bounded_paths = {}
 
     def step1():
-        neutron_dir = out / "neutron_transport"
-        neutron_dir.mkdir()
         if args.activation_backend == "direct":
             estimate_volumes = activation_mesh.material_volumes(
                 neutron, n_samples=args.mat_vol_samples, output=False)
             direct_domains = int(np.count_nonzero(np.asarray(estimate_volumes._materials) > -1))
             direct_estimate = BM.collapse_resource_estimate(
                 direct_domains, len(coverage["required_microxs_nuclides"]),
-                len(chain.reactions), 42, args.activation_chunk_domains)
+                len(chain.reactions), group_count, args.activation_chunk_domains)
             direct_output = direct_estimate["direct_one_tensor_bytes"]
             if direct_estimate["direct_peak_bytes_estimate"] > int(args.microxs_memory_budget_mib * 1024 ** 2):
                 raise ValueError("direct R2S dense MicroXS/flux path exceeds its explicit memory preflight; select bounded backend in a fresh run")
@@ -403,11 +590,11 @@ def main() -> int:
         disk_reserve = int(args.disk_reserve_gib * BM.GIB)
         estimate = BM.collapse_resource_estimate(actual_domains,
                                                   len(coverage["required_microxs_nuclides"]),
-                                                  len(chain.reactions), 42, args.activation_chunk_domains)
+                                                  len(chain.reactions), group_count, args.activation_chunk_domains)
         activation_estimate = BM.activation_resource_estimate(
             actual_domains, len(chain.nuclides), len(coverage["required_microxs_nuclides"]),
             len(chain.reactions), len(sc.TIMESTEPS), args.activation_chunk_domains,
-            group_count=42, mesh_array_bytes=volume_layout["array_bytes"],
+            group_count=group_count, mesh_array_bytes=volume_layout["array_bytes"],
             mesh_element_count=volume_layout["shape"][0],
             material_slot_count=volume_layout["shape"][1])
         _chain_reactions, _reachable, metadata_required, collapse_reactions = BM._chain_spec(
@@ -416,10 +603,10 @@ def main() -> int:
             raise ValueError("bounded pointwise-array requirements differ from the full-chain coverage guard")
         collapse_data_memory = BM.collapse_metadata_memory_preflight(
             RM.FARIS_XS, metadata_required, collapse_reactions, openmc.data.REACTION_MT,
-            actual_domains, args.activation_chunk_domains)
+            actual_domains, args.activation_chunk_domains, group_count=group_count)
         if collapse_data_memory["working_bytes_estimate"] > memory_budget:
             raise ValueError(f"bounded pointwise XS metadata working estimate {collapse_data_memory['working_bytes_estimate']} exceeds the declared {memory_budget}-byte cap")
-        flux_pair_estimate = 2 * actual_domains * 42 * 8
+        flux_pair_estimate = 2 * actual_domains * group_count * 8
         chunk_count_estimate = (actual_domains + args.activation_chunk_domains - 1) // args.activation_chunk_domains
         chunk_metadata_estimate = chunk_count_estimate * 8192 + 2 * 1024 ** 2
         other_artifacts_estimate = volume_path.stat().st_size + flux_pair_estimate + chunk_metadata_estimate
@@ -462,11 +649,27 @@ def main() -> int:
                           "domain_map_sha256": BM.domain_map_sha256(elements, domain_materials, domain_volumes)}
         tally = openmc.Tally(name="R3 bounded MicroXS flux")
         tally.filters = [openmc.MeshMaterialFilter.from_volumes(activation_mesh, mmv),
-                        openmc.EnergyFilter.from_group_structure(sc.ACTIVATION_GROUPS)]
+                        openmc.EnergyFilter(group_edges)]
         tally.scores = ["flux"]
-        neutron.tallies = openmc.Tallies([tally])
+        below_edge_tallies, below_edge_plan = (below_data_edge_diagnostic_plan(openmc, neutron)
+                                                if args.below_data_edge_diagnostic else ([], None))
+        all_neutron_tallies = [tally, *below_edge_tallies]
+        tally_ids = [int(item.id) for item in all_neutron_tallies]
+        if len(tally_ids) != len(set(tally_ids)):
+            raise ValueError("bounded flux and below-data-edge diagnostic tallies have duplicate OpenMC tally IDs")
+        if below_edge_plan is not None:
+            below_edge_plan["tally_ids"] = {str(item.name): int(item.id) for item in below_edge_tallies}
+            below_edge_plan.pop("configuration_sha256", None)
+            below_edge_plan["configuration_sha256"] = _canonical_sha256(below_edge_plan)
+        neutron.tallies = openmc.Tallies(all_neutron_tallies)
         neutron.export_to_model_xml(str(neutron_dir))
         model_xml = neutron_dir / "model.xml"
+        if RM.sha256(neutron_dir / "materials.xml") != record["neutron_materials_xml"]["sha256"]:
+            raise ValueError("neutron materials.xml changed after its explicit pre-coverage export")
+        if below_edge_plan is not None:
+            for nuclide, identity in below_edge_plan["ce_nuclide_data_files"].items():
+                if AC.sha256_file(Path(identity["path"])) != identity["sha256"]:
+                    raise ValueError(f"CE data file changed after below-data-edge tally planning: {nuclide}")
         protocol = {
             "schema": "faris-r3-bounded-campaign-protocol/v1", "status": "READY_FOR_NEUTRON_TRANSPORT",
             "activation_mesh": record["activation_domain"], "sampling_settings": record["settings"],
@@ -481,8 +684,13 @@ def main() -> int:
             "implementation": {str(path.name): RM.sha256(path) for path in
                                 (Path(__file__), Path(BM.__file__), Path(AC.__file__), Path(DS.__file__))},
             "resource_preflight": record["bounded_resource_preflight"],
-            "fixed_protocol": {"energy_groups": "VITAMIN-J-42", "energy_edges_eV": list(BM.VITAMIN_J_42_EDGES_E_V),
-                               "flux_tally": "flux only; no reaction-rate tallies or CE reaction tensors",
+            "fixed_protocol": {"energy_groups": args.activation_groups, "energy_group_count": group_count,
+                               "energy_edges_eV": list(group_edges),
+                               "energy_edges_sha256": sc.ACTIVATION_GROUP_BASIS[args.activation_groups]["energy_edges_sha256"],
+                               "flux_tally": "MeshMaterial x activation EnergyFilter flux tally",
+                               "below_data_edge_diagnostic": below_edge_plan,
+                               "tally_configuration": [{"id": int(item.id), "name": str(item.name)} for item in all_neutron_tallies],
+                               "activation_group_mean_below_data_edge": "zero by pointwise-grid clipping; any CE extrapolated response is unresolved unless diagnostic tallies are collected",
                                "domain_order": "row-major MeshMaterialFilter.from_volumes(MeshMaterialVolumes)",
                                "collapse": BM.ALGORITHM, "activation": "OpenMC 0.15.3 independent predictor chunks",
                                "physics_settings": "existing source, irradiation schedule, dose response mesh, and photon source slots are unchanged"}}
@@ -494,10 +702,17 @@ def main() -> int:
                                             "protocol_sha256": protocol["protocol_sha256"]}
         save()
         previous = 0.0
+        auxiliary_batch_cumulative = {str(item.id): [] for item in below_edge_tallies}
 
         def consume_flux_batch(cumulative, _batch):
             nonlocal previous
             previous, _increment = DS.scalar_batch_total(float(np.sum(cumulative)), previous)
+            for item in below_edge_tallies:
+                live = openmc.lib.tallies[int(item.id)]
+                if int(live.num_realizations) != int(_batch):
+                    raise ValueError(f"below-data-edge tally {item.name} is not aligned to neutron batch {_batch}")
+                auxiliary_batch_cumulative[str(item.id)].append(
+                    np.asarray(live.results[:, :, 1], dtype=np.float64).reshape(-1).copy().tolist())
 
         run, final_sums, final_std = DS.run_live_tally(
             openmc, model_xml, tally.id, args.threads, args.neutron_batches, 86400.0,
@@ -507,27 +722,47 @@ def main() -> int:
             raise RuntimeError(f"bounded neutron flux run did not reach exact planned final batch: {run}")
         if run.get("integrity", {}).get("lost_particle_assessment", {}).get("status") != "PASS":
             raise RuntimeError("bounded neutron flux run has unavailable or unacceptable lost-particle evidence")
-        if int(np.asarray(final_sums).size) != actual_domains * 42 or int(np.asarray(final_std).size) != actual_domains * 42:
-            raise RuntimeError("bounded neutron flux tally shape differs from material-volume domain x 42 group rows")
+        if int(np.asarray(final_sums).size) != actual_domains * group_count or int(np.asarray(final_std).size) != actual_domains * group_count:
+            raise RuntimeError("bounded neutron flux tally shape differs from material-volume domain x activation group rows")
+        if below_edge_plan is not None:
+            diagnostic = summarize_below_data_edge_batches(below_edge_plan, auxiliary_batch_cumulative,
+                                                           args.neutron_batches, args.neutron_particles)
+            diagnostic["status"] = "DESCRIPTIVE_ONLY"
+            diagnostic["qualification_verdict"] = "NOT_PROVIDED: CE below-data-edge response diagnostic only; not full activation or dose convergence"
+            diagnostic["protocol_sha256"] = protocol["protocol_sha256"]
+            diag_path = neutron_dir / "below-data-edge-diagnostic.json"
+            BM._write_json_new(diag_path, diagnostic)
+            record["below_data_edge_diagnostic"] = {
+                "path": diag_path.relative_to(out).as_posix(), "sha256": RM.sha256(diag_path),
+                "configuration_sha256": below_edge_plan["configuration_sha256"],
+                "protocol_sha256": protocol["protocol_sha256"], "status": diagnostic["status"]}
         flux_path = neutron_dir / "fluxes.npy"
-        flux_mean = np.asarray(final_sums, dtype=np.float64).reshape(actual_domains, 42) / run["batches"]
+        flux_mean = np.asarray(final_sums, dtype=np.float64).reshape(actual_domains, group_count) / run["batches"]
         np.save(flux_path, flux_mean, allow_pickle=False)
         flux_std_path = neutron_dir / "fluxes_std_dev.npy"
-        np.save(flux_std_path, np.asarray(final_std, dtype=np.float64).reshape(actual_domains, 42), allow_pickle=False)
+        np.save(flux_std_path, np.asarray(final_std, dtype=np.float64).reshape(actual_domains, group_count), allow_pickle=False)
         record["neutron_transport_integrity"] = {"status": "PASS", **run["integrity"],
             "stop_reason": run["stop_reason"], "solver_status": run["solver_status"],
             "batches": run["batches"], "histories": run["histories"], "elapsed_s": run["elapsed_s"],
             "model_xml_sha256": RM.sha256(model_xml), "flux_mean_sha256": RM.sha256(flux_path),
             "flux_std_dev_sha256": RM.sha256(flux_std_path), "mesh_material_volumes": volume_receipt,
-            "mean_estimator": "OpenMC cumulative flux tally sums divided by actual batch realizations; one row per exact MeshMaterialFilter.from_volumes domain, groups ascending on frozen VITAMIN-J-42 edges"}
+            "mean_estimator": f"OpenMC cumulative flux tally sums divided by actual batch realizations; one row per exact MeshMaterialFilter.from_volumes domain, groups ascending on frozen {args.activation_groups} edges"}
         record["activation_regions"] = actual_domains
+        if args.stop_after_neutron:
+            record["activation_microxs"] = {
+                "status": "NOT_RUN",
+                "reason": "--stop-after-neutron exits after neutron flux/diagnostic artifacts; bounded collapse and CAPI comparison are not run"}
+            record["microxs_status"] = "NOT_RUN"
+            save()
+            return
         plan_path = neutron_dir / "bounded-collapse-plan.json"
         collapse_dir = neutron_dir / "bounded-collapse"
         collapse_plan = BM.prepare_plan(plan_path, fluxes_path=flux_path, volumes_path=volume_path,
             chain_path=CHAIN, cross_sections_xml=RM.FARIS_XS, materials_xml=neutron_dir / "materials.xml",
-            energy_edges_eV=BM.VITAMIN_J_42_EDGES_E_V, output_run_dir=collapse_dir,
+            energy_edges_eV=group_edges, output_run_dir=collapse_dir,
             domain_chunk=args.activation_chunk_domains, output_budget_bytes=output_budget,
-            disk_reserve_bytes=disk_reserve, memory_limit_bytes=memory_budget)
+            disk_reserve_bytes=disk_reserve, memory_limit_bytes=memory_budget,
+            energy_group_structure=args.activation_groups)
         collapse_record = BM.run_collapse(plan_path, collapse_dir)
         bounded_paths.update({"volume": volume_path, "flux": flux_path, "flux_std": flux_std_path,
                               "plan": plan_path, "collapse_dir": collapse_dir,
@@ -545,7 +780,8 @@ def main() -> int:
             checks_capi = [{"nuclide": "Fe56", "reaction": "(n,gamma)", "domain_index": capi_domain},
                            {"nuclide": "Fe56", "reaction": "(n,2n)", "domain_index": capi_domain},
                            {"nuclide": "Ni58", "reaction": "(n,gamma)", "domain_index": capi_domain}]
-            capi = BM.compare_capi_reference(RM.FARIS_XS, flux_path, BM.VITAMIN_J_42_EDGES_E_V, checks_capi)
+            capi = BM.compare_capi_reference(RM.FARIS_XS, flux_path, group_edges, checks_capi,
+                                               energy_group_structure=args.activation_groups)
             BM._write_json_new(neutron_dir / "bounded-capi-check.json", capi)
             record["bounded_capi_check"] = {"path": "neutron_transport/bounded-capi-check.json",
                                             "sha256": RM.sha256(neutron_dir / "bounded-capi-check.json"), **capi}
@@ -567,6 +803,10 @@ def main() -> int:
         save()
         return 1
     save()
+    if args.stop_after_neutron:
+        mark_neutron_only_complete(record)
+        save()
+        return 0
 
     def step2():
         if args.activation_backend == "direct":

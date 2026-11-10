@@ -79,7 +79,8 @@ def seed_map(replicates: int, seed_base: int) -> list[dict]:
 
 
 def make_plan(*, model_dir: Path, cross_sections: Path, python: Path, out_dir: Path,
-              replicates: int, seed_base: int, purpose: str) -> dict:
+              replicates: int, seed_base: int, purpose: str,
+              activation_groups: str = sc.ACTIVATION_GROUPS) -> dict:
     model_dir = model_dir.resolve()
     cross_sections = cross_sections.resolve()
     python = python.resolve()
@@ -89,6 +90,8 @@ def make_plan(*, model_dir: Path, cross_sections: Path, python: Path, out_dir: P
             raise FileNotFoundError(f"{label} is missing: {path}")
     if not os.access(python, os.X_OK):
         raise PermissionError(f"Python executable is not executable: {python}")
+    if activation_groups not in sc.ACTIVATION_GROUP_BASIS:
+        raise ValueError(f"unsupported R3 activation energy basis: {activation_groups}")
     dependencies = sc.rm_m_geometry_dependencies(model_dir)
     scripts = {name: RISK_DIR / name for name in
                ("r3_campaign.py", "r3_d1s.py", "r3_r2s.py", "r3_compare.py",
@@ -104,6 +107,9 @@ def make_plan(*, model_dir: Path, cross_sections: Path, python: Path, out_dir: P
         "protocol": sc.FULL_EMISSION_PROTOCOL,
         "convergence_dimensions": {
             "activation_mesh_cm": list(GRIDS_CM),
+            "activation_energy_basis": {"selected": activation_groups,
+                                        **sc.ACTIVATION_GROUP_BASIS[activation_groups],
+                                        "comparison_note": "energy-basis comparisons require separate predeclared campaigns; no additional threshold is applied"},
             "response_mesh": {"lower_left_cm": list(sc.MESH_LOWER_CM),
                               "upper_right_cm": list(sc.MESH_UPPER_CM),
                               "dimension": list(sc.MESH_DIMENSION)},
@@ -117,7 +123,7 @@ def make_plan(*, model_dir: Path, cross_sections: Path, python: Path, out_dir: P
             "r2s": {"neutron_particles_per_batch": 20000, "neutron_batches": 50,
                     "photon_particles_per_batch": 100000, "photon_max_batches": 5000,
                     "photon_budget_s_per_time": 3000.0, "activation_backend": "bounded",
-                    "activation_groups": sc.ACTIVATION_GROUPS, "photon_indices": list(sc.PHOTON_TIME_INDICES)},
+                    "activation_groups": activation_groups, "photon_indices": list(sc.PHOTON_TIME_INDICES)},
             "threads": 4,
         },
         "execution_limits": {
@@ -326,6 +332,9 @@ def run_campaign(plan: dict, *, executor=None, disk_usage=shutil.disk_usage) -> 
     r2s_script = str(RISK_DIR / "r3_r2s.py")
     compare_script = str(RISK_DIR / "r3_compare.py")
     model = plan["inputs"]["model_dir"]
+    activation_groups = plan["standard_settings"]["r2s"]["activation_groups"]
+    if activation_groups not in sc.ACTIVATION_GROUP_BASIS:
+        raise ValueError(f"campaign plan names an unsupported R2S energy basis: {activation_groups}")
     for rep in plan["replicates"]:
         rep_name = f"rep-{rep['replicate']:02d}"
         d1s_dir = out / rep_name / "d1s"
@@ -338,6 +347,7 @@ def run_campaign(plan: dict, *, executor=None, disk_usage=shutil.disk_usage) -> 
                           "out_dir": grid_dir,
                           "command": [str(python), r2s_script, "--model-dir", model, "--out-dir", str(grid_dir),
                                       "--activation-cell-cm", str(grid["activation_cell_cm"]),
+                                      "--activation-groups", activation_groups,
                                       "--activation-backend", "bounded", "--threads", "4", "--seed", str(grid["cli_seed"])]})
             comparison = out / rep_name / f"comparison-{grid['activation_cell_cm']}cm.json"
             tasks.append({"kind": "compare", "replicate": rep["replicate"], "activation_cell_cm": grid["activation_cell_cm"],
@@ -478,12 +488,14 @@ def main(argv=None) -> int:
     ap.add_argument("--replicates", required=True, type=int)
     ap.add_argument("--seed-base", required=True, type=int)
     ap.add_argument("--purpose", required=True, help="for example conditional-method-control")
+    ap.add_argument("--activation-groups", choices=sc.ACTIVATION_GROUP_OPTIONS, default=sc.ACTIVATION_GROUPS,
+                    help="frozen R2S activation energy basis; default preserves historical VITAMIN-J-42")
     args = ap.parse_args(argv)
     if args.out_dir.exists():
         raise FileExistsError(f"refusing to overwrite existing R3 campaign directory: {args.out_dir}")
     plan = make_plan(model_dir=args.model_dir, cross_sections=args.cross_sections, python=args.python,
                      out_dir=args.out_dir, replicates=args.replicates, seed_base=args.seed_base,
-                     purpose=args.purpose)
+                     purpose=args.purpose, activation_groups=args.activation_groups)
     result = run_campaign(plan)
     print(json.dumps({"status": result["status"], "scientific_verdict": result["scientific_verdict"],
                       "task_count": len(result["tasks"]), "output_dir": str(args.out_dir.resolve())}, indent=2))

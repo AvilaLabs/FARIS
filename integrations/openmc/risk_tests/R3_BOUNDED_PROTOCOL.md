@@ -1,11 +1,11 @@
 # R3 bounded transport and activation protocol
 
-The default ``r3_r2s.py`` backend is ``bounded``. It keeps the neutron response
-mesh, activation mesh bounds, energy-group boundaries, irradiation schedule,
-source slots, cooling indices, and dose criteria fixed. It samples the exact
+The default ``r3_r2s.py`` backend is ``bounded``. It pins the selected energy
+basis and keeps the neutron response mesh, activation mesh bounds, irradiation
+schedule, source slots, cooling indices, and dose criteria fixed. It samples the exact
 OpenMC ``MeshMaterialVolumes`` once, tallies flux in
 ``MeshMaterialFilter.from_volumes`` row order, then stores only nuclide x
-reaction x 42 group-mean cross sections. Per-domain one-group MicroXS values
+reaction x selected-group-count mean cross sections. Per-domain one-group MicroXS values
 are reconstructed from the sampled flux in the same domain chunks used for
 depletion. Every chunk receipt binds the collapse/flux inputs and hashes the
 exact MicroXS bytes consumed. Each chunk's dense depletion result is temporary:
@@ -27,7 +27,49 @@ pruned or zero-filled. The direct ``--activation-backend direct`` path remains
 available for a separate explicitly selected run. It is never chosen as an
 automatic fallback.
 
-Run each discretization as a fresh campaign directory. Use the project-pinned
+## Prospective activation energy checks
+
+The historical default, `VITAMIN-J-42`, starts at 1 keV and excludes lower-energy
+neutrons from activation. The 2026-11-10 RM-M acceptance diagnostic found that
+95.86% of structure Fe56 MT102 captures occurred below 1 keV. The historical
+basis therefore cannot establish the full activation reference by itself.
+
+Two opt-in bounded bases have explicit, hash-pinned edges:
+`VITAMIN-J-175-plus-0-to-50MeV` (177 groups) and
+`SCALE-252-plus-0-to-50MeV` (253 groups). These extend the named OpenMC structures
+to the stated endpoints; they are separate prospective configurations. Keep the
+same selected basis across a spatial-grid comparison. An energy-basis comparison
+needs its own predeclared runs and does not change the existing spatial-grid or
+dose-ratio criteria.
+
+An unresolved interval remains below the selected CE tables' 1e-5 eV first
+point. OpenMC's CE transport extrapolates the first tabulated segment there,
+while the bounded activation collapse clips its integration to the data grid.
+The extended bins alone do not establish that this difference is negligible.
+See the pinned [OpenMC nuclide implementation](https://github.com/openmc-dev/openmc/blob/v0.15.3/src/nuclide.cpp).
+
+Before depletion and photon transport, a fresh bounded run can measure material
+flux and per-nuclide MT102 captures on each side of that edge:
+
+```bash
+OPENMC_PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python
+PYTHONPATH="integrations/openmc/risk_tests${PYTHONPATH:+:$PYTHONPATH}" "$OPENMC_PY" integrations/openmc/risk_tests/r3_r2s.py \
+  --model-dir runs/continuation/s0g-rm-m-v3-finalized-v1 \
+  --out-dir runs/continuation/r3-energy-177-neutron-only \
+  --activation-cell-cm 100 --activation-backend bounded \
+  --activation-groups VITAMIN-J-175-plus-0-to-50MeV \
+  --below-data-edge-diagnostic --stop-after-neutron
+```
+
+Use the same declared composite index for both methods and the existing bounded
+job wrapper. `--stop-after-neutron` retains the flux, diagnostic batch arrays and
+input identities, then exits before MicroXS collapse, depletion, or photon
+transport. Its status is `NEUTRON_STAGE_COMPLETE`, with scientific interpretation
+`NOT_EVALUATED`. The diagnostic is a capture/flux measurement, not a bound on
+the full activation or dose effect. Both new flags default off.
+
+The following historical 42-group examples exclude sub-1-keV activation.
+They do not demonstrate energy convergence. Run each discretization as a fresh campaign directory. Use the project-pinned
 OpenMC 0.15.3 Python environment and an RM-M model directory with the matching
 ``rm_m.h5m`` and model card:
 
@@ -55,7 +97,8 @@ Each run samples actual material-bearing domains before neutron transport and
 records exact resource estimates. The compact group-mean XS archive is about
 `2190 x 7 x 42 x 8 = 5.15 MB` for the currently required nuclide/reaction/group
 counts, independent of domain count. Flux storage is `domain_count x 42 x 8`
-bytes per mean or standard-deviation array. Temporary depletion memory is
+bytes per mean or standard-deviation array for that historical basis; substitute
+the selected group count for an extended basis. Temporary depletion memory is
 bounded by chunk size and chain states. Source archive size depends on actual
 activated spectra and is limited separately by compressed and decompressed
 caps. At 25 cm, the older dense MicroXS estimate was about 9.9 GiB for one
@@ -104,11 +147,12 @@ start the collection with:
 ```bash
 OPENMC_PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python
 PYTHONPATH=integrations/openmc/risk_tests "$OPENMC_PY" integrations/openmc/risk_tests/r3_campaign.py \
-  --model-dir runs/continuation/s0g-rm-m-v3 \
+  --model-dir runs/continuation/s0g-rm-m-v3-finalized-v1 \
   --cross-sections runs/continuation/r3-ce-review-20261109-v2/cross_sections.method-control.xml \
   --python "$OPENMC_PY" \
   --out-dir runs/continuation/r3-method-control-replicates-v1 \
-  --replicates 2 --seed-base 20261401 --purpose conditional-method-control
+  --replicates 2 --seed-base 20261401 --purpose conditional-method-control \
+  --activation-groups VITAMIN-J-175-plus-0-to-50MeV
 ```
 
 `campaign-plan.json` is immutable pre-run configuration; `campaign-state.json`

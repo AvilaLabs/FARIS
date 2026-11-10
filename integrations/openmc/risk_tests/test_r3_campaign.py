@@ -29,11 +29,13 @@ class R3CampaignTests(unittest.TestCase):
         python.chmod(0o755)
         return model, xs, python
 
-    def plan(self, root: Path, *, replicates=2, seed_base=50000, out=None):
+    def plan(self, root: Path, *, replicates=2, seed_base=50000, out=None,
+             activation_groups=campaign.sc.ACTIVATION_GROUPS):
         model, xs, python = self.fixture(root)
         return campaign.make_plan(model_dir=model, cross_sections=xs, python=python,
                                   out_dir=out or root / "campaign", replicates=replicates,
-                                  seed_base=seed_base, purpose="conditional-method-control")
+                                  seed_base=seed_base, purpose="conditional-method-control",
+                                  activation_groups=activation_groups)
 
     def test_seed_map_has_disjoint_stage_and_replicate_seeds(self):
         reps = campaign.seed_map(3, 60000)
@@ -57,6 +59,15 @@ class R3CampaignTests(unittest.TestCase):
         self.assertEqual(limits["task_limits"]["d1s"]["timeout_s"], 7600)
         self.assertEqual(limits["task_limits"]["r2s"]["timeout_s"], 2 * 86400 + 3 * 3000 + 900)
         self.assertEqual(limits["maximum_campaign_wall_s"], 2 * (7600 + 3 * (2 * 86400 + 3 * 3000 + 900) + 3 * 300))
+
+    def test_plan_freezes_selected_thermal_basis_and_command(self):
+        with tempfile.TemporaryDirectory() as temp:
+            plan = self.plan(Path(temp), activation_groups="VITAMIN-J-175-plus-0-to-50MeV")
+            self.assertEqual(plan["standard_settings"]["r2s"]["activation_groups"],
+                             "VITAMIN-J-175-plus-0-to-50MeV")
+            self.assertEqual(plan["convergence_dimensions"]["activation_energy_basis"]["group_count"], 177)
+            self.assertEqual(plan["convergence_dimensions"]["activation_energy_basis"]["energy_edges_sha256"],
+                             campaign.sc.ACTIVATION_GROUP_BASIS["VITAMIN-J-175-plus-0-to-50MeV"]["energy_edges_sha256"])
 
     def test_execute_bounded_terminates_process_group_on_deadline(self):
         class FakeProcess:
@@ -161,7 +172,7 @@ class R3CampaignTests(unittest.TestCase):
     def test_serial_matrix_records_commands_and_does_not_claim_verdict(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            plan = self.plan(root)
+            plan = self.plan(root, activation_groups="VITAMIN-J-175-plus-0-to-50MeV")
             calls = []
 
             def fake_execute(command, **kwargs):
@@ -195,6 +206,8 @@ class R3CampaignTests(unittest.TestCase):
             self.assertEqual(len(calls), 14)  # 2 x (D1S + 3 x (R2S + comparison)).
             self.assertIn("--activation-cell-cm", calls[1])
             self.assertEqual(calls[1][calls[1].index("--activation-cell-cm") + 1], "100")
+            self.assertEqual(calls[1][calls[1].index("--activation-groups") + 1],
+                             "VITAMIN-J-175-plus-0-to-50MeV")
             saved = json.loads((Path(plan["output_dir"]) / "campaign-state.json").read_text())
             self.assertEqual(saved["tasks"][-1]["kind"], "compare")
             self.assertEqual(saved["tasks"][0]["record_sha256"], campaign.sha256(

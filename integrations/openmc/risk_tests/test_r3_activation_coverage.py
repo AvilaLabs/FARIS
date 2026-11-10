@@ -7,13 +7,23 @@ import tempfile
 from pathlib import Path
 import sys
 import unittest
+import os
 
-import h5py
+try:
+    import h5py
+except ImportError as exc:
+    if os.environ.get("FARIS_REQUIRE_OPENMC") == "1":
+        raise
+    H5PY_MISSING = str(exc)
+    h5py = None
+else:
+    H5PY_MISSING = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from r3_activation_coverage import assess_coverage
 
 
+@unittest.skipIf(H5PY_MISSING is not None, f"activation coverage fixtures require h5py: {H5PY_MISSING}")
 class R3ActivationCoverageTest(unittest.TestCase):
     def _inputs(self, root: Path, *, include_u236=True, include_channel=True):
         chain = root / "chain.xml"
