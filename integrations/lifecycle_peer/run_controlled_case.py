@@ -23,6 +23,50 @@ def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def is_finite_number(value: object) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError):
+        return False
+
+
+def parse_bluemira_worker_metrics(stdout: str) -> dict:
+    """Read the worker's final JSON metrics line after Bluemira console output."""
+    for line in reversed(stdout.splitlines()):
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (isinstance(value, dict)
+                and value.get("source_api") == "bluemira.fuel_cycle.lifecycle.LifeCycle.make_timeline"):
+            return value
+    return {}
+
+
+def bluemira_output_metrics(timeline: dict, stdout: str) -> dict:
+    """Route LifeCycle metrics from worker stdout, checking them against its saved Timeline."""
+    metrics = parse_bluemira_worker_metrics(stdout)
+    time_values = timeline.get("time")
+    fusion_values = timeline.get("fusion_time")
+    if (not isinstance(time_values, list) or not time_values
+            or not isinstance(fusion_values, list) or not fusion_values):
+        metrics["native_timeline_artifact_matches_metrics"] = False
+        return metrics
+    calendar_years = time_values[-1]
+    full_power_years = fusion_values[-1]
+    if not is_finite_number(calendar_years) or not is_finite_number(full_power_years) or calendar_years <= 0:
+        metrics["native_timeline_artifact_matches_metrics"] = False
+        return metrics
+    metrics["native_timeline_artifact_matches_metrics"] = (
+        near(metrics.get("calendar_years"), calendar_years, tol=1e-12)
+        and near(metrics.get("full_power_years"), full_power_years, tol=1e-12)
+        and near(metrics.get("overall_availability"), full_power_years / calendar_years, tol=1e-12)
+    )
+    return metrics
+
+
 def load_case() -> tuple[dict, dict[str, Path]]:
     case = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     if case.get("schema") != "faris-controlled-lifecycle-case/0.1.0":
@@ -76,7 +120,13 @@ def load_case() -> tuple[dict, dict[str, Path]]:
 
 
 def near(actual, expected: float, tol: float = 1e-6) -> bool:
-    return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(float(actual), expected, rel_tol=0, abs_tol=tol)
+    return (
+        is_finite_number(actual)
+        and is_finite_number(expected)
+        and is_finite_number(tol)
+        and tol >= 0
+        and math.isclose(float(actual), float(expected), rel_tol=0, abs_tol=float(tol))
+    )
 
 
 def evaluate(case: dict, process: dict, blue: dict, faris_fixed: dict, faris_computed: dict) -> dict:
@@ -87,6 +137,10 @@ def evaluate(case: dict, process: dict, blue: dict, faris_fixed: dict, faris_com
     replacement_years = authored["fixed_blanket_replacement_days"] / 365.25
     expected_availability = (authored["blanket_cycle_count"] * campaign_life_years) / (
         authored["blanket_cycle_count"] * campaign_life_years + replacement_years
+    )
+    required_blue_metrics = (
+        "calendar_years", "full_power_years", "overall_availability", "operational_load_factor_input",
+        "planned_maintenance", "ramp_time", "unplanned_downtime", "blanket_replacements", "divertor_replacements",
     )
     checks = {
         "process_horizon_is_authored": near(process.get("plant_horizon_years_input"), horizon),
@@ -101,6 +155,10 @@ def evaluate(case: dict, process: dict, blue: dict, faris_fixed: dict, faris_com
         "bluemira_zero_work_divertor_compatibility_phases": (
             near(blue.get("divertor_replacements"), authored["expected_bluebmira_zero_work_divertor_phases"], tol=0.0)
             and near(blue.get("planned_maintenance"), authored["fixed_blanket_replacement_days"] * 86400.0, tol=1e-6)
+        ),
+        "bluemira_native_metrics_present": all(is_finite_number(blue.get(key)) for key in required_blue_metrics),
+        "bluemira_timeline_artifact_matches_metrics": (
+            blue.get("native_timeline_artifact_matches_metrics") is True
         ),
         "peer_availability_agrees": near(process.get("plant_availability_fraction"), blue.get("overall_availability")),
     }
@@ -139,6 +197,7 @@ def run(process_python: str, bluemira_python: str, out: Path) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     timeout, cap = case["limits"]["timeout_seconds"], case["limits"]["output_bytes"]
     outputs = {}
+    peer_run_records = {}
     for peer, python, config in (
         ("process", process_python, inputs["process"]),
         ("bluemira", bluemira_python, inputs["bluemira"]),
@@ -158,10 +217,23 @@ def run(process_python: str, bluemira_python: str, out: Path) -> dict:
             raise RuntimeError(f"{peer} worker failed or omitted native output: {record['stderr'][-1000:]}")
         if target.stat().st_size > cap:
             raise ValueError(f"{peer} output exceeds configured byte cap")
-        outputs[peer] = json.loads(target.read_text(encoding="utf-8"))
+        native_output = json.loads(target.read_text(encoding="utf-8"))
+        outputs[peer] = (
+            bluemira_output_metrics(native_output, record.get("stdout", ""))
+            if peer == "bluemira" else native_output
+        )
         record.update({"input_sha256": file_sha256(config), "output_sha256": file_sha256(target),
                        "output_path": str(target.relative_to(out)), "wall_seconds": round(time.monotonic() - started, 6)})
-        (folder / "run-record.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        if peer == "bluemira":
+            record["native_metrics"] = outputs[peer]
+        run_record = folder / "run-record.json"
+        run_record.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        peer_run_records[peer] = {
+            "path": str(run_record.relative_to(out)),
+            "sha256": file_sha256(run_record),
+            "native_output_path": str(target.relative_to(out)),
+            "native_output_sha256": file_sha256(target),
+        }
 
     faris_fixed = peer_compare.parse_faris_maintenance(inputs["faris"], case["faris_reference"]["design_id"], "fixed", "blanket")
     faris_computed = peer_compare.parse_faris_maintenance(inputs["faris"], case["faris_reference"]["design_id"], "computed", "blanket")
@@ -171,6 +243,7 @@ def run(process_python: str, bluemira_python: str, out: Path) -> dict:
         "interpretation": case["scope"],
         "authored_case_manifest_sha256": file_sha256(MANIFEST_PATH),
         "native_outputs": outputs,
+        "peer_run_records": peer_run_records,
         "comparison": evaluate(case, outputs["process"], outputs["bluemira"], faris_fixed, faris_computed),
     }
     target = out / "comparison.json"
