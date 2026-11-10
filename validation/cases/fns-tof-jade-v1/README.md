@@ -97,6 +97,77 @@ validation run record. Sampled sphere-containment checks reject a converted
 geometry boundary clipping the finite detector volume. They are a geometry
 sanity check, not proof of complete MCNP/OpenMC geometric equivalence.
 
+## Optional exact-weight AIM source pilot
+
+The stock FNS run remains analog. `run` removes inherited AIM variables from
+its solver environment, so an ambient shell setting cannot silently change the
+source law. The optional source-angle mixture is available only for the
+four-point FNS-Fe-5 input (F5 tallies 5, 25, 35, and 45). It fails closed if
+any detector point is absent or if the selected OpenMC CLI/library does not
+contain the pinned AIM patch markers.
+
+The patched sampler mixes the physical isotropic direction density with a
+uniform-area proposal over one rectangle per detector:
+
+```text
+q(omega) = (1-beta)*p_iso(omega) + beta*(1/n_visible)*sum_j p_rectangle_j(omega)
+w        = p_iso(omega)/q(omega)
+```
+
+Each rectangle is a square inscribed in the projected finite-detector sphere
+at that run's radius. The positive `(1-beta)` term preserves every physical
+isotropic direction. For source birth, `0 < w <= 1/(1-beta)`; the plan also
+records a finite positive lower bound from the exact rectangle Jacobians. The
+FNS physical source histogram, all four detector points, deck FM factors,
+fine/coarse energy bins, and volume-normalized cell-flux score stay unchanged.
+No source/elastic-collision AIM is enabled: the existing patch requires weight
+windows for collision aiming, and this adapter has no qualified FNS weight
+windows.
+
+Before an AIM production run, `aim-vacuum-control` runs a separate all-void
+model with the same source histogram, all four detector locations, rectangular
+mixture, and 2.5, 1.25, and 0.625 cm spheres. There are no materials or
+collisions. For a unit isotropic point source at distance `D` from a spherical
+cell of radius `a`, the analytic volume-averaged flux density is
+
+```text
+V = 4*pi*a^3/3
+J = integral_0^(a/D) t*ln((1+t)/(1-t)) dt
+phi_bar = 3*D*J/(8*pi*a^3)
+```
+
+The control requires all four responses at all three radii, zero reported lost
+particles, zero MCNP importance kills, relative MC standard error no greater
+than 2%, and agreement with the analytic volume average within three standard
+errors. It records the exact CLI, linked shared library, Python API, nuclear
+data index, source deck, aperture geometry, statepoint hashes, and likelihood
+ratio bounds. `run --aim-aperture-beta BETA` requires a passing control receipt
+with identical runtime identity, deck, beta, targets, and radii. The existing
+two-halving finite-detector gate remains unchanged and still applies to the
+material-transport run. The vacuum control verifies only the angular-mixture
+weighting and spherical-volume normalization; it is not a material-transport
+result or an MCNP F5 equivalence claim.
+
+Example control plan (use fresh work directories and the same patched runtime
+and FNS cross sections as the later run):
+
+```sh
+python3 validation/cases/fns-tof-jade-v1/run_case.py aim-vacuum-control \
+  --upstream /path/to/open-benchmarks \
+  --manifest validation/cases/fns-tof-fe-5/manifest.json \
+  --cross-sections /path/to/cross_sections.xml \
+  --imp0-control /path/to/passing-imp0-control.json \
+  --openmc /path/to/patched-openmc \
+  --work-dir /path/to/new-fns-aim-vacuum-control \
+  --aim-aperture-beta 0.1 --particles 1000000 --batches 100 \
+  --threads 1 --seed 1701 --timeout 3600 --i-have-the-cpu
+```
+
+After the control passes and the analog pilot is reviewed, the separate
+material run can opt in with `--aim-aperture-beta 0.1 --aim-vacuum-control
+/path/to/new-fns-aim-vacuum-control/fns-aim-vacuum-control.json`. Without both
+flags, the adapter runs analog.
+
 ## Build manifests
 
 The 14 generated, sub-megabyte manifests are checked in one level above this

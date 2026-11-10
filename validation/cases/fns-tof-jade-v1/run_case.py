@@ -66,11 +66,201 @@ STATEPOINT_CURRENT_BATCH_DATASET = "current_batch"
 STATEPOINT_N_BATCHES_DATASET = "n_batches"
 STATEPOINT_N_PARTICLES_DATASET = "n_particles"
 STATEPOINT_N_REALIZATIONS_DATASET = "n_realizations"
+AIM_PATCH_PATH = ROOT / "integrations/openmc/patches/faris-openmc-0.15.3-aim.patch"
+AIM_REQUIRED_MARKERS = (b"OPENMC_APERTURE_BIAS", b"OPENMC_APERTURE_ONE_SIDED",
+                        b"OPENMC_COLLISION_AIM")
+AIM_SUPPORTED_CASE = "fns-tof-fe-5"
+AIM_REQUIRED_TALLIES = (5, 25, 35, 45)
+AIM_CONTROL_RADII_CM = (2.5, 1.25, 0.625)
+AIM_CONTROL_MAX_RELATIVE_MCSE = 0.02
+AIM_CONTROL_MAX_ABS_Z = 3.0
+AIM_CONTROL_MIN_BETA = 0.0
+AIM_CONTROL_MAX_BETA = 1.0
 
 
 def require(ok: bool, why: str) -> None:
     if not ok:
         raise ValueError(why)
+
+
+def isotropic_sphere_volume_average_cm2(distance_cm: float, radius_cm: float) -> float:
+    """Exact vacuum flux-density average in a sphere from a unit isotropic point source."""
+    distance, radius = float(distance_cm), float(radius_cm)
+    require(math.isfinite(distance) and math.isfinite(radius) and distance > radius > 0.0,
+            "vacuum control sphere must be positive and lie outside the point source")
+    u = radius / distance
+    if u < 0.1:
+        # Stable series for integral_0^u t*ln((1+t)/(1-t)) dt.
+        integral = math.fsum(2.0 * u ** (2 * k + 3) / ((2 * k + 1) * (2 * k + 3))
+                             for k in range(20))
+    else:
+        integral = u + 0.5 * (u * u - 1.0) * math.log((1.0 + u) / (1.0 - u))
+    value = 3.0 * distance * integral / (8.0 * math.pi * radius ** 3)
+    require(math.isfinite(value) and value > 0.0, "analytic vacuum sphere flux is non-finite")
+    return value
+
+
+def _normalize(vector: list[float]) -> list[float]:
+    length = math.sqrt(math.fsum(value * value for value in vector))
+    require(math.isfinite(length) and length > 0.0, "cannot normalize zero or non-finite AIM target vector")
+    return [value / length for value in vector]
+
+
+def source_aperture_plan(parsed: dict, radius_cm: float, beta: float) -> dict:
+    """Construct four finite rectangular AIM targets while retaining isotropic support."""
+    require(math.isfinite(beta) and AIM_CONTROL_MIN_BETA < beta < AIM_CONTROL_MAX_BETA,
+            "AIM beta must be strictly between zero and one to preserve physical isotropic support")
+    radius = float(radius_cm)
+    require(math.isfinite(radius) and radius > 0.0, "AIM aperture radius must be positive and finite")
+    detectors = parsed["detectors"]
+    ids = tuple(int(point["tally"]) for point in detectors)
+    require(ids == AIM_REQUIRED_TALLIES,
+            f"FNS-Fe-5 AIM requires all four F5 detector points {AIM_REQUIRED_TALLIES}, got {ids}")
+    source = [float(value) for value in parsed["source_position_cm"]]
+    half = radius / math.sqrt(2.0)
+    aperture_records = []
+    rect_specs = []
+    max_pdf_bound = 0.0
+    for point in detectors:
+        center = [float(value) for value in point["position_cm"]]
+        delta = [center[i] - source[i] for i in range(3)]
+        distance = math.sqrt(math.fsum(value * value for value in delta))
+        normal = _normalize(delta)
+        reference = [1.0, 0.0, 0.0] if abs(normal[0]) < 0.9 else [0.0, 1.0, 0.0]
+        u_hat = _normalize([normal[1] * reference[2] - normal[2] * reference[1],
+                            normal[2] * reference[0] - normal[0] * reference[2],
+                            normal[0] * reference[1] - normal[1] * reference[0]])
+        v_hat = [normal[1] * u_hat[2] - normal[2] * u_hat[1],
+                 normal[2] * u_hat[0] - normal[0] * u_hat[2],
+                 normal[0] * u_hat[1] - normal[1] * u_hat[0]]
+        u = [half * value for value in u_hat]
+        v = [half * value for value in v_hat]
+        area = 4.0 * half * half
+        # A square with corners at radius from its centre lies within the
+        # projected finite sphere. The exact proposal solid angle is analytic.
+        solid_angle = 4.0 * math.atan((half * half) /
+                                      (distance * math.sqrt(distance * distance + 2.0 * half * half)))
+        full_sphere_fraction = 0.5 * (1.0 - math.sqrt(1.0 - (radius / distance) ** 2))
+        rectangle_fraction = solid_angle / (4.0 * math.pi)
+        require(rectangle_fraction > 0.0 and rectangle_fraction < full_sphere_fraction,
+                f"F{point['tally']} AIM rectangle does not lie strictly inside its finite sphere aperture")
+        # At the rectangle corner, p_rect is maximal for this source point.
+        pdf_bound = (distance * distance + 2.0 * half * half) ** 1.5 / (area * distance)
+        max_pdf_bound = max(max_pdf_bound, pdf_bound)
+        rect_values = [*center, *u, *v]
+        rect_specs.append(" ".join(format(value, ".17g") for value in rect_values))
+        aperture_records.append({"mcnp_tally_number": point["tally"], "angle_deg": point["angle_deg"],
+                                 "center_cm": center, "u_cm": u, "v_cm": v,
+                                 "source_distance_cm": distance, "radius_cm": radius,
+                                 "square_half_side_cm": half, "projected_square_area_cm2": area,
+                                 "proposal_solid_angle_sr": solid_angle,
+                                 "proposal_isotropic_probability": rectangle_fraction,
+                                 "finite_sphere_solid_angle_probability": full_sphere_fraction,
+                                 "rectangular_proposal_pdf_source_upper_bound_sr-1": pdf_bound,
+                                 "analytic_isotropic_volume_average_flux_per_cm2_per_source":
+                                     isotropic_sphere_volume_average_cm2(distance, radius)})
+    aperture_spec = f"{beta:.17g} " + rect_specs[0] + " ; " + " ; ".join(rect_specs[1:])
+    min_weight_bound = 1.0 / ((1.0 - beta) + 4.0 * math.pi * beta * max_pdf_bound)
+    max_weight_bound = 1.0 / (1.0 - beta)
+    require(0.0 < min_weight_bound <= max_weight_bound < math.inf,
+            "source-aperture likelihood-ratio bounds are invalid")
+    return {"method": "FARIS OpenMC 0.15.3 AIM source angular mixture",
+            "beta": beta, "source_position_cm": source,
+            "physical_law": "isotropic MCNP SDEF direction, unchanged",
+            "proposal_law": "q(omega)=(1-beta)/(4*pi)+beta*(1/n_visible)*sum_j p_rectangle_j(omega)",
+            "source_weight_correction": "p_iso/q = 1/((1-beta)+4*pi*beta*aperture_pdf)",
+            "source_birth_weight_bounds": {"lower_bound": min_weight_bound,
+                                             "upper_bound": max_weight_bound,
+                                             "basis": "source aperture density is bounded by the maximum exact rectangle Jacobian over its four corners; positive isotropic mixture supplies the finite upper bound"},
+            "environment": {"OPENMC_APERTURE_BIAS": aperture_spec,
+                            "OPENMC_APERTURE_ONE_SIDED": "1"},
+            "collision_aim": {"enabled": False,
+                              "reason": "the FNS adapter has no qualified weight windows; the AIM patch refuses elastic-collision aiming without them"},
+            "detector_apertures": aperture_records,
+            "all_four_detector_points_required": True,
+            "claim": "importance sampling only; no variance reduction or F5 equivalence is claimed"}
+
+
+def aim_runtime_identity(runtime: dict) -> dict:
+    """Bind AIM capability to the exact executable-selected libopenmc.so."""
+    library = Path(runtime["linked_library_path"]).resolve(strict=True)
+    payload = library.read_bytes()
+    missing = [marker.decode() for marker in AIM_REQUIRED_MARKERS if marker not in payload]
+    require(not missing, "selected OpenMC library lacks AIM patch support: " + ", ".join(missing))
+    patch = AIM_PATCH_PATH.resolve(strict=True)
+    return {"patch_source": str(patch), "patch_sha256": hash_file(patch),
+            "linked_library_path": str(library), "linked_library_sha256": hash_file(library),
+            "supported_markers": [marker.decode() for marker in AIM_REQUIRED_MARKERS],
+            "collision_aim_available_but_disabled": True}
+
+
+def canonical_json_sha256(document: dict, omit: tuple[str, ...] = ()) -> str:
+    payload = {key: value for key, value in document.items() if key not in set(omit)}
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+                     allow_nan=False).encode("utf-8")
+    return sha256_bytes(raw)
+
+
+def verify_aim_control_receipt(path: Path, runtime: dict, case_id: str, parsed: dict,
+                               source_deck_sha256: str, beta: float, imp0_control: dict) -> dict:
+    require(path.is_file(), "a passing four-point AIM vacuum-control receipt is required before AIM production")
+    require(path.stat().st_size <= MAX_IMP0_CONTROL_BYTES,
+            "AIM vacuum-control receipt exceeds the bounded JSON input limit")
+    document = json.loads(path.read_text(encoding="utf-8"))
+    require(isinstance(document, dict), "AIM vacuum-control receipt must be a JSON object")
+    require(document.get("schema") == "faris.fns-aim-vacuum-control/1.0.0"
+            and document.get("status") == "PASS",
+            "AIM vacuum-control receipt has wrong schema or did not pass")
+    recorded_hash = document.get("receipt_sha256")
+    require(isinstance(recorded_hash, str) and recorded_hash == canonical_json_sha256(document, ("receipt_sha256",)),
+            "AIM vacuum-control receipt canonical SHA256 is missing or invalid")
+    require(document.get("case_id") == case_id == AIM_SUPPORTED_CASE,
+            "AIM vacuum-control receipt is for a different benchmark case")
+    require(document.get("source_deck_sha256") == source_deck_sha256,
+            "AIM vacuum-control receipt is bound to a different source deck")
+    recorded_beta = document.get("beta")
+    require(isinstance(recorded_beta, (int, float)) and not isinstance(recorded_beta, bool)
+            and math.isfinite(recorded_beta) and recorded_beta == float(beta),
+            "AIM vacuum-control beta differs from requested production beta")
+    require(document.get("runtime_identity") == runtime,
+            "AIM vacuum-control receipt used a different CLI, library, Python API or nuclear-data identity")
+    require(document.get("imp0_control_receipt") == imp0_control,
+            "AIM vacuum-control receipt is not bound to the currently selected passing imp0 control")
+    levels = document.get("radius_levels")
+    require(isinstance(levels, list) and [row.get("radius_cm") for row in levels] == list(AIM_CONTROL_RADII_CM),
+            "AIM vacuum-control receipt omits one of the three detector radii")
+    artifacts = document.get("solver_artifacts")
+    require(isinstance(artifacts, list) and len(artifacts) == len(AIM_CONTROL_RADII_CM),
+            "AIM vacuum-control receipt lacks all three hashed solver artifacts")
+    for index, (level, artifact, radius) in enumerate(zip(levels, artifacts, AIM_CONTROL_RADII_CM, strict=True)):
+        require(isinstance(level, dict) and isinstance(artifact, dict)
+                and level.get("radius_cm") == radius and artifact.get("radius_cm") == radius,
+                "AIM vacuum-control radius or artifact order differs")
+        require(level.get("status") == "PASS"
+                and set(row.get("mcnp_tally_number") for row in level.get("results", [])) == set(AIM_REQUIRED_TALLIES)
+                and all(row.get("passed") is True for row in level.get("results", [])),
+                "AIM vacuum-control receipt lacks a passing result for every one of the four FNS detector points")
+        expected_plan = source_aperture_plan(parsed, radius, beta)
+        require(level.get("source_aperture") == expected_plan,
+                "AIM vacuum-control source apertures differ from current detector centers, radius or beta")
+        expected_positions = {int(row["tally"]): row["position_cm"] for row in parsed["detectors"]}
+        require({int(row["mcnp_tally_number"]): row["position_cm"] for row in level["results"]}
+                == expected_positions,
+                "AIM vacuum-control result coordinates differ from the four pinned detector points")
+        require(level.get("patch_statepoint", {}).get("lost_particles") == 0
+                and level.get("patch_statepoint", {}).get("intentional_kill_events") == 0
+                and level.get("patch_statepoint", {}).get("source_birth_kill_events") == 0
+                and level.get("patch_statepoint", {}).get("cell_entry_kill_events") == 0,
+                "AIM vacuum-control receipt reports loss or MCNP importance kills")
+        statepoint_path = Path(artifact.get("statepoint_path", ""))
+        require(statepoint_path.is_file() and hash_file(statepoint_path) == artifact.get("statepoint_sha256"),
+                f"AIM vacuum-control statepoint {index} is missing or changed")
+        child = read_imp0_statepoint(statepoint_path)
+        require(child == level["patch_statepoint"],
+                "AIM vacuum-control record diagnostics differ from its hashed child statepoint")
+    return {"path": str(path.resolve()), "sha256": hash_file(path), "receipt_sha256": recorded_hash,
+            "status": "PASS", "radii_cm": list(AIM_CONTROL_RADII_CM),
+            "all_four_detector_tallies": list(AIM_REQUIRED_TALLIES)}
 
 
 def hash_file(path: Path, limit: int | None = None) -> str:
@@ -827,6 +1017,109 @@ def model_for_radius(openmc, deck_path: Path, upstream: Path, manifest: dict, pa
     return model, detector_cells
 
 
+def vacuum_aim_control_model(openmc, parsed: dict, radius_cm: float,
+                             batches: int, histories: int, seed: int):
+    """Build a no-material vacuum control with the actual four FNS detector points."""
+    require(tuple(int(point["tally"]) for point in parsed["detectors"]) == AIM_REQUIRED_TALLIES,
+            "vacuum AIM control requires exact FNS-Fe-5 four-detector coverage")
+    openmc.reset_auto_ids()
+    source_xyz = tuple(float(x) for x in parsed["source_position_cm"])
+    positions = [tuple(float(x) for x in point["position_cm"]) for point in parsed["detectors"]]
+    distances = [math.sqrt(math.fsum((p[k] - source_xyz[k]) ** 2 for k in range(3))) for p in positions]
+    require(all(distance > radius_cm for distance in distances),
+            "vacuum AIM detector sphere overlaps the point source")
+    for i, p in enumerate(positions):
+        for q in positions[i + 1:]:
+            separation = math.sqrt(math.fsum((p[k] - q[k]) ** 2 for k in range(3)))
+            require(separation > 2.0 * radius_cm, "vacuum AIM finite-detector spheres overlap")
+
+    outer_radius = max(distances) + 10.0 * radius_cm
+    outer = openmc.Sphere(surface_id=1, x0=source_xyz[0], y0=source_xyz[1], z0=source_xyz[2],
+                          r=outer_radius, boundary_type="vacuum")
+    spheres = [openmc.Sphere(surface_id=i + 2, x0=p[0], y0=p[1], z0=p[2], r=radius_cm)
+               for i, p in enumerate(positions)]
+    world_region = -outer
+    for sphere in spheres:
+        world_region &= +sphere
+    cells = [openmc.Cell(cell_id=1, name="analytic_vacuum_world", region=world_region)]
+    detector_cells = {}
+    tallies = openmc.Tallies()
+    for point, sphere in zip(parsed["detectors"], spheres, strict=True):
+        tally_id = int(point["tally"])
+        cell = openmc.Cell(cell_id=tally_id + 100, name=f"analytic_f{tally_id}_sphere",
+                           fill=None, region=-sphere)
+        cells.append(cell)
+        detector_cells[tally_id] = {"cell": cell,
+                                    "analytic_flux_cm-2_per_source":
+                                        isotropic_sphere_volume_average_cm2(
+                                            distances[len(detector_cells)], radius_cm)}
+        tally = openmc.Tally(name=f"aim_vacuum_f{tally_id}")
+        tally.filters = [openmc.CellFilter(cell)]
+        tally.scores = ["flux"]
+        tallies.append(tally)
+
+    geometry = openmc.Geometry(openmc.Universe(cells=cells))
+    require(all(geometry.find(p)[-1].id == detector_cells[int(point["tally"])] ["cell"].id
+                for point, p in zip(parsed["detectors"], positions, strict=True)),
+            "vacuum AIM control point-to-cell locator failed")
+    source = openmc.IndependentSource(space=openmc.stats.Point(source_xyz),
+                                      angle=openmc.stats.Isotropic(),
+                                      energy=histogram_source(openmc, parsed))
+    settings = openmc.Settings()
+    settings.run_mode = "fixed source"
+    settings.source = [source]
+    settings.particles = histories // batches
+    settings.batches = batches
+    settings.seed = seed
+    # OpenMC requires a positive cutoff; the post-run patched statepoint gate
+    # below still requires the observed lost-particle count to be exactly zero.
+    settings.max_lost_particles = 1
+    settings.statepoint = {"batches": [batches]}
+    model = openmc.Model(geometry=geometry, materials=openmc.Materials(),
+                         settings=settings, tallies=tallies)
+    return model, detector_cells
+
+
+def evaluate_vacuum_aim_control(detector_rows: list[dict], patch_statepoint: dict,
+                                max_relative_mcse: float = AIM_CONTROL_MAX_RELATIVE_MCSE,
+                                max_abs_z: float = AIM_CONTROL_MAX_ABS_Z) -> dict:
+    """Compare all four weighted vacuum cell-flux estimates with the analytic sphere mean."""
+    by_tally = {int(row["mcnp_tally_number"]): row for row in detector_rows}
+    require(set(by_tally) == set(AIM_REQUIRED_TALLIES),
+            "analytic AIM control must retain all four FNS-Fe-5 detector responses")
+    require(patch_statepoint["lost_particles"] == 0
+            and patch_statepoint["intentional_kill_events"] == 0,
+            "vacuum AIM control observed particle loss or intentional importance kills")
+    results = []
+    for tally_id in AIM_REQUIRED_TALLIES:
+        row = by_tally[tally_id]
+        values = (row["raw_tracklength_mean_particle_cm_per_source"],
+                  row["raw_tracklength_std_dev_particle_cm_per_source"],
+                  row["sphere_volume_cm3"], row["analytic_flux_cm-2_per_source"])
+        require(all(math.isfinite(float(value)) for value in values),
+                f"vacuum F{tally_id} control has non-finite score or geometry")
+        mean, sd, volume, expected = map(float, values)
+        require(mean > 0.0 and sd >= 0.0 and volume > 0.0 and expected > 0.0,
+                f"vacuum F{tally_id} control has a zero or negative flux score")
+        estimate, u_mc = mean / volume, sd / volume
+        relative_mcse = u_mc / estimate
+        relative_bias = estimate / expected - 1.0
+        z = (estimate - expected) / u_mc if u_mc else (0.0 if estimate == expected else None)
+        passed = relative_mcse <= max_relative_mcse and z is not None and abs(z) <= max_abs_z
+        results.append({**row, "estimated_flux_cm-2_per_source": estimate,
+                        "u_mc_cm-2_per_source": u_mc,
+                        "relative_mcse": relative_mcse, "relative_bias": relative_bias,
+                        "analytic_z_score": z, "passed": passed})
+    return {"status": "PASS" if all(row["passed"] for row in results) else "FAIL",
+            "criteria": {"all_four_detector_tallies": list(AIM_REQUIRED_TALLIES),
+                         "relative_mcse_max": max_relative_mcse,
+                         "absolute_analytic_z_max": max_abs_z,
+                         "lost_particles": 0, "intentional_importance_kills": 0},
+            "patch_counters": patch_statepoint,
+            "results": results,
+            "scope": "vacuum source-mixture and cell-volume estimator control only; no F5 equivalence, transport validation or production finite-volume qualification"}
+
+
 def result_levels(openmc, manifest: dict, tables: list[dict], statepoint: Path, radius: float) -> dict:
     results = {}
     volume = sphere_volume_cm3(radius)
@@ -924,6 +1217,167 @@ def fresh_dir(path: Path) -> None:
     path.mkdir(parents=True)
 
 
+def solver_environment(base: dict[str, str], threads: int, aperture: dict | None = None) -> dict[str, str]:
+    """Ensure the analog default cannot inherit AIM settings from the caller."""
+    names = ("OPENMC_APERTURE_BIAS", "OPENMC_APERTURE_ONE_SIDED", "OPENMC_COLLISION_AIM",
+             "OPENMC_WW_SKIP_VOID", "OPENMC_SPLIT_BEFORE_COLLISION")
+    result = {key: value for key, value in base.items() if key not in names}
+    result["OMP_NUM_THREADS"] = str(threads)
+    result["OPENBLAS_NUM_THREADS"] = "1"
+    if aperture is not None:
+        result.update(aperture["environment"])
+    return result
+
+
+def command_aim_vacuum_control(args) -> int:
+    require(args.i_have_the_cpu, "aim-vacuum-control runs three bounded OpenMC vacuum jobs; pass --i-have-the-cpu")
+    require(args.case == AIM_SUPPORTED_CASE, "the AIM vacuum-control adapter is restricted to FNS-Fe-5")
+    require(0 < args.particles <= MAX_PARTICLES, f"--particles must be in [1, {MAX_PARTICLES}]")
+    require(0 < args.batches <= MAX_BATCHES and args.particles % args.batches == 0,
+            "--batches must be <=500 and divide --particles exactly")
+    require(0 < args.threads <= MAX_THREADS, f"--threads must be in [1, {MAX_THREADS}]")
+    require(0 < args.timeout <= MAX_WALL_SECONDS, f"--timeout must be in [1, {MAX_WALL_SECONDS}] seconds per radius")
+    manifest = load_manifest(args.manifest)
+    require(manifest["case_id"] == AIM_SUPPORTED_CASE,
+            "AIM vacuum-control requires the pinned four-point FNS-Fe-5 manifest")
+    require(math.isfinite(args.aim_aperture_beta) and 0.0 < args.aim_aperture_beta < 1.0,
+            "AIM beta must be strictly between zero and one to preserve physical isotropic support")
+    upstream = args.upstream.expanduser().resolve(strict=True)
+    manifest, deck_path, parsed_wrapper = source_inputs(upstream, manifest)
+    parsed = parsed_wrapper["deck"]
+    validate_response_mapping(manifest, parsed)
+    require(tuple(point["tally"] for point in parsed["detectors"]) == AIM_REQUIRED_TALLIES,
+            "pinned FNS-Fe-5 deck no longer has exactly all four supported detector points")
+    cross_sections = args.cross_sections.expanduser().resolve(strict=True)
+    library_identity(cross_sections)
+    os.environ["OPENMC_CROSS_SECTIONS"] = str(cross_sections)
+    try:
+        import openmc
+    except ImportError as exc:
+        raise ValueError("OpenMC Python bindings are not installed") from exc
+    require(openmc.__version__ == OPENMC_REQUIRED, f"expected OpenMC {OPENMC_REQUIRED}, got {openmc.__version__}")
+    executable = shutil.which(args.openmc)
+    require(executable is not None, f"OpenMC executable not found: {args.openmc}")
+    executable_path = Path(executable).resolve(strict=True)
+    base_env = {key: value for key, value in os.environ.items() if key not in (
+        "OPENMC_APERTURE_BIAS", "OPENMC_APERTURE_ONE_SIDED", "OPENMC_COLLISION_AIM",
+        "OPENMC_WW_SKIP_VOID", "OPENMC_SPLIT_BEFORE_COLLISION")}
+    base_env.update({"OMP_NUM_THREADS": str(args.threads), "OPENBLAS_NUM_THREADS": "1"})
+    runtime = selected_openmc_runtime_identity(executable_path, base_env)
+    openmc_module_path = Path(openmc.__file__).resolve(strict=True)
+    runtime.update({"openmc_python_version": openmc.__version__,
+                    "python_executable_path": str(Path(sys.executable).resolve(strict=True)),
+                    "openmc_python_module_path": str(openmc_module_path),
+                    "openmc_python_module_sha256": hash_file(openmc_module_path),
+                    "cross_sections_path": str(cross_sections),
+                    "cross_sections_xml_sha256": hash_file(cross_sections, MAX_CROSS_SECTIONS_XML_BYTES)})
+    imp0_control = verify_imp0_control_receipt(args.imp0_control.expanduser().resolve(strict=True), runtime)
+    runtime["aim_capability"] = aim_runtime_identity(runtime)
+    source_hash = hash_file(deck_path, MAX_SOURCE_BYTES)
+
+    work = args.work_dir.expanduser().resolve()
+    fresh_dir(work)
+    radius_levels = []
+    artifacts = []
+    for index, radius in enumerate(AIM_CONTROL_RADII_CM):
+        folder = work / f"aim-vacuum-radius-{radius:g}cm"
+        folder.mkdir()
+        require(hash_file(executable_path) == runtime["executable_sha256"],
+                "selected OpenMC CLI changed after AIM control runtime preflight")
+        require(hash_file(Path(runtime["linked_library_path"])) == runtime["linked_library_sha256"],
+                "selected linked OpenMC library changed after AIM control runtime preflight")
+        aperture = source_aperture_plan(parsed, radius, args.aim_aperture_beta)
+        model, detector_cells = vacuum_aim_control_model(
+            openmc, parsed, radius, args.batches, args.particles, args.seed + index)
+        model.export_to_xml(directory=str(folder))
+        (folder / "aim-source-plan.json").write_text(
+            json.dumps(aperture, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+        env = solver_environment(base_env, args.threads, aperture)
+        try:
+            completed = subprocess.run([str(executable_path)], cwd=folder, env=env,
+                                       capture_output=True, text=True, timeout=args.timeout)
+        except subprocess.TimeoutExpired as exc:
+            def as_text(value):
+                return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else (value or "")
+            (folder / "openmc.log").write_text(as_text(exc.stdout) + as_text(exc.stderr), encoding="utf-8")
+            raise ValueError(f"AIM vacuum control exceeded {args.timeout} seconds at radius {radius:g} cm") from exc
+        log_path = folder / "openmc.log"
+        log_path.write_text(completed.stdout + completed.stderr, encoding="utf-8")
+        require(completed.returncode == 0, f"OpenMC AIM vacuum control failed at radius {radius:g} cm; see {log_path}")
+        statepoints = sorted(folder.glob("statepoint.*.h5"))
+        require(len(statepoints) == 1, f"expected one AIM vacuum statepoint at radius {radius:g} cm")
+        statepoint = statepoints[0]
+        patch_diagnostics = read_imp0_statepoint(statepoint)
+        require(patch_diagnostics["patch_version"] == runtime["patch_version"],
+                "AIM vacuum child statepoint came from a different MCNP imp0 patch runtime")
+        require(patch_diagnostics["source_birth_kill_events"] == 0
+                and patch_diagnostics["cell_entry_kill_events"] == 0,
+                "vacuum AIM control unexpectedly invoked MCNP importance killing")
+        detector_rows = []
+        with openmc.StatePoint(str(statepoint)) as sp:
+            for point in parsed["detectors"]:
+                tally_id = int(point["tally"])
+                tally = sp.get_tally(name=f"aim_vacuum_f{tally_id}")
+                mean = float(tally.mean.ravel()[0])
+                std = float(tally.std_dev.ravel()[0])
+                cell_info = detector_cells[tally_id]
+                volume = sphere_volume_cm3(radius)
+                detector_rows.append({"mcnp_tally_number": tally_id,
+                                      "angle_deg": point["angle_deg"],
+                                      "position_cm": point["position_cm"],
+                                      "radius_cm": radius, "sphere_volume_cm3": volume,
+                                      "raw_tracklength_mean_particle_cm_per_source": mean,
+                                      "raw_tracklength_std_dev_particle_cm_per_source": std,
+                                      "analytic_flux_cm-2_per_source": cell_info["analytic_flux_cm-2_per_source"]})
+        evaluated = evaluate_vacuum_aim_control(detector_rows, patch_diagnostics)
+        level = {"radius_cm": radius, "status": evaluated["status"],
+                 "criteria": evaluated["criteria"], "results": evaluated["results"],
+                 "patch_statepoint": patch_diagnostics,
+                 "source_aperture": aperture}
+        radius_levels.append(level)
+        artifacts.append({"radius_cm": radius,
+                          "model_xml_sha256": hash_file(folder / "model.xml") if (folder / "model.xml").is_file() else None,
+                          "geometry_xml_sha256": hash_file(folder / "geometry.xml") if (folder / "geometry.xml").is_file() else None,
+                          "materials_xml_sha256": hash_file(folder / "materials.xml") if (folder / "materials.xml").is_file() else None,
+                          "settings_xml_sha256": hash_file(folder / "settings.xml"),
+                          "tallies_xml_sha256": hash_file(folder / "tallies.xml"),
+                          "statepoint_path": str(statepoint), "statepoint_sha256": hash_file(statepoint),
+                          "log_path": str(log_path), "log_sha256": hash_file(log_path),
+                          "aim_plan_sha256": hash_file(folder / "aim-source-plan.json"),
+                          "patch_statepoint": patch_diagnostics})
+        (folder / "aim-vacuum-results.json").write_text(
+            json.dumps(level, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+
+    passed = all(level["status"] == "PASS" for level in radius_levels)
+    document = {"schema": "faris.fns-aim-vacuum-control/1.0.0",
+                "status": "PASS" if passed else "FAIL", "case_id": manifest["case_id"],
+                "manifest_sha256": manifest_sha256(manifest),
+                "source_deck_path": str(deck_path), "source_deck_sha256": source_hash,
+                "cross_sections_path": str(cross_sections),
+                "cross_sections_xml_sha256": runtime["cross_sections_xml_sha256"],
+                "runtime_identity": runtime, "imp0_control_receipt": imp0_control,
+                "beta": args.aim_aperture_beta, "radii_cm": list(AIM_CONTROL_RADII_CM),
+                "histories_per_radius": args.particles, "batches": args.batches,
+                "threads": args.threads, "seed_by_radius": [args.seed + i for i in range(3)],
+                "radius_levels": radius_levels, "solver_artifacts": artifacts,
+                "acceptance": {"all_four_detector_points_at_all_three_radii": True,
+                               "analytic_cell_flux_bias": "absolute z-score <= 3 and relative MCSE <= 2% for each detector/radius",
+                               "zero_lost_particles_and_zero_importance_kills": True,
+                               "source_likelihood_ratio_bound": "0 < p_iso/q <= 1/(1-beta); per-plan finite positive lower bound also recorded",
+                               "source_direction_law": "isotropic law retained through a positive (1-beta) mixture component"},
+                "scope": "weighted isotropic point-source vacuum control for aperture sampling and finite-cell volume normalization; it does not test material transport, finite-volume convergence in FNS, or MCNP F5 equivalence"}
+    document["receipt_sha256"] = canonical_json_sha256(document)
+    receipt_path = work / "fns-aim-vacuum-control.json"
+    receipt_path.write_text(json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    if not passed:
+        raise ValueError(f"AIM vacuum analytic control failed; inspect {receipt_path}")
+    print(json.dumps({"status": document["status"], "receipt": str(receipt_path),
+                      "receipt_sha256": document["receipt_sha256"],
+                      "all_four_detectors": list(AIM_REQUIRED_TALLIES),
+                      "radii_cm": list(AIM_CONTROL_RADII_CM)}, indent=2))
+    return 0
+
+
 def command_run(args) -> int:
     require(args.i_have_the_cpu, "run starts three bounded OpenMC jobs; pass --i-have-the-cpu")
     require(0 < args.particles <= MAX_PARTICLES, f"--particles must be in [1, {MAX_PARTICLES}]")
@@ -935,6 +1389,14 @@ def command_run(args) -> int:
     manifest, deck, parsed_wrapper = source_inputs(upstream, manifest)
     parsed = parsed_wrapper["deck"]
     response_map = validate_response_mapping(manifest, parsed)
+    require((args.aim_aperture_beta is None) == (args.aim_vacuum_control is None),
+            "AIM production requires both --aim-aperture-beta and a passing --aim-vacuum-control receipt")
+    if args.aim_aperture_beta is not None:
+        require(manifest["case_id"] == AIM_SUPPORTED_CASE,
+                "source aperture AIM is currently qualified only for the four-point FNS-Fe-5 case")
+        require(math.isfinite(args.aim_aperture_beta) and 0.0 < args.aim_aperture_beta < 1.0,
+                "AIM beta must be strictly between zero and one to preserve physical isotropic support")
+        source_aperture_plan(parsed, AIM_CONTROL_RADII_CM[0], args.aim_aperture_beta)
     require(args.work_dir.expanduser().resolve() != args.record.expanduser().resolve() if args.record else True,
             "record path must differ from the work directory")
     cross_sections = args.cross_sections.expanduser().resolve(strict=True)
@@ -954,7 +1416,7 @@ def command_run(args) -> int:
     except (ImportError, importlib.metadata.PackageNotFoundError) as exc:
         raise ValueError("openmc_mcnp_adapter must be installed from a pinned source checkout") from exc
 
-    solver_env = {**os.environ, "OMP_NUM_THREADS": str(args.threads), "OPENBLAS_NUM_THREADS": "1"}
+    solver_env = solver_environment(os.environ, args.threads)
     runtime = selected_openmc_runtime_identity(executable_path, solver_env)
     require(runtime["executable_sha256"] == openmc_exe_sha256,
             "OpenMC CLI changed between discovery and linked-library capability check")
@@ -964,6 +1426,13 @@ def command_run(args) -> int:
     runtime["cross_sections_path"] = str(cross_sections)
     runtime["cross_sections_xml_sha256"] = hash_file(cross_sections, MAX_CROSS_SECTIONS_XML_BYTES)
     control_receipt = verify_imp0_control_receipt(args.imp0_control.expanduser().resolve(strict=True), runtime)
+    aim_control_receipt = None
+    if args.aim_aperture_beta is not None:
+        runtime["aim_capability"] = aim_runtime_identity(runtime)
+        aim_control_receipt = verify_aim_control_receipt(
+            args.aim_vacuum_control.expanduser().resolve(strict=True), runtime,
+            manifest["case_id"], parsed, hash_file(deck, MAX_SOURCE_BYTES), args.aim_aperture_beta,
+            control_receipt)
 
     work = args.work_dir.expanduser().resolve()
     fresh_dir(work)
@@ -978,6 +1447,8 @@ def command_run(args) -> int:
                 "selected linked libopenmc changed after the imp0 control preflight")
         model, finite_cells = model_for_radius(openmc, deck, upstream, manifest, parsed, radius,
                                                args.batches, args.particles, args.seed + index)
+        aim_aperture = (source_aperture_plan(parsed, radius, args.aim_aperture_beta)
+                        if args.aim_aperture_beta is not None else None)
         importance_mapping = verified_importance_mapping(model, deck, parsed)
         model.export_to_xml(directory=str(folder))
         importance_xml = inject_importance_xml_markers(
@@ -985,7 +1456,9 @@ def command_run(args) -> int:
             hash_file(deck, MAX_SOURCE_BYTES), conv, importance_mapping)
         cmd = [str(executable_path)]
         try:
-            completed = subprocess.run(cmd, cwd=folder, env=solver_env, capture_output=True, text=True, timeout=args.timeout)
+            radius_env = solver_environment(os.environ, args.threads, aim_aperture)
+            completed = subprocess.run(cmd, cwd=folder, env=radius_env,
+                                       capture_output=True, text=True, timeout=args.timeout)
         except subprocess.TimeoutExpired as exc:
             def as_text(value):
                 return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else (value or "")
@@ -1011,6 +1484,7 @@ def command_run(args) -> int:
                           "statepoint": {"path": str(statepoints[0]), "sha256": hash_file(statepoints[0])},
                           "openmc_log": {"path": str(folder / "openmc.log"), "sha256": hash_file(folder / "openmc.log")},
                           "imp0_child_statepoint_diagnostics": patch_statepoint,
+                          "source_aperture_bias": aim_aperture,
                           "imp0_mapping": importance_mapping,
                           "openmc_tally_mapping": tally_identity_mapping(model)})
         artifacts[-1]["finite_detector_cells"] = {
@@ -1034,6 +1508,7 @@ def command_run(args) -> int:
                           "adapter_code": adapter_identity, "converter": conv, "cross_sections": library,
                           "openmc_executable": {"path": str(executable_path), "sha256": openmc_exe_sha256},
                           "patched_openmc_runtime": runtime, "imp0_control_receipt": control_receipt,
+                          "aim_vacuum_control_receipt": aim_control_receipt,
                           "python_version": platform.python_version(),
                           "source_deck_sha256": hash_file(deck), "source_histogram": parsed["source_histogram"],
                           "detector_mapping": parsed["detectors"], "particles_per_radius": args.particles,
@@ -1048,6 +1523,10 @@ def command_run(args) -> int:
                               "normalized_flux_units": "particle/cm^2 per source particle per unit lethargy"},
                           "solver_artifacts": artifacts,
                           "finite_point_approximation_qualification": qualification,
+                          "variance_reduction": {"enabled": aim_aperture is not None,
+                              "method": "exact-weight isotropic/rectangular source-angle mixture" if aim_aperture else "analog isotropic source",
+                              "source_weight_receipt": "per-radius proposal, finite support and likelihood-ratio bounds are recorded" if aim_aperture else "analog source weight 1",
+                              "collision_aim": "disabled; no qualified FNS weight windows exist"},
                           "scope": "finite-volume convergence only; does not establish exact F5 equivalence or physical validation",
                           "reference_uncertainty": "source-relative errors retained; confidence interpretation and cross-bin covariance not provided"})
     target = args.record.expanduser().resolve() if args.record else work / f"{manifest['case_id']}.run.json"
@@ -1082,6 +1561,10 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--openmc", default="openmc", help="OpenMC executable on PATH")
     run.add_argument("--imp0-control", type=Path, required=True,
                      help="passed four-case entry/source-birth/photon/unmarked patch control receipt for this exact CLI and linked library")
+    run.add_argument("--aim-aperture-beta", type=float,
+                     help="opt into exact-weight isotropic/rectangular source-angle mixture; requires a passing --aim-vacuum-control")
+    run.add_argument("--aim-vacuum-control", type=Path,
+                     help="PASS receipt from the matching four-detector, three-radius analytic vacuum AIM control")
     run.add_argument("--particles", type=int, default=100_000)
     run.add_argument("--batches", type=int, default=100)
     run.add_argument("--threads", type=int, default=1)
@@ -1089,6 +1572,22 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--timeout", type=int, default=3600, help=f"timeout per radius, maximum {MAX_WALL_SECONDS} seconds")
     run.add_argument("--run-id")
     run.add_argument("--i-have-the-cpu", action="store_true")
+    aim = sub.add_parser("aim-vacuum-control", help="run analytic all-void source-weight and finite-volume control before AIM production")
+    aim.add_argument("--upstream", type=Path, required=True)
+    aim.add_argument("--manifest", type=Path, required=True)
+    aim.add_argument("--cross-sections", type=Path, required=True)
+    aim.add_argument("--work-dir", type=Path, required=True)
+    aim.add_argument("--openmc", default="openmc", help="AIM-patched OpenMC executable on PATH")
+    aim.add_argument("--imp0-control", type=Path, required=True,
+                     help="passing four-case imp0 control receipt for this exact CLI/library/Python/data identity")
+    aim.add_argument("--aim-aperture-beta", type=float, required=True,
+                     help="positive source-aperture mixture fraction; must be <1 to preserve isotropic support")
+    aim.add_argument("--particles", type=int, default=1_000_000)
+    aim.add_argument("--batches", type=int, default=100)
+    aim.add_argument("--threads", type=int, default=1)
+    aim.add_argument("--seed", type=int, default=1701)
+    aim.add_argument("--timeout", type=int, default=3600, help=f"timeout per radius, maximum {MAX_WALL_SECONDS} seconds")
+    aim.add_argument("--i-have-the-cpu", action="store_true")
     return root
 
 
@@ -1100,6 +1599,8 @@ def main(argv: list[str] | None = None) -> int:
             doc = plan_document(manifest, args.upstream.expanduser().resolve(), args.cross_sections.expanduser(), args.particles, args.batches, args.threads)
             print(json.dumps(doc, indent=2, sort_keys=True))
             return 0
+        if args.command == "aim-vacuum-control":
+            return command_aim_vacuum_control(args)
         return command_run(args)
     except (ValueError, OSError, subprocess.SubprocessError, IntakeError) as exc:
         print(f"error: {exc}", file=sys.stderr)

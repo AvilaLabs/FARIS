@@ -13,6 +13,7 @@ from validation.matrix import load_registry
 
 ROOT = Path(__file__).resolve().parent.parent
 CASE = ROOT / "validation" / "cases" / "fns-tof-jade-v1"
+UPSTREAM_CACHE = Path.home() / ".cache/avila-night/validation-data/open-benchmarks"
 sys.path.insert(0, str(CASE))
 sys.path.insert(0, str(ROOT))
 
@@ -51,6 +52,11 @@ e0 0.5
 1.0
 """
 
+DECK_FOUR = DECK.replace("f25:n 2 0 10", "f25:n 20 0 10").replace(
+    "e0 0.5\n",
+    "f35:n 40 0 10 1 nd\nfc35 Neutron leakage flux at 41.8 degrees\nfm35 2.2\n"
+    "f45:n 60 0 10 1 nd\nfc45 Neutron leakage flux at 66.8 degrees\nfm45 2.3\ne0 0.5\n")
+
 
 def test_manifest():
     return {"detectors": [
@@ -65,6 +71,186 @@ def test_manifest():
 
 
 class FnsTofHelpers(unittest.TestCase):
+    def test_analytic_isotropic_sphere_flux_has_point_detector_limit(self):
+        for radius in (2.5, 1.25, 0.625):
+            distance = 700.0
+            volume_average = R.isotropic_sphere_volume_average_cm2(distance, radius)
+            point_flux = 1.0 / (4.0 * math.pi * distance * distance)
+            self.assertLess(abs(volume_average / point_flux - 1.0), 1e-5)
+
+        # Independent midpoint integration of the spherical-shell expression
+        # checks the exact volume average away from the point-detector limit.
+        distance, radius, steps = 10.0, 2.5, 20_000
+        h = radius / steps
+        integral = 0.0
+        for i in range(steps):
+            rho = (i + 0.5) * h
+            integral += rho * math.log((distance + rho) / (distance - rho)) * h
+        numeric = (2.0 * math.pi / distance * integral) / (
+            4.0 * math.pi * R.sphere_volume_cm3(radius))
+        exact = R.isotropic_sphere_volume_average_cm2(distance, radius)
+        self.assertLess(abs(numeric / exact - 1.0), 1e-8)
+
+    def test_aperture_mixture_preserves_unit_source_weight_and_event_probability(self):
+        beta, physical_target_mass = 0.1, 0.037
+        proposal_target_mass = (1.0 - beta) * physical_target_mass + beta
+        target_weight = physical_target_mass / proposal_target_mass
+        complement_proposal_mass = (1.0 - beta) * (1.0 - physical_target_mass)
+        complement_weight = 1.0 / (1.0 - beta)
+        self.assertAlmostEqual(proposal_target_mass * target_weight
+                               + complement_proposal_mass * complement_weight, 1.0)
+        self.assertAlmostEqual(proposal_target_mass * target_weight, physical_target_mass)
+        self.assertGreater(beta, 0.0)
+        self.assertLess(beta, 1.0)
+        self.assertLessEqual(max(target_weight, complement_weight), 1.0 / (1.0 - beta))
+
+    def test_four_point_apertures_cover_all_fns_fe5_detectors_with_finite_weight_bounds(self):
+        parsed = B.input_deck(DECK_FOUR)
+        plan = R.source_aperture_plan(parsed, 2.5, 0.1)
+        self.assertEqual([row["mcnp_tally_number"] for row in plan["detector_apertures"]],
+                         [5, 25, 35, 45])
+        self.assertEqual(plan["environment"]["OPENMC_APERTURE_ONE_SIDED"], "1")
+        self.assertIn("(1-beta)/(4*pi)", plan["proposal_law"])
+        self.assertIn("4*pi*beta*aperture_pdf", plan["source_weight_correction"])
+        bounds = plan["source_birth_weight_bounds"]
+        self.assertGreater(bounds["lower_bound"], 0.0)
+        self.assertLessEqual(bounds["lower_bound"], bounds["upper_bound"])
+        self.assertAlmostEqual(bounds["upper_bound"], 1.0 / 0.9)
+        self.assertTrue(all(row["proposal_isotropic_probability"] < row["finite_sphere_solid_angle_probability"]
+                            for row in plan["detector_apertures"]))
+        self.assertEqual(len(plan["environment"]["OPENMC_APERTURE_BIAS"].split(";")), 4)
+        for radius in (2.5, 1.25, 0.625):
+            radius_plan = R.source_aperture_plan(parsed, radius, 0.1)
+            self.assertEqual([row["mcnp_tally_number"] for row in radius_plan["detector_apertures"]],
+                             [5, 25, 35, 45])
+        with self.assertRaisesRegex(ValueError, "strictly between"):
+            R.source_aperture_plan(parsed, 2.5, 1.0)
+        with self.assertRaisesRegex(ValueError, "requires all four"):
+            R.source_aperture_plan(B.input_deck(DECK), 2.5, 0.1)
+
+    @unittest.skipUnless(UPSTREAM_CACHE.is_dir(), "external pinned FNS checkout is not present")
+    def test_pinned_fns_fe5_apertures_use_all_four_actual_deck_points(self):
+        manifest = load_manifest(ROOT / "validation/cases/fns-tof-fe-5/manifest.json")
+        manifest, deck_path, parsed_wrapper = R.source_inputs(UPSTREAM_CACHE, manifest)
+        parsed = parsed_wrapper["deck"]
+        mapping = R.validate_response_mapping(manifest, parsed)
+        plan = R.source_aperture_plan(parsed, 2.5, 0.1)
+        self.assertEqual(set(mapping), {detector["id"] for detector in manifest["detectors"]})
+        self.assertEqual({row["tally"] for row in mapping.values()}, {5, 25, 35, 45})
+        self.assertEqual({row["tally"] for row in parsed["detectors"]}, {5, 25, 35, 45})
+        self.assertEqual({row["mcnp_tally_number"] for row in plan["detector_apertures"]},
+                         {5, 25, 35, 45})
+        for aperture, detector in zip(plan["detector_apertures"], parsed["detectors"], strict=True):
+            self.assertEqual(aperture["center_cm"], detector["position_cm"])
+        self.assertTrue(deck_path.is_file())
+
+    def test_vacuum_aim_control_evaluation_requires_four_passing_zero_loss_responses(self):
+        parsed = B.input_deck(DECK_FOUR)
+        rows = []
+        for point in parsed["detectors"]:
+            distance = math.sqrt(math.fsum((point["position_cm"][i] - parsed["source_position_cm"][i]) ** 2
+                                           for i in range(3)))
+            expected = R.isotropic_sphere_volume_average_cm2(distance, 2.5)
+            volume = R.sphere_volume_cm3(2.5)
+            rows.append({"mcnp_tally_number": point["tally"],
+                         "raw_tracklength_mean_particle_cm_per_source": expected * volume,
+                         "raw_tracklength_std_dev_particle_cm_per_source": expected * volume * 0.01,
+                         "sphere_volume_cm3": volume,
+                         "analytic_flux_cm-2_per_source": expected})
+        patch_statepoint = {"lost_particles": 0, "intentional_kill_events": 0}
+        result = R.evaluate_vacuum_aim_control(rows, patch_statepoint)
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual([row["mcnp_tally_number"] for row in result["results"]], [5, 25, 35, 45])
+        with self.assertRaisesRegex(ValueError, "all four"):
+            R.evaluate_vacuum_aim_control(rows[:-1], patch_statepoint)
+        with self.assertRaisesRegex(ValueError, "loss or intentional"):
+            R.evaluate_vacuum_aim_control(rows, {"lost_particles": 1, "intentional_kill_events": 0})
+
+    def test_actual_openmc_api_builds_vacuum_control_for_four_points_without_transport(self):
+        try:
+            import openmc
+        except ImportError:
+            self.skipTest("OpenMC Python API is not installed")
+        parsed = B.input_deck(DECK_FOUR)
+        model, detector_cells = R.vacuum_aim_control_model(openmc, parsed, 2.5, 10, 1000, 1701)
+        self.assertEqual(set(detector_cells), {5, 25, 35, 45})
+        self.assertEqual({t.name for t in model.tallies},
+                         {"aim_vacuum_f5", "aim_vacuum_f25", "aim_vacuum_f35", "aim_vacuum_f45"})
+        self.assertIsInstance(model.settings.source[0].angle, openmc.stats.Isotropic)
+        self.assertEqual(model.settings.max_lost_particles, 1)
+        for point in parsed["detectors"]:
+            found = model.geometry.find(point["position_cm"])[-1]
+            self.assertEqual(found.id, detector_cells[point["tally"]]["cell"].id)
+            self.assertGreater(detector_cells[point["tally"]]["analytic_flux_cm-2_per_source"], 0.0)
+
+    def test_aim_runtime_identity_requires_markers_in_selected_linked_library(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            library = Path(temp) / "libopenmc.so"
+            library.write_bytes(b"OPENMC_APERTURE_BIAS OPENMC_APERTURE_ONE_SIDED OPENMC_COLLISION_AIM")
+            identity = R.aim_runtime_identity({"linked_library_path": str(library)})
+            self.assertEqual(identity["linked_library_sha256"], R.hash_file(library))
+            self.assertTrue(identity["collision_aim_available_but_disabled"])
+            library.write_bytes(b"stock OpenMC")
+            with self.assertRaisesRegex(ValueError, "lacks AIM patch support"):
+                R.aim_runtime_identity({"linked_library_path": str(library)})
+
+    def test_aim_control_receipt_binds_runtime_all_points_radii_plans_and_statepoints(self):
+        import tempfile
+        from unittest.mock import patch
+        parsed = B.input_deck(DECK_FOUR)
+        runtime = {"executable_sha256": "e" * 64, "linked_library_sha256": "l" * 64,
+                   "openmc_python_module_sha256": "p" * 64, "cross_sections_xml_sha256": "x" * 64,
+                   "aim_capability": {"patch_sha256": "a" * 64}}
+        imp0_control = {"receipt_sha256": "i" * 64, "status": "PASS"}
+        patch_statepoint = {"lost_particles": 0, "intentional_kill_events": 0,
+                            "source_birth_kill_events": 0, "cell_entry_kill_events": 0,
+                            "patch_version": 1, "current_batch": 10, "n_batches": 10,
+                            "n_particles": 100, "n_realizations": 10, "solver_version": "0.15.3",
+                            "source": "child statepoint datasets; imp0 kills and normal lost count are distinct"}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            statepoint = root / "control.statepoint.h5"
+            statepoint.write_bytes(b"fake statepoint identity; reader mocked")
+            levels = []
+            artifacts = []
+            for radius in R.AIM_CONTROL_RADII_CM:
+                results = [{"mcnp_tally_number": point["tally"],
+                            "position_cm": point["position_cm"], "passed": True}
+                           for point in parsed["detectors"]]
+                levels.append({"radius_cm": radius, "status": "PASS", "results": results,
+                               "source_aperture": R.source_aperture_plan(parsed, radius, 0.1),
+                               "patch_statepoint": patch_statepoint})
+                artifacts.append({"radius_cm": radius, "statepoint_path": str(statepoint),
+                                  "statepoint_sha256": R.hash_file(statepoint)})
+            receipt = {"schema": "faris.fns-aim-vacuum-control/1.0.0", "status": "PASS",
+                       "case_id": R.AIM_SUPPORTED_CASE, "source_deck_sha256": "d" * 64,
+                       "runtime_identity": runtime, "imp0_control_receipt": imp0_control,
+                       "beta": 0.1, "radius_levels": levels,
+                       "solver_artifacts": artifacts}
+            receipt["receipt_sha256"] = R.canonical_json_sha256(receipt)
+            path = root / "control.json"
+            path.write_text(json.dumps(receipt))
+            with patch.object(R, "read_imp0_statepoint", return_value=patch_statepoint):
+                verified = R.verify_aim_control_receipt(path, runtime, R.AIM_SUPPORTED_CASE,
+                                                        parsed, "d" * 64, 0.1, imp0_control)
+                self.assertEqual(verified["status"], "PASS")
+                bad = json.loads(path.read_text())
+                bad["radius_levels"][0]["results"].pop()
+                bad["receipt_sha256"] = R.canonical_json_sha256(bad, ("receipt_sha256",))
+                path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError, "every one of the four"):
+                    R.verify_aim_control_receipt(path, runtime, R.AIM_SUPPORTED_CASE,
+                                                 parsed, "d" * 64, 0.1, imp0_control)
+
+    def test_analog_environment_clears_inherited_aim_and_collision_settings(self):
+        env = R.solver_environment({"OPENMC_APERTURE_BIAS": "bad", "OPENMC_COLLISION_AIM": "bad",
+                                   "OPENMC_WW_SKIP_VOID": "1", "KEEP": "yes"}, 1)
+        self.assertNotIn("OPENMC_APERTURE_BIAS", env)
+        self.assertNotIn("OPENMC_COLLISION_AIM", env)
+        self.assertNotIn("OPENMC_WW_SKIP_VOID", env)
+        self.assertEqual(env["KEEP"], "yes")
+
     def test_histogram_translation_has_equal_openmc_x_p_lengths_and_preserves_integral(self):
         translated = B.openmc_histogram([1.0, 2.0, 4.0], [0.0, 2.0, 6.0])
         self.assertEqual(len(translated["edges_ev"]), len(translated["pdf_per_ev"]))
