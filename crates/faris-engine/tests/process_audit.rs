@@ -75,7 +75,9 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     ("faris-cli/src/adapters.rs", "run_job(", 1, "FS", "faris adapters list: program is a fixed tool name (openmc, actinv, avila-core) found on PATH; the only argument is `--version`; five-second bound"),
     ("faris-cli/src/control.rs", "run_job(", 2, "FS", "Python S; script embedded F (Linux and other targets)"),
     // Other spawns.
-    ("faris-occt-client/src/client.rs", "Command::new", 1, "FS", "worker program S (FARIS_OCCT_WORKER or beside the executable); two scratch paths F"),
+    ("faris-occt-client/src/client.rs", "Command::new", 1, "FS", "worker program S (explicit --occt-worker, FARIS_OCCT_WORKER, or beside the executable); arguments are generated request/response paths inside a fresh bounded-lifetime temp directory"),
+    ("faris-occt-client/src/client.rs", "CommandExt", 1, "-", "process_group(0) gives the Unix worker an owned process group for cancellation and timeout"),
+    ("faris-occt-client/src/client.rs", "CommandWrap::from", 1, "FS", "Windows wraps the already configured worker command; program S comes from explicit lookup/config and arguments are generated temporary request/response paths"),
     ("faris-app/src/tool_finder.rs", "run_job(", 1, "S", "Find tools: the program is a Python interpreter found on PATH, in conda/mamba environment folders, ~/.venvs or a search folder the user added; arguments are fixed (`-I -c` and the embedded probe); bounded time, memory and output"),
     ("faris-app/src/export_panel.rs", "Command::new", 1, "FS", "xdg-open F; one argument, the export folder FARIS just made under a user-chosen parent, name sanitised"),
     ("faris-app/src/export_panel.rs", "xdg-open", 1, "F", "same call"),
