@@ -121,7 +121,7 @@ Its main gaps against these targets:
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 22 | 0 | 37 |
 | [Performance](08-performance.md) | PERF | 37 | 1 | 13 | 6 | 17 |
 | [Usability](09-usability.md) | UX | 73 | 4 | 34 | 3 | 32 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 2 | 19 | 9 | 27 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 3 | 18 | 9 | 27 |
 | [Visualization](11-visualization.md) | VIS | 49 | 1 | 31 | 1 | 16 |
 | [Configurability](12-configurability.md) | CFG | 63 | 3 | 35 | 1 | 24 |
 | [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 2 | 24 | 0 | 48 |
@@ -135,9 +135,9 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 12 | 29 | 1 | 35 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 3 | 24 | 1 | 17 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 8 | 18 | 2 | 8 |
-| **Total** | | **1419** | **129** | **571** | **34** | **685** |
+| **Total** | | **1419** | **130** | **570** | **34** | **685** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 129 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 130 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control

@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 129 | 571 | 685 | 34 | 434 | 31 % | 505 | 150 | 459 | 116 | 430 | 98 |
+| All requirements | 1419 | 130 | 570 | 685 | 34 | 434 | 31 % | 505 | 150 | 459 | 116 | 430 | 98 |
 
 ## By category
 
@@ -23,7 +23,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 22 | 37 | 0 | 18 | 30 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 6 | 16 % | 15 | 7 | 15 | 3 | 7 | 0 |
 | [Usability](09-usability.md) | 73 | 4 | 34 | 32 | 3 | 22 | 30 % | 37 | 12 | 30 | 10 | 5 | 6 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 2 | 19 | 27 | 9 | 14 | 25 % | 42 | 5 | 13 | 4 | 1 | 1 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 3 | 18 | 27 | 9 | 14 | 25 % | 42 | 5 | 13 | 4 | 1 | 1 |
 | [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 13 | 27 % | 22 | 7 | 22 | 7 | 7 | 0 |
 | [Configurability](12-configurability.md) | 63 | 3 | 35 | 24 | 1 | 28 | 44 % | 27 | 3 | 26 | 2 | 15 | 0 |
 | [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 2 | 24 | 48 | 0 | 17 | 23 % | 35 | 8 | 25 | 1 | 20 | 4 |
@@ -43,7 +43,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | F1 | 445 | 78 | 278 | 72 | 17 | 239 | 54 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 37 | 221 | 224 | 15 | 164 | 33 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F2 | 497 | 38 | 220 | 224 | 15 | 164 | 33 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 2 | 8 | 56 | 0 | 5 | 8 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 8 | 30 | 133 | 2 | 12 | 7 % | 66 | 15 | 62 | 8 | 40 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |

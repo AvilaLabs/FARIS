@@ -1,0 +1,221 @@
+{
+  "schema_version": "faris-native-keyboard-control/v1",
+  "date": "2026-11-10",
+  "requirement": "A11Y-001",
+  "decision": "Met",
+  "scope": "The measurable A11Y-001 target: all current command-registry entries reachable and operable by keyboard or give their actual blocked reason; core tasks T1-T5 completed in an actual native scripted keyboard-only run; rendered focus walk and screenshot review. This is not a blanket WCAG conformance statement.",
+  "run": {
+    "observation": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/observation.json",
+    "observation_sha256": "e21c295931530f56b9faf6e8d04d7f278476fc08d1275e2bebbde7c81b62d267",
+    "application": "runs/continuation/native-keyboard-os-recipe-v1/faris-app-v95",
+    "application_sha256": "846c069b7b23e6d86a05d3adec9e7cf77dc4b6e44788d6d44ef647fb250d5391",
+    "application_version": "v95",
+    "script": "runs/continuation/native-keyboard-os-recipe-v1/run_private_xvfb_keyboard.py",
+    "script_sha256": "507691cdb8da25dcebf21af1915323efb3129e08cf32230c2084162b0a3bf222",
+    "input_mode": "XTest key events only for task actions on private Xvfb; no host display, host user service, or mouse input",
+    "display": ":117",
+    "elapsed_seconds": 60.944021312003315,
+    "finished_at_utc": "2026-11-10T17:13:40Z"
+  },
+  "registry": {
+    "registered_command_count": 48,
+    "coverage": "Each registry entry is checked for palette reachability, uniqueness/completeness, keyboard operation or a truthful blocked reason; core tasks, shortcuts, palette filtering/navigation, and handbook agreement are included.",
+    "tests": {
+      "log": "runs/continuation/checks/native-command-registry-v94.log",
+      "result": "9 passed; 0 failed",
+      "sha256": "f0205cbcd77fba7a26ceac708cfc34b16d379a37d0e11dab19cb14d36437d8e3"
+    }
+  },
+  "rendered_focus_walk": {
+    "test": "keyboard_focus_tests::native_app_shell_steps_palette_viewport_and_timeline_are_keyboard_reachable",
+    "log": "runs/continuation/checks/keyboard-focus-v95.log",
+    "result": "1 passed; 0 failed; 1.69 seconds",
+    "sha256": "c93d798d8fd21e0d8940c6e11bb641c506a0768ea024e4420ea2f875b20fdbd3",
+    "coverage": "Rendered egui app shell, steps 1-5, command palette, viewport, and timeline preview slider. Separate rendered focus walks cover three CAD panels."
+  },
+  "core_tasks": {
+    "T1": {
+      "keyboard_events": [
+        "Ctrl+K",
+        "type:breeding ratio",
+        "Enter"
+      ],
+      "visible_result": "1.2971 \u00b1 0.0014 H3 per source neutron (1 standard error); actual peer-native transport record and authored operating history; 1,000,000 histories.",
+      "screenshot": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t1-peer/t1-breeding-readout.png",
+      "screenshot_sha256": "5b1c790afe76017fe509fade93f05d8bdecde2259c11e002513cc3b944540b29"
+    },
+    "T2": {
+      "keyboard_events": [
+        "Ctrl+K",
+        "type:next blanket",
+        "Enter",
+        "Ctrl+K",
+        "type:step operate",
+        "Enter"
+      ],
+      "visible_result": "Changed to the breeder-heavy allocation (0.55 m blanket / 0.35 m shield); three named actual history arrangements and populated flux timeline traces/event markers are visible.",
+      "screenshot": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t2-changed-allocation-history.png",
+      "screenshot_sha256": "767d76721bc701f6efdbe137e790279c63e7a41aa1485ada647e0cc22a2e6066"
+    },
+    "T3": {
+      "keyboard_events": [
+        "Ctrl+K",
+        "type:step compare",
+        "Enter"
+      ],
+      "visible_result": "The rendered comparison shows with-port/reference and no-port/reference arrangements with TBR and magnet-flux values and their 1-sigma transport errors. With-port reference: TBR 1.2954 \u00b1 0.0014, flux (1.48 \u00b1 0.24)e14 n/m2/s. No-port reference: TBR 1.2965 \u00b1 0.0013, flux (2.9 \u00b1 0.9)e13 n/m2/s. Conditional operating-history quantities and low-statistics labels are visible. The separate lower What changes delta table is below the captured viewport; this record does not claim a visually reviewed delta table.",
+      "screenshot": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t3-arrangement-comparison.png",
+      "screenshot_sha256": "00e3451cd0464b1cf86c8aef7ad5daf8639b6bc513a67f8f272935bf50d236a5"
+    },
+    "T4": {
+      "keyboard_events": [
+        "Ctrl+Shift+S",
+        "Ctrl+A",
+        "type:keyboard-study.faris",
+        "Enter",
+        "Ctrl+K",
+        "type:cancel transport sampling keep nominal",
+        "Enter",
+        "Ctrl+K",
+        "type:export brief",
+        "Enter",
+        "Alt+Home",
+        "Ctrl+L",
+        "type:private export folder",
+        "Enter"
+      ],
+      "saved_study": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/keyboard-study.faris",
+      "saved_study_bytes": 2136873,
+      "saved_study_sha256": "ffbbbfd2e45c3ab390f9f3f0f7eab5ea196df87c54237d7258e7b11d7cac352f",
+      "study_verification": {
+        "log": "runs/continuation/checks/native-keyboard-v14-study-verify-v91.log",
+        "result": "24 blobs; verified true",
+        "sha256": "5d3a077cb05902348a3cd2224e08ed321a88fa06a4c9d873d2494f75efb5b095"
+      },
+      "export_folder": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/exports/keyboard-study-export",
+      "export_file_count_including_manifest": 17,
+      "manifest": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/exports/keyboard-study-export/export-manifest.json",
+      "manifest_schema": "faris-export/1",
+      "manifest_sha256": "ea74992180a4cfbae0843b3b2bbb92499915fe4533e827315c21fccaafdfd295",
+      "manifest_records": 16,
+      "manifest_recorded_file_sizes_and_sha256_all_match": true,
+      "study_and_export_screenshots": [
+        "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-save-dialog.png",
+        "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-save-completed.png",
+        "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-export-dialog.png",
+        "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-export-completed.png"
+      ],
+      "cancelled_sampling_notice": "The app's real Cancel transport sampling command was invoked. The completed screenshot states that nominal histories and completed intervals are retained and cancelled arrangements have no sampling interval; this makes no precision claim."
+    },
+    "T5": {
+      "keyboard_events": [
+        "Ctrl+K",
+        "type:why not evaluated",
+        "Enter"
+      ],
+      "visible_result": "Tritium breeding ratio is not validated because no benchmark is registered for that quantity; the displayed next step is to register a benchmark case in validation/cases and name it in validation/quantities.json.",
+      "screenshot": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t5-not-evaluated-next-step.png",
+      "screenshot_sha256": "60492d2841aac0e09c0689da283ae3761deb832e5095f21864c0e75bcdc247d0"
+    }
+  },
+  "bound_inputs": {
+    "peer_scenario_sha256": "af30bb88a853fc9f23618a922503ad1c3b9dafa54418c91634cf935115e05de7",
+    "peer_run_sha256": "d0ca7a524d65c739702aa4f2c96491ac8c091e525274f7312fb947fa4313e571",
+    "transport_bundles": {
+      "port_reference_sha256": "3c9cad0128437620918920897a760a27f482c36b2a3c8a9ac11911edd0449bf4",
+      "port_breeder_emphasis_sha256": "39aa0266393a0c70a8a890149e98499635c5ac10d93e642ca184a1407f4485a6",
+      "no_port_reference_sha256": "a5b28311f332f160582c331aa5888648fdd46a45aad0d21d3640635947f57bba"
+    },
+    "peer_assumptions_sha256": "e402dc381c7d824d757ca9155d9418d9fa82508171bcb868b6734e0a76dfd599",
+    "peer_control_report_sha256": "3eded18a46b390dde9f47d314a1b639d474bbcefa2594a39d0f15f753992510d",
+    "port_scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+    "no_port_scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "operating_assumptions_sha256": "a87af85745e8055fa6b3338b0a5d17c1273ebd328d7afc580fb46066d3ed3546"
+  },
+  "source_bindings": {
+    "crates/faris-app/src/commands.rs": "898c4c61872b4f57c6695af15b892eb376d649db1fa5ae98274701e61356679a",
+    "crates/faris-app/src/keyboard_focus_tests.rs": "27cb21b45b18635ac038246b002968aab178f88d5288037f17d604ba305db5ff",
+    "docs/guide/keyboard.md": "fd0d9a1c86c2d27a64a1bfc15e3204f422a58e140ffcdecd2408296751541861"
+  },
+  "review": {
+    "visual_review": "Screenshots were visually reviewed for the task evidence and actual dialogs; v14 app observation labels remain raw capture states, not WCAG verdicts.",
+    "root_signoff": "accepted after coordinator visual review",
+    "claim_limits": [
+      "Met for the explicit A11Y-001 target and the 48-command registry / T1-T5 workflow exercised here.",
+      "Not a blanket WCAG 2.2 AA, Section 508, EN 301 549, or screen-reader conformance claim.",
+      "Does not certify every control's Tab order or all dialogs/platforms beyond the evidenced native Save/Export task.",
+      "Reported sampling errors are transport-record standard errors; no nuclear-data, model-form, or authored-assumption uncertainty is claimed."
+    ]
+  },
+  "screenshots": {
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t1-peer/t1-breeding-readout.png": {
+      "sha256": "5b1c790afe76017fe509fade93f05d8bdecde2259c11e002513cc3b944540b29",
+      "bytes": 349246
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t2-baseline-design.png": {
+      "sha256": "74fd16df0990d530e4742112deb27561bee9f52e5f95d47518d42967a111fc7e",
+      "bytes": 231688
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t2-changed-allocation-history.png": {
+      "sha256": "767d76721bc701f6efdbe137e790279c63e7a41aa1485ada647e0cc22a2e6066",
+      "bytes": 353682
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t3-arrangement-comparison.png": {
+      "sha256": "00e3451cd0464b1cf86c8aef7ad5daf8639b6bc513a67f8f272935bf50d236a5",
+      "bytes": 327605
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-save-dialog.png": {
+      "sha256": "fb67553d5387ca74683af3f3d77b2504e8f2b75ae8de844ff3fabb42111d5e88",
+      "bytes": 30926
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-save-name-entered.png": {
+      "sha256": "52396850e9a6377a2769294a40c24e68e7a8fea136bd21f06969c00dccbf009b",
+      "bytes": 31525
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-save-progress.png": {
+      "sha256": "f89b7894251710f6b9297bbc8c180356eba415e1e791d729bdb060bd59c0f4f3",
+      "bytes": 329189
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-save-completed.png": {
+      "sha256": "661b33b36ef920de4b0d229d2c62d2651e0e5f08c0ea397c9b2bc27434a218c0",
+      "bytes": 329255
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-sampling-cancel-attempt-1.png": {
+      "sha256": "6087edec1b411bbb0c7091ca0c83ec386cff0ce7fb1b0a4ce88ceba0be20c160",
+      "bytes": 334698
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-export-dialog.png": {
+      "sha256": "bb7c33203850a8bffa98430e13b48f90fd6e1edeaa9f0ec7d771208bf349adf4",
+      "bytes": 25760
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-export-home-checkpoint.png": {
+      "sha256": "b286e6fb977b21606b2e3cd6b2e90791448b38f510bcf0f37050fc1735098d20",
+      "bytes": 84895
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-export-location-checkpoint.png": {
+      "sha256": "61bedb59919a67ede81fb62ab13f6b88048c5d74f047de306a1c6d764738b4aa",
+      "bytes": 335225
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-export-folder-selected-checkpoint.png": {
+      "sha256": "61bedb59919a67ede81fb62ab13f6b88048c5d74f047de306a1c6d764738b4aa",
+      "bytes": 335225
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t4-export-completed.png": {
+      "sha256": "61bedb59919a67ede81fb62ab13f6b88048c5d74f047de306a1c6d764738b4aa",
+      "bytes": 335225
+    },
+    "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/t2-t5-recorded-results/t5-not-evaluated-next-step.png": {
+      "sha256": "60492d2841aac0e09c0689da283ae3761deb832e5095f21864c0e75bcdc247d0",
+      "bytes": 335754
+    }
+  },
+  "decision_basis": "Coordinator reviewed the actual T1-T5 screenshots, saved-study verification and export checks, with passing complete command-registry tests and rendered focus walk. This meets the explicit registry/core-task target; the listed scope limits remain.",
+  "post_build_source_changes": [
+    {
+      "path": "crates/faris-app/src/commands.rs",
+      "current_sha256": "a6c73fbf39ff3710e6628ec0e89c2fe3b9875882bc39c51a48f2e5cdc2ccea6f",
+      "current_mtime_local": "2026-11-10 13:40:48 -0500",
+      "basis": "Post-v95-build wording change to the cancellation toast so it accurately says cancellation is pending. The v95 run remains bound to its as-built source hash in source_bindings; the raw observation binds the tested v95 binary hash. This wording-only post-build edit does not change the recorded keyboard workflow evidence."
+    }
+  ]
+}
