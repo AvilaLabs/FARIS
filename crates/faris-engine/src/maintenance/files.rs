@@ -375,6 +375,8 @@ pub struct DoseRunConfig {
     pub spatial_dose_curves: Option<PathBuf>,
     pub python: PathBuf,
     pub worker_script: PathBuf,
+    /// Current user-selected ACTINV executable. Required for fresh native event-dose runs.
+    pub actinv_executable: Option<PathBuf>,
     pub work_dir: PathBuf,
 }
 
@@ -686,6 +688,7 @@ pub fn run_dose_from_files(
         config.python.clone(),
         config.worker_script.clone(),
         config.work_dir.clone(),
+        config.actinv_executable.clone(),
         dose_contexts,
     )?;
     let mut result = super::run_dose_maintenance_with_provider(

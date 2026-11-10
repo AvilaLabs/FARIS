@@ -332,6 +332,7 @@ fn dose_run_dispatches_minimal_cad_design_to_the_history_sidecar_reader() {
             spatial_dose_curves: None,
             python: PathBuf::from("python3"),
             worker_script: dir.path().join("worker.py"),
+            actinv_executable: None,
             work_dir: dir.path().join("work"),
         },
         &Cancellation::default(),

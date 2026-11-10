@@ -130,6 +130,7 @@ pub fn prepare_dose_cad(
     config_path: &Path,
     python: &Path,
     worker_script: &Path,
+    actinv_executable: Option<&Path>,
     cancel: &Cancellation,
 ) -> Result<PathBuf, String> {
     const CONFIG_SCHEMA: &str = "faris-maintenance-dose-cad-config/v0.2";
@@ -144,13 +145,17 @@ pub fn prepare_dose_cad(
     let actinv_prepare = config.actinv.as_mut().ok_or(
         "dose CAD preparation config must include explicit ACTINV executable, data, cache, and photon grouping settings",
     )?;
+    let selected_actinv = actinv_executable
+        .ok_or("dose CAD preparation requires an explicit current ACTINV executable setting")?;
     let base = config_path.parent().unwrap_or(Path::new("."));
+    if !actinv_prepare.executable.is_absolute() {
+        actinv_prepare.executable = base.join(&actinv_prepare.executable);
+    }
     for path in [
         &mut config.design_file,
         &mut config.import_report,
         &mut config.work_dir,
         &mut config.output_manifest,
-        &mut actinv_prepare.executable,
         &mut actinv_prepare.data_dir,
         &mut actinv_prepare.cache_dir,
     ] {
@@ -194,10 +199,18 @@ pub fn prepare_dose_cad(
     {
         return Err("ACTINV timeout_s must be finite and in 1..=86400".into());
     }
-    let actinv_executable = actinv_prepare
+    let actinv_executable = selected_actinv
+        .canonicalize()
+        .map_err(|e| format!("selected ACTINV executable: {e}"))?;
+    let configured_actinv_executable = actinv_prepare
         .executable
         .canonicalize()
         .map_err(|e| e.to_string())?;
+    let selected_ref = make_ref(&actinv_executable)?;
+    let configured_ref = make_ref(&configured_actinv_executable)?;
+    if selected_ref.path != configured_ref.path || selected_ref.sha256 != configured_ref.sha256 {
+        return Err("selected ACTINV executable path and SHA-256 differ from the prepared dose configuration".into());
+    }
     let data_dir = actinv_prepare
         .data_dir
         .canonicalize()
@@ -225,7 +238,7 @@ pub fn prepare_dose_cad(
         .transpose()?;
     let activation_backend = DoseActinvBackend {
         kind: "actinv_tendl_709".into(),
-        executable: make_ref(&actinv_executable)?,
+        executable: selected_ref,
         data_dir,
         cache_dir,
         library_npz,
@@ -384,6 +397,7 @@ struct ActinvEventOutputs {
 
 fn run_actinv_event_batches(
     manifest: &DosePhysicsManifest,
+    actinv_executable: &Path,
     batch_ref: &ArtifactRef,
     out_dir: &Path,
     cooling_s: &[f64],
@@ -454,8 +468,8 @@ fn run_actinv_event_batches(
     {
         return Err("ACTINV data paths differ from the hash-pinned catalogue files".into());
     }
-    verify_ref(&backend.executable, "ACTINV executable")?;
-    let actinv_executable_sha256 = crate::maintenance::actinv::hash_file(&backend.executable.path)?;
+    let selected_actinv = verify_selected_actinv(actinv_executable, &backend.executable)?;
+    let actinv_executable_sha256 = selected_actinv.sha256.clone();
     let library_index: Value = serde_json::from_slice(&read_bounded(
         &backend.library_index.path,
         MAX_MANIFEST_BYTES,
@@ -598,7 +612,7 @@ fn run_actinv_event_batches(
             .join(format!("batch_{batch_index:05}"));
         std::fs::create_dir_all(&work_dir).map_err(|e| e.to_string())?;
         let mut config = crate::activation::ActivationConfig::new(
-            backend.executable.path.clone(),
+            selected_actinv.path.clone(),
             activation_data.clone(),
             work_dir.clone(),
         );
@@ -812,6 +826,25 @@ fn run_actinv_event_batches(
     })
 }
 
+fn verify_selected_actinv(
+    selected_path: &Path,
+    prepared: &ArtifactRef,
+) -> Result<ArtifactRef, String> {
+    let selected_path = selected_path
+        .canonicalize()
+        .map_err(|e| format!("selected ACTINV executable: {e}"))?;
+    let selected = make_ref(&selected_path)?;
+    verify_ref(prepared, "prepared ACTINV executable")?;
+    let prepared_path = prepared
+        .path
+        .canonicalize()
+        .map_err(|e| format!("prepared ACTINV executable: {e}"))?;
+    if selected.path != prepared_path || selected.sha256 != prepared.sha256 {
+        return Err("current ACTINV executable setting path and SHA-256 differ from the prepared dose manifest".into());
+    }
+    Ok(selected)
+}
+
 fn voxel_bounds(mesh: &MeshBounds, element: u32) -> Result<([f64; 3], [f64; 3]), String> {
     let count = mesh
         .dimension
@@ -897,6 +930,7 @@ fn run_staged_actinv_dose(
     run_dir: &Path,
     neutron_request: &Value,
     manifest: &DosePhysicsManifest,
+    actinv_executable: &Path,
     cooling_s: &[f64],
     response_mesh: &Value,
     event: &Value,
@@ -1294,6 +1328,7 @@ fn run_staged_actinv_dose(
 
     let activation = run_actinv_event_batches(
         manifest,
+        actinv_executable,
         &activation_batches,
         run_dir,
         cooling_s,
@@ -1943,6 +1978,7 @@ pub struct OpenMcDoseProvider {
     pub python: PathBuf,
     pub worker_script: PathBuf,
     pub work_dir: PathBuf,
+    pub actinv_executable: Option<PathBuf>,
     contexts: BTreeMap<String, DesignContext>,
 }
 
@@ -1951,6 +1987,7 @@ impl OpenMcDoseProvider {
         python: PathBuf,
         worker_script: PathBuf,
         work_dir: PathBuf,
+        actinv_executable: Option<PathBuf>,
         contexts: BTreeMap<String, (PathBuf, f64)>,
     ) -> Result<Self, String> {
         let mut parsed = BTreeMap::new();
@@ -1980,6 +2017,7 @@ impl OpenMcDoseProvider {
             python,
             worker_script,
             work_dir,
+            actinv_executable,
             contexts: parsed,
         })
     }
@@ -2003,6 +2041,17 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
             return Ok(None);
         };
         let actinv_backend = context.manifest.activation_backend.as_ref();
+        let actinv_executable = if actinv_backend.is_some() {
+            Some(self.actinv_executable.as_deref().ok_or_else(|| {
+                format!("design {design}: native event dose requires an explicit current ACTINV executable setting")
+            })?)
+        } else {
+            None
+        };
+        if let (Some(selected), Some(backend)) = (actinv_executable, actinv_backend) {
+            verify_selected_actinv(selected, &backend.executable)
+                .map_err(|e| format!("design {design}: {e}"))?;
+        }
         let chain_ref = if actinv_backend.is_none() {
             Some(context.manifest.chain_xml.as_ref().ok_or_else(|| {
                 format!("design {design}: the legacy OpenMC depletion route requires chain_xml")
@@ -2236,6 +2285,7 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                 &run_dir,
                 &request,
                 &context.manifest,
+                actinv_executable.ok_or("native ACTINV executable setting is missing")?,
                 cooling_grid_s,
                 &response_mesh,
                 &event_for_photon,
@@ -2960,7 +3010,7 @@ fn tail_job_output(result: &JobResult) -> String {
 
 #[cfg(test)]
 mod bounded_worker_tests {
-    use super::worker_environment;
+    use super::{make_ref, verify_selected_actinv, worker_environment};
     use std::{
         collections::BTreeMap,
         ffi::{OsStr, OsString},
@@ -3015,5 +3065,32 @@ mod bounded_worker_tests {
         )
         .unwrap_err();
         assert!(error.contains("holding openmc_plasma_source"));
+    }
+
+    #[test]
+    fn actinv_authority_requires_the_current_path_and_hash_to_match_the_manifest_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let selected = dir.path().join("actinv-selected");
+        let other = dir.path().join("actinv-other");
+        std::fs::write(&selected, b"selected executable bytes").unwrap();
+        std::fs::write(&other, b"selected executable bytes").unwrap();
+        let prepared = make_ref(&selected).unwrap();
+        assert_eq!(
+            verify_selected_actinv(&selected, &prepared).unwrap(),
+            prepared
+        );
+
+        let path_error = verify_selected_actinv(&other, &prepared).unwrap_err();
+        assert!(
+            path_error.contains("path and SHA-256 differ"),
+            "{path_error}"
+        );
+
+        std::fs::write(&selected, b"changed executable bytes").unwrap();
+        let hash_error = verify_selected_actinv(&selected, &prepared).unwrap_err();
+        assert!(
+            hash_error.contains("path and SHA-256 differ"),
+            "{hash_error}"
+        );
     }
 }
