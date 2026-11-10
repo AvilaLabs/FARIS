@@ -13,6 +13,11 @@ CAD environment (cadquery, cad_to_dagmc, h5py) to regenerate the corpus:
 `record-cad-volumes` adds each clean model's CAD volumes to an existing corpus.json, so neither
 regenerates (and re-hashes) the rest.
 
+`qualify-default` writes a separate, non-mutating run for the 24 clean CAD cases at explicit
+0.1 cm / 0.1 rad settings. It retains per-case converter receipts, audits oriented faceted
+volumes against the CAD kernel's volumes, and records the FARIS deviation bound. This narrow
+qualification is not a full design check or OpenMC stochastic-volume test.
+
 `verify` needs only the standard library: it checks the sha256 of every committed
 file against corpus.json and that the files parse, so a hand edit is caught.
 
@@ -381,6 +386,213 @@ def run_deviation(step: Path, facets: Path, parts, out_dir: Path) -> dict:
         return {"error": f"{type(error).__name__}: {error}"}
 
 
+def faceted_volumes_m3(facets: dict) -> dict[int, float]:
+    """Compute per-volume signed mesh volumes using FARIS's 1 nm grid and orientation rule."""
+    def snap_nm(value: float) -> int:
+        scaled = float(value) * 1.0e9
+        return math.floor(scaled + 0.5) if scaled >= 0.0 else math.ceil(scaled - 0.5)
+
+    vertices = [[snap_nm(c) for c in p] for p in facets["vertices"]]
+    if not vertices:
+        raise ValueError("facet model has no vertices")
+    lo = [min(p[axis] for p in vertices) for axis in range(3)]
+    vertices = [[p[axis] - lo[axis] for axis in range(3)] for p in vertices]
+    triangles = facets["triangles"]
+    six_volumes = [0] * facets["n_volumes"]
+    for first, count, forward, reverse in facets["surfaces"]:
+        for volume in (forward, reverse):
+            if volume == 0:
+                continue
+            # A triangle points out of the forward volume; reverse its winding for the reverse.
+            flip = volume == reverse and volume != forward
+            for triangle in triangles[first:first + count]:
+                ia, ib, ic = triangle
+                a = vertices[ia]
+                b = vertices[ic if flip else ib]
+                c = vertices[ib if flip else ic]
+                six_volumes[volume - 1] += (
+                    a[0] * (b[1] * c[2] - b[2] * c[1])
+                    - a[1] * (b[0] * c[2] - b[2] * c[0])
+                    + a[2] * (b[0] * c[1] - b[1] * c[0])
+                )
+    return {i + 1: six / (6.0 * 1.0e27) for i, six in enumerate(six_volumes)}
+
+
+def _write_json_atomic(path: Path, value: dict) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def qualify_default_converter(out: Path, work: Path) -> int:
+    """Run only the actual converter/default-tolerance volume and deviation qualification."""
+    import faris_cad
+
+    out, work = out.resolve(), work.resolve()
+    fixtures = (Path(__file__).resolve().parents[2]
+                / "crates/faris-engine/tests/fixtures/corpus").resolve()
+    for path in (out, work):
+        if path == fixtures or fixtures in path.parents or path in fixtures.parents:
+            raise ValueError("qualification output/work paths must not overlap committed corpus fixtures")
+    if out == work or out in work.parents or work in out.parents:
+        raise ValueError("qualification output and work directories must be separate")
+    for path in (out, work):
+        if path.exists() and any(path.iterdir()):
+            raise FileExistsError(f"refusing to reuse non-empty qualification directory: {path}")
+        path.mkdir(parents=True, exist_ok=True)
+
+    chord_cm, angular_rad = 0.1, 0.1
+    chord_m, volume_limit = chord_cm / 100.0, 0.001
+    sources = [Path(__file__).resolve(), Path(faris_cad.__file__).resolve(),
+               Path(__file__).with_name("faris_facets.py").resolve(),
+               Path(__file__).with_name("faris_deviation.py").resolve(),
+               Path(__file__).with_name("dagmc_faceting_tolerance.py").resolve()]
+    report = {
+        "schema": "faris-default-converter-qualification/v1",
+        "status": "RUNNING",
+        "scope": (
+            "24 generated clean CAD corpus inputs; actual faris_cad.convert with explicit default chord and angular "
+            "tolerances; per-volume faceted-versus-CAD volume audit and FARIS facet-deviation bound. This is not a "
+            "full design check and does not evaluate import checks 1-5, overlap/gap checks, source validity, "
+            "transport, "
+            "or OpenMC stochastic volume estimates. It does not exercise design-check adaptive chord refinement."
+        ),
+        "inputs": {"bases": BASES, "scales": SCALES, "clean_models": len(BASES) * len(SCALES)},
+        "reference_corpus": {
+            "path": "crates/faris-engine/tests/fixtures/corpus/corpus.json",
+            "sha256": sha256_file(fixtures / "corpus.json"),
+            "role": "identity only; archived non-default facet files are not reused or modified",
+        },
+        "settings": {
+            "actual_entrypoint": "faris_cad.convert via integrations/cad/faris_corpus.py::run_conversion",
+            "chord_cm": chord_cm, "angular_rad": angular_rad, "imprint_threads": 1,
+            "backend": "cad-to-dagmc-mesher", "scale_factor_to_cm": 0.1,
+            "volume_relative_limit": volume_limit, "deviation_limit_m": chord_m,
+        },
+        "source_sha256": {p.name: sha256_file(p) for p in sources},
+        "tool_versions": faris_cad.tool_versions(),
+        "current_model": None,
+        "models": [],
+    }
+    summary_path = out / "qualification.json"
+    _write_json_atomic(summary_path, report)
+    for base in BASES:
+        for index, scale in enumerate(SCALES):
+            model_id = f"clean-{base}-{index}"
+            model_work = work / model_id
+            convert_dir = model_work / "convert"
+            row = {"id": model_id, "base": base, "scale": scale, "status": "INCOMPLETE"}
+            report["current_model"] = model_id
+            _write_json_atomic(summary_path, report)
+            try:
+                model_work.mkdir(parents=True)
+                convert_dir.mkdir()
+                parts = build_parts(base, scale)
+                step = model_work / f"{model_id}.step"
+                write_step(parts, step)
+                row["step"] = {"path": str(step.relative_to(work)), "sha256": sha256_file(step)}
+                row["cad_volumes_m3"] = cad_volumes(step, parts)
+                conversion = run_conversion(step, parts, convert_dir, chord_cm, angular=angular_rad)
+                row["conversion_result"] = conversion
+                conversion_log = convert_dir / "convert.log"
+                if conversion_log.is_file():
+                    row["conversion_log"] = {
+                        "path": str(conversion_log.relative_to(work)),
+                        "sha256": sha256_file(conversion_log),
+                    }
+                conversion_report = convert_dir / "conversion.json"
+                if conversion_report.is_file():
+                    row["conversion_report"] = {
+                        "path": str(conversion_report.relative_to(work)),
+                        "sha256": sha256_file(conversion_report),
+                    }
+                    converter_data = json.loads(conversion_report.read_text(encoding="utf-8"))
+                    row["conversion_tolerances"] = converter_data.get("tolerances")
+                    row["converter_versions"] = converter_data.get("versions")
+                    row["timing_seconds"] = converter_data.get("timing_seconds")
+                else:
+                    converter_data = {}
+                recorded_tolerances = converter_data.get("tolerances") or {}
+                if conversion.get("exit_code") != 0 or conversion.get("problems"):
+                    row["status"] = "FAIL"
+                    if conversion.get("problems"):
+                        row["reason"] = "converter reported problems"
+                    row["volume_gate"] = "NOT_EVALUATED"
+                    row["deviation_gate"] = "NOT_EVALUATED"
+                elif (recorded_tolerances.get("chord_cm") != chord_cm
+                      or recorded_tolerances.get("angular_rad") != angular_rad):
+                    row["status"] = "FAIL"
+                    row["reason"] = "converter receipt does not record the explicit default tolerances"
+                    row["volume_gate"] = "NOT_EVALUATED"
+                    row["deviation_gate"] = "NOT_EVALUATED"
+                else:
+                    facet_file = convert_dir / "model.facets.bin"
+                    manifest_file = convert_dir / "model.facets.json"
+                    facet_data = faris_facets.unpack_facets(facet_file.read_bytes())
+                    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+                    volume_values = faceted_volumes_m3(facet_data)
+                    cad_values = row["cad_volumes_m3"]
+                    binding_rows = []
+                    for volume in manifest["volumes"]:
+                        tag = volume.get("material_tag")
+                        solid_id = tag.removeprefix("mat:") if isinstance(tag, str) else None
+                        if volume["index"] not in volume_values or solid_id not in cad_values:
+                            raise ValueError(f"unmatched converted volume {volume.get('index')}: {tag!r}")
+                        faceted = volume_values[volume["index"]]
+                        cad = cad_values[solid_id]
+                        relative = faceted / cad - 1.0 if cad > 0.0 else None
+                        binding_rows.append({
+                            "volume": volume["index"], "solid_id": solid_id,
+                            "faceted_volume_m3": faceted, "cad_volume_m3": cad,
+                            "relative_difference": relative,
+                            "within_default_0_1_percent": (
+                                relative is not None and abs(relative) <= volume_limit
+                            ),
+                        })
+                    if len(binding_rows) != len(parts) or len({r["solid_id"] for r in binding_rows}) != len(parts):
+                        raise ValueError("converted volumes do not bind one-to-one to generated solids")
+                    row["volume_rows"] = binding_rows
+                    row["volume_gate"] = (
+                        "PASS" if all(r["within_default_0_1_percent"] for r in binding_rows) else "FAIL"
+                    )
+                    deviation = run_deviation(step, facet_file, parts, convert_dir)
+                    deviation_report = convert_dir / "deviation.json"
+                    if deviation_report.is_file():
+                        row["deviation_report"] = {
+                            "path": str(deviation_report.relative_to(work)),
+                            "sha256": sha256_file(deviation_report),
+                        }
+                        deviation_data = json.loads(deviation_report.read_text(encoding="utf-8"))
+                        row["deviation_solids"] = deviation_data.get("solids", [])
+                        row["deviation_versions"] = deviation_data.get("versions")
+                        row["deviation_timing_seconds"] = deviation_data.get("timing_seconds")
+                    else:
+                        deviation_data = {}
+                    rows = deviation_data.get("solids", [])
+                    deviation_pass = (
+                        not deviation.get("error") and len(rows) == len(parts)
+                        and all(s.get("global_bound_status") == "certified"
+                                and isinstance(s.get("global_upper_bound_m"), (int, float))
+                                and s["global_upper_bound_m"] <= chord_m for s in rows)
+                    )
+                    row["deviation_gate"] = "PASS" if deviation_pass else "FAIL"
+                    row["status"] = "PASS" if row["volume_gate"] == "PASS" and deviation_pass else "FAIL"
+            except Exception as error:
+                row["status"] = "FAIL"
+                row["error"] = f"{type(error).__name__}: {error}"
+                row.setdefault("volume_gate", "NOT_EVALUATED")
+                row.setdefault("deviation_gate", "NOT_EVALUATED")
+            report["models"].append(row)
+            report["current_model"] = None
+            _write_json_atomic(summary_path, report)
+
+    report["status"] = "PASS" if len(report["models"]) == len(BASES) * len(SCALES) and all(
+        model["status"] == "PASS" for model in report["models"]
+    ) else "FAIL"
+    _write_json_atomic(summary_path, report)
+    return 0 if report["status"] == "PASS" else 1
+
+
 def cad_volumes(step: Path, parts) -> dict:
     """Each solid's CAD volume in m3 as the kernel measures it, by solid id (GEO-012, GEO-030)."""
     import faris_cad
@@ -677,6 +889,11 @@ def main(argv=None) -> int:
     c = sub.add_parser("record-cad-volumes")
     c.add_argument("--out", type=Path, required=True)
     c.add_argument("--work", type=Path, required=True)
+    q = sub.add_parser(
+        "qualify-default", help="run a separate actual-converter default-tolerance corpus qualification"
+    )
+    q.add_argument("--out", type=Path, required=True, help="new directory for the scoped qualification receipt")
+    q.add_argument("--work", type=Path, required=True, help="new scratch directory for STEP, H5M and audit files")
     v = sub.add_parser("verify")
     v.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -685,6 +902,8 @@ def main(argv=None) -> int:
     if args.command == "record-cad-volumes":
         record_cad_volumes(args.out, args.work)
         return verify(args.out)
+    if args.command == "qualify-default":
+        return qualify_default_converter(args.out, args.work)
     if args.command == "generate-overlaps":
         generate_overlaps(args.out, args.work)
         return verify(args.out)

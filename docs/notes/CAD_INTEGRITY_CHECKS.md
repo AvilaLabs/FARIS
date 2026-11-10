@@ -48,6 +48,28 @@ Import checks 1–5 (S1a) run first. The CAD-level overlap check (below, under
   mesher versions, wall time, peak memory, triangle and vertex counts per
   volume, and the h5m sha256.
 
+For a real-converter corpus qualification at the default settings, this
+non-mutating command builds the same 24 clean geometry inputs in scratch and
+invokes the actual `faris_cad.convert` path at explicit
+0.1 cm / 0.1 rad tolerances. The separate receipt includes converter versions,
+STEP/H5M/facet hashes, per-solid CAD and faceted volumes, the 0.1 % default
+volume comparison, and the deviation helper's bound/status for each solid.
+Failed conversions remain recorded and do not produce a volume/deviation pass.
+It does not exercise the design-check path's adaptive chord refinement.
+This scoped receipt supplies actual converter evidence for GEO-012 and the
+CAD-versus-faceted portion of GEO-030, plus converter-output deviation evidence
+relevant to GEO-032. It does not run a full design check, the overlap/gap and
+source checks, or OpenMC stochastic per-cell volume estimates; it cannot by
+itself mark GEO-030 or the broader CAD workflow complete. The command refuses
+output/work paths that overlap the committed fixture corpus and never rewrites
+its files or hashes.
+
+```sh
+python integrations/cad/faris_corpus.py qualify-default \
+  --out runs/continuation/geo012-default-qual-v1 \
+  --work runs/continuation/geo012-default-qual-v1-work
+```
+
 ### Export: `faris-facets/v1`
 
 A Python helper reads the h5m with `h5py` (MOAB native layout: node
