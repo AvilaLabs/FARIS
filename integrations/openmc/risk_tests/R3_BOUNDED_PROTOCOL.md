@@ -138,11 +138,23 @@ predeclared uncertainty analysis.
 
 The runner requires at least two replicates and a seed base. Within each
 replicate it assigns disjoint seeds to D1S, R2S neutron transport, and R2S
-photon transport; seed blocks for different replicates are also disjoint. It
-refuses an existing output directory, stops on the first failed command, and
-does not resume or overwrite a partial campaign. For the current conditional
-method-control composite and fresh RM-M model, a coordinator can predeclare and
-start the collection with:
+photon transport; seed blocks for different replicates are also disjoint. By
+default it runs the full matrix, preserving the original CLI behavior. It also
+supports a plan-only step and bounded task batches. A bounded batch stops only
+between successful tasks and records `IN_PROGRESS`; it does not evaluate
+scientific criteria. Resume revalidates the frozen model, data, helper, Python,
+and systemd executable identities against the current interpreter and current
+`PATH` (or an explicitly supplied `--python` that matches the frozen path),
+including the referenced neutron, thermal, photon, and other library assets
+from `cross_sections.xml` and the shared activation/decay chain bytes. These
+hashes bind inputs to the run; they do not establish nuclear-data provenance or
+scientific adequacy. Identities are checked before and after each task and on
+resume. Then the runner checks every completed task receipt,
+receipt-hashed output, comparison input array, and log before skipping it.
+Unexpected existing task outputs, invalid receipts, and failed or interrupted
+tasks are preserved and rejected rather than overwritten or rerun. For the
+current conditional method-control composite and fresh RM-M model, a
+coordinator can predeclare and start the collection with:
 
 ```bash
 OPENMC_PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python
@@ -155,8 +167,29 @@ PYTHONPATH=integrations/openmc/risk_tests "$OPENMC_PY" integrations/openmc/risk_
   --activation-groups VITAMIN-J-175-plus-0-to-50MeV
 ```
 
+To review the exact plan before transport, add `--plan-only` to the planning
+command. Start or resume a bounded batch using the plan saved inside the output
+directory:
+
+```bash
+PLAN=runs/continuation/r3-method-control-replicates-v1/campaign-plan.json
+PYTHONPATH=integrations/openmc/risk_tests "$OPENMC_PY" integrations/openmc/risk_tests/r3_campaign.py \
+  --resume-from-existing-plan "$PLAN" --python "$OPENMC_PY" --max-tasks 1
+```
+
+Repeat that resume command after inspecting/releasing resources; omit
+`--max-tasks` to run all remaining tasks in the frozen matrix. The batch count
+is operational only and does not change seeds, sampling, mesh groups, or
+comparison criteria. An intentional `IN_PROGRESS` pause exits successfully and
+records the completed/remaining task counts and batch limit. A resume rejects a completed receipt or declared output
+whose stored hash no longer matches. If a task itself failed or was interrupted,
+its output remains in place for inspection; this runner does not restart or
+repair that task in place.
+
 `campaign-plan.json` is immutable pre-run configuration; `campaign-state.json`
-records its plan hash and each command, log, exit code, and output-record hash. An
+records its plan hash and each command, log, exit code, output-record hash, and
+receipt-declared output hashes. `IN_PROGRESS` means the bounded invocation
+completed its requested tasks and more frozen tasks remain. An
 `ALL_COMMANDS_EXITED_ZERO` status means only that commands completed and
 expected records were written. It is not a convergence, uncertainty, VAL043,
 or physical-validation verdict. Source-response mesh convergence and
