@@ -27,8 +27,7 @@ jobs:
           - { name: "Ubuntu 24.04 aarch64", runner: ubuntu-24.04-arm }
           - { name: "Windows Server 2022 x86_64", runner: windows-2022 }
           - { name: "Windows Server 2025 x86_64", runner: windows-2025 }
-          - { name: "macOS 14 arm64", runner: macos-14 }
-          - { name: "macOS 15 arm64", runner: macos-15 }
+          - { name: "macOS 15 arm64 (14.0 deployment target)", runner: macos-15, deployment_target: "14.0" }
           - { name: "macOS 15 Intel x86_64", runner: macos-15-intel }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -44,15 +43,40 @@ jobs:
           toolchain: 1.98.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: platforms-${{ matrix.runner }}
+          key: platforms-${{ matrix.runner }}-${{ matrix.deployment_target || 'default' }}
       - name: Native desktop dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev poppler-utils
       - name: PDF text tool for the report tests
         if: runner.os == 'macOS'
         run: brew install poppler
+      - name: Set macOS deployment target
+        if: matrix.deployment_target
+        run: echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment_target }}" >> "$GITHUB_ENV"
       - name: Build the command line and the desktop app
         run: cargo build --locked -p faris-cli -p faris-app
+      - name: Verify macOS host and binary minimum OS version
+        if: matrix.deployment_target
+        run: |
+          set -euo pipefail
+          sw_vers | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'Architecture: %s\n' "$(uname -m)" | tee -a "$GITHUB_STEP_SUMMARY"
+          for binary in target/debug/faris target/debug/faris-app; do
+            test -f "$binary"
+            minimum_versions=$(otool -l "$binary" | awk '
+              /cmd LC_BUILD_VERSION/ { modern = 1; next }
+              modern && /minos / { print $2; modern = 0; next }
+              /cmd LC_VERSION_MIN_MACOSX/ { legacy = 1; next }
+              legacy && /version / { print $2; legacy = 0 }
+            ')
+            test -n "$minimum_versions"
+            if grep -vxq "${{ matrix.deployment_target }}" <<< "$minimum_versions"; then
+              printf '%s: unexpected minimum OS version(s): %s\n' "$binary" "$minimum_versions" >&2
+              exit 1
+            fi
+            printf '%s minimum OS version: %s\n' "$binary" "$minimum_versions" \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          done
       - name: Rust tests of the command-line crates
         run: cargo test --locked --no-fail-fast -p faris-model -p faris-engine -p faris-report -p faris-study -p faris-cli
       - name: Command-line scenario check

@@ -7,6 +7,8 @@ Tier 1 is built, tested and supported. Tier 2 is built and tested, with fixes as
 
 What the jobs do: `ci.yml:check` builds the whole workspace and runs every Rust and Python test. `platforms.yml:native` builds the command line and the desktop app and runs the Rust tests of the command-line crates, then runs `faris --version`, `faris validate` and `faris doctor`. The desktop app is built there but not started, because hosted runners have no display; the packaged app is started by the release smoke test, which runs on a release, not on every push. `platforms.yml:linux-old-glibc` builds the command line on Ubuntu 20.04 (glibc 2.31) and runs it in four distributions.
 
+GitHub retired its macOS 14 hosted runners on 2026-11-02 ([retirement announcement](https://github.com/actions/runner-images/issues/13518)). The Apple silicon macOS job therefore runs on macOS 15 with `MACOSX_DEPLOYMENT_TARGET=14.0`; CI checks the CLI and desktop app binaries' recorded minimum OS version. This checks the deployment target, while the tests execute on macOS 15. It does not claim that FARIS was run on macOS 14.
+
 <!-- platform-table:start -->
 | Platform | Tier | Runner | Evidence | What it shows |
 | --- | --- | --- | --- | --- |
@@ -15,8 +17,7 @@ What the jobs do: `ci.yml:check` builds the whole workspace and runs every Rust 
 | Linux, glibc 2.31 floor | 1 | `ubuntu:20.04` | `platforms.yml:linux-old-glibc` | The command line is built on Ubuntu 20.04 (glibc 2.31) and runs on Debian 11, Ubuntu 20.04, 24.04 and 26.04 (Debian 11 is a run-only check). The desktop app is built on Ubuntu 22.04 (`desktop.yml`) and needs glibc 2.35; it is not yet held to the 2.31 floor. |
 | Windows 11, x86_64 | 1 | `windows-2025` | `platforms.yml:native` | Command line and app build, Rust tests run. The runner is Windows Server 2025, which shares Windows 11's code base but is not Windows 11. |
 | Windows 10 22H2, x86_64 | 1 | none | NONE: GitHub offers no Windows 10 runner. Windows Server 2022 (`windows-2022`, `platforms.yml:native`) is the nearest. | Nothing is claimed for Windows 10. |
-| macOS 14, Apple silicon | 1 | `macos-14` | `platforms.yml:native` | Command line and app build, Rust tests run. |
-| macOS 15, Apple silicon | 1 | `macos-15` | `platforms.yml:native` | Same, on the newer release. |
+| macOS 14 or later, Apple silicon | 1 | `macos-15` | `platforms.yml:native` | Runs build and Rust tests on macOS 15 with a 14.0 deployment target; CI verifies the CLI and app binary minimum OS version. No macOS 14 runtime test is available on GitHub-hosted runners since macOS 14 retirement. |
 | Linux aarch64 (Ubuntu 24.04) | 2 | `ubuntu-24.04-arm` | `platforms.yml:native` | Command line and app build, Rust tests run. |
 | macOS 15, Intel | 2 | `macos-15-intel` | `platforms.yml:native` | Command line and app build, Rust tests run. |
 <!-- platform-table:end -->
