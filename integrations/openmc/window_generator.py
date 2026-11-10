@@ -355,6 +355,9 @@ def solve_windows(openmc, model, universe, source, adjoint_domains: list, thresh
         material.add_macroscopic(entries[material.name])
     settings = model.settings
     settings.energy_mode = "multi-group"
+    # Random-ray adjoint generation is a fixed-source transport run. Models
+    # built for the forward reactor calculation may still be in eigenvalue mode.
+    settings.run_mode = "fixed source"
     settings.source = [source]
     settings.batches, settings.inactive = RANDOM_RAY["batches"], RANDOM_RAY["inactive"]
     settings.particles = RANDOM_RAY["rays"]
