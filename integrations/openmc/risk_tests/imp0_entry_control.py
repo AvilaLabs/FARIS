@@ -118,7 +118,8 @@ def verify_cli_library_binding(executable: Path, library: Path, env: dict[str, s
         raise RuntimeError(
             f"explicit OpenMC library {library} differs from selected CLI dependency {resolved}"
         )
-    return rows[0].strip()
+    # ASLR changes the load address between inspections; identity is the resolved file.
+    return f"libopenmc.so => {resolved}"
 
 
 def make_model(openmc, directory: Path, *, particle: str, source_in_zero_cell: bool,
