@@ -9,6 +9,25 @@
 use faris_engine::design::{
     DesignTransportReport, FluenceLimit, LimitStatus, NotEvaluated, SolidFlux, span_text,
 };
+
+const REPORT_V04: &str = "faris-design-transport-report/v0.4";
+const REPORT_V05: &str = "faris-design-transport-report/v0.5";
+const MAX_REPORT_BYTES: usize = 16 * 1024 * 1024;
+
+/// Read-only report compatibility. v0.4 predates the optional CAD history-rate reference.
+pub fn parse_report(bytes: &[u8]) -> Result<DesignTransportReport, String> {
+    if bytes.len() > MAX_REPORT_BYTES {
+        return Err("design transport report exceeds the 16 MiB limit".into());
+    }
+    let report: DesignTransportReport =
+        serde_json::from_slice(bytes).map_err(|e| format!("design transport report JSON: {e}"))?;
+    if ![REPORT_V04, REPORT_V05].contains(&report.schema_version.as_str()) {
+        return Err(format!(
+            "report schema_version must be {REPORT_V04} or {REPORT_V05}"
+        ));
+    }
+    Ok(report)
+}
 use faris_engine::transport::{D_T_NEUTRON_ENERGY_EV, dt_source_power_summary};
 
 /// A quantity with its caption: the value, and its error or why there is none.
@@ -378,6 +397,7 @@ pub(crate) mod tests {
             setup_seconds: 95.0,
             windows_reused: false,
             reused_from: None,
+            history_rates_artifact: None,
             fluence_limits: vec![FluenceLimit {
                 group_id: "tf".into(),
                 basis: "peak_piece".into(),
@@ -391,6 +411,34 @@ pub(crate) mod tests {
                 next_step: "Run the heating study.".into(),
             }],
         }
+    }
+
+    #[test]
+    fn report_reader_keeps_v04_view_only_and_refuses_unknown_versions() {
+        let current = sample_report();
+        let parsed_current = parse_report(&serde_json::to_vec(&current).unwrap()).unwrap();
+        assert_eq!(parsed_current.schema_version, REPORT_V05);
+
+        let mut value = serde_json::to_value(current).unwrap();
+        value["schema_version"] = REPORT_V04.into();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("history_rates_artifact");
+        let old = parse_report(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert_eq!(old.schema_version, REPORT_V04);
+        assert!(old.history_rates_artifact.is_none());
+        assert_eq!(
+            result_view(&old).heading,
+            result_view(&sample_report()).heading
+        );
+
+        value["schema_version"] = "faris-design-transport-report/v999".into();
+        assert!(
+            parse_report(&serde_json::to_vec(&value).unwrap())
+                .unwrap_err()
+                .contains("must be")
+        );
     }
 
     #[test]

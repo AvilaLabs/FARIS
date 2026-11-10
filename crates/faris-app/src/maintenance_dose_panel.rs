@@ -20,6 +20,9 @@ use std::{
     },
 };
 
+use crate::design_transport_panel::CadHistoryContext;
+use faris_model::validation::{Quantity, note};
+
 const MAX_RESULT_BYTES: u64 = MAX_DOSE_RESULT_BYTES as u64;
 
 enum LoadState {
@@ -40,6 +43,11 @@ pub struct MaintenanceDosePanel {
     prepare: Option<DosePrepareState>,
     prepare_config: String,
     prepare_message: Option<String>,
+    cad_context: Option<CadHistoryContext>,
+    cad_history_assumptions: String,
+    cad_dose_physics: String,
+    cad_design_file: String,
+    cad_designs_inputs: Option<(String, String, String)>,
 }
 
 #[derive(Default)]
@@ -69,6 +77,9 @@ enum DoseField {
     Output,
     PrepareConfig,
     Result,
+    CadHistoryAssumptions,
+    CadDosePhysics,
+    CadDesignFile,
 }
 
 impl Default for MaintenanceDosePanel {
@@ -85,6 +96,11 @@ impl Default for MaintenanceDosePanel {
             prepare: None,
             prepare_config: String::new(),
             prepare_message: None,
+            cad_context: None,
+            cad_history_assumptions: String::new(),
+            cad_dose_physics: String::new(),
+            cad_design_file: String::new(),
+            cad_designs_inputs: None,
         }
     }
 }
@@ -111,6 +127,32 @@ fn load(path: PathBuf) -> Result<DoseMaintenanceResult, String> {
 }
 
 impl MaintenanceDosePanel {
+    pub fn prefill_cad_history(&mut self, context: CadHistoryContext) -> Result<(), String> {
+        if self.is_pending() {
+            return Err("Finish or cancel the current dose-physics preparation, run, or result load before switching CAD design.".into());
+        }
+        self.cad_history_assumptions.clear();
+        self.cad_dose_physics.clear();
+        self.prepare_message = None;
+        self.inputs.designs.clear();
+        self.cad_designs_inputs = None;
+        self.file_name.clear();
+        self.selected_design = None;
+        self.state = LoadState::Empty;
+        self.cad_design_file = crate::maintenance_run::unused_path(
+            &context
+                .history_rates
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("faris-maintenance-cad-dose-designs.json"),
+        )
+        .display()
+        .to_string();
+        self.cad_context = Some(context);
+        self.open = true;
+        Ok(())
+    }
+
     pub fn is_pending(&self) -> bool {
         self.run.is_some()
             || self.prepare.is_some()
@@ -120,6 +162,116 @@ impl MaintenanceDosePanel {
 
     pub fn is_running(&self) -> bool {
         self.run.is_some() || self.prepare.is_some()
+    }
+
+    /// Add the CAD dose result to the app's shared Compare step with its authored identity.
+    pub fn compare_section(&self, ui: &mut egui::Ui) {
+        if self.cad_context.is_none() {
+            return;
+        }
+        let LoadState::Ready(result) = &self.state else {
+            return;
+        };
+        egui::CollapsingHeader::new("CAD whole-life: computed versus fixed downtime")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.label("This is the checked CAD design and its hash-bound transport history. Fixed durations are the authored maintenance baseline; computed durations use the selected event dose method. D1S/R2S comparison state is shown per event in the dose result window.");
+                if !self.cad_history_assumptions.trim().is_empty() {
+                    ui.label(format!(
+                        "Fixed-duration source: {}",
+                        self.cad_history_assumptions.trim()
+                    ));
+                }
+                for (name, design) in &result.designs {
+                    ui.strong(name);
+                    let prefix = format!("design/{name}/");
+                    for input in ["scenario", "history_run", "history_assumptions", "dose_physics"] {
+                        if let Some(hash) = result.inputs.get(&format!("{prefix}{input}")) {
+                            ui.label(format!("{input} SHA-256 {}", &hash[..12.min(hash.len())]));
+                        }
+                    }
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(format!(
+                            "Fixed-duration model downtime: {:.3} d",
+                            design.fixed.total_replacement_downtime_s / 86_400.0
+                        ));
+                        ui.label(format!("Computed state: {:?}", design.computed.status));
+                        if let Some(summary) = &design.computed.summary {
+                            ui.label(format!(
+                                "Computed downtime: {:.3} d",
+                                summary.total_replacement_downtime_s / 86_400.0
+                            ));
+                            ui.label(format!(
+                                "Availability fixed/computed: {:.2}% / {:.2}%",
+                                100.0 * design.fixed.availability,
+                                100.0 * summary.availability
+                            ));
+                            if let (Some(fixed), Some(computed)) = (
+                                design.fixed.lifetime_net_electricity_mwh,
+                                summary.lifetime_net_electricity_mwh,
+                            ) {
+                                ui.label(format!(
+                                    "Net electricity fixed/computed: {:.3} / {:.3} TWh",
+                                    fixed / 1.0e6,
+                                    computed / 1.0e6
+                                ));
+                            }
+                        } else if let Some(reason) = &design.computed.not_evaluated {
+                            ui.label(format!("Why: {} Next step: {}", reason.reason, reason.next_step));
+                        }
+                    });
+                    validation_detail(ui, Quantity::Availability, "Downtime and availability");
+                    if design
+                        .computed
+                        .summary
+                        .as_ref()
+                        .is_some_and(|summary| summary.lifetime_net_electricity_mwh.is_some())
+                    {
+                        validation_detail(ui, Quantity::NetElectricPower, "Net electricity");
+                    }
+                }
+            });
+    }
+
+    /// Expose the actual CAD-derived history on the app's Operate step.
+    pub fn history_section(&self, ui: &mut egui::Ui) {
+        if self.cad_context.is_none() {
+            return;
+        }
+        let LoadState::Ready(result) = &self.state else {
+            return;
+        };
+        egui::CollapsingHeader::new("Checked CAD whole-life history")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.label("These histories use the checked CAD transport rates, the bound whole-model heating response, and event-specific dose durations. The existing in-app arrangement history remains a separate scenario.");
+                for (name, design) in &result.designs {
+                    ui.strong(name);
+                    let prefix = format!("design/{name}/");
+                    for input in ["scenario", "history_run", "history_assumptions", "dose_physics"] {
+                        if let Some(hash) = result.inputs.get(&format!("{prefix}{input}")) {
+                            ui.label(format!("{input} SHA-256 {}", &hash[..12.min(hash.len())]));
+                        }
+                    }
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(format!("Computed status: {:?}", design.computed.status));
+                        if let Some(summary) = &design.computed.summary {
+                            ui.label(format!(
+                                "Replacement downtime: {:.3} d",
+                                summary.total_replacement_downtime_s / 86_400.0
+                            ));
+                            ui.label(format!("Availability: {:.2}%", 100.0 * summary.availability));
+                            if let Some(net) = summary.lifetime_net_electricity_mwh {
+                                ui.label(format!("Net electricity: {:.3} TWh", net / 1.0e6));
+                                validation_detail(ui, Quantity::NetElectricPower, "Net electricity");
+                            }
+                            validation_detail(ui, Quantity::Availability, "Downtime and availability");
+                        } else if let Some(reason) = &design.computed.not_evaluated {
+                            ui.label(format!("Why: {} Next step: {}", reason.reason, reason.next_step));
+                        }
+                    });
+                }
+            });
     }
 
     pub fn window(&mut self, ctx: &egui::Context) {
@@ -134,6 +286,8 @@ impl MaintenanceDosePanel {
                     if let Some(path) = path {
                         match field {
                             DoseField::Result => {
+                                self.cad_context = None;
+                                self.cad_designs_inputs = None;
                                 let name = path.file_name().map_or_else(
                                     || path.display().to_string(),
                                     |n| n.to_string_lossy().into_owned(),
@@ -153,6 +307,11 @@ impl MaintenanceDosePanel {
                                     DoseField::Curves => self.inputs.curves = value,
                                     DoseField::Output => self.inputs.output = value,
                                     DoseField::PrepareConfig => self.prepare_config = value,
+                                    DoseField::CadHistoryAssumptions => {
+                                        self.cad_history_assumptions = value
+                                    }
+                                    DoseField::CadDosePhysics => self.cad_dose_physics = value,
+                                    DoseField::CadDesignFile => self.cad_design_file = value,
                                     DoseField::Result => unreachable!(),
                                 }
                             }
@@ -205,6 +364,7 @@ impl MaintenanceDosePanel {
                 Ok(Ok(path)) => {
                     self.prepare_message =
                         Some(format!("Prepared physics manifest: {}", path.display()));
+                    self.cad_dose_physics = path.display().to_string();
                     self.prepare = None;
                 }
                 Ok(Err(error)) => {
@@ -226,7 +386,7 @@ impl MaintenanceDosePanel {
                     path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog);
                     ui.horizontal(|ui| {
                         if self.prepare.is_none() && ui.button("Prepare CAD dose physics").clicked() {
-                            match start_dose_prepare(&self.prepare_config) {
+                            match start_dose_prepare(&self.prepare_config, self.cad_context.clone()) {
                                 Ok(state) => { self.prepare = Some(state); self.prepare_message = None; }
                                 Err(error) => self.state = LoadState::Failed(error),
                             }
@@ -237,14 +397,59 @@ impl MaintenanceDosePanel {
                         }
                     });
                     if let Some(message) = &self.prepare_message { ui.label(message); }
+                    if let Some(context) = &self.cad_context {
+                        ui.separator();
+                        ui.strong(format!("Checked CAD design: {}", context.design_id));
+                        ui.label(format!("Scenario: {}", context.scenario.display()));
+                        ui.label(format!("Verified same-batch history rates: {}", context.history_rates.display()));
+                        ui.weak("Choose the operating-history assumptions and a prepared CAD dose-physics manifest. The CAD rates remain bound to the scenario and source power checked by the transport run.");
+                        ui.weak("Dose preparation must use the same solid-to-component map and cross-section index as the transport run.");
+                        for (component, solids) in &context.history_components {
+                            ui.label(format!("{component}: {}", solids.join(", ")));
+                        }
+                        path_row(ui, "History assumptions", &mut self.cad_history_assumptions, DoseField::CadHistoryAssumptions, &mut self.dialog);
+                        path_row(ui, "Prepared dose-physics manifest", &mut self.cad_dose_physics, DoseField::CadDosePhysics, &mut self.dialog);
+                        path_row(ui, "New CAD designs file", &mut self.cad_design_file, DoseField::CadDesignFile, &mut self.dialog);
+                        if ui.button("Create hash-bound CAD dose design input").clicked() {
+                            match write_cad_designs(
+                                context,
+                                &self.cad_history_assumptions,
+                                &self.cad_dose_physics,
+                                &self.cad_design_file,
+                            ) {
+                                Ok(path) => {
+                                    let value = path.display().to_string();
+                                    self.inputs.designs = value.clone();
+                                    self.cad_designs_inputs = Some((
+                                        value,
+                                        self.cad_history_assumptions.trim().to_owned(),
+                                        self.cad_dose_physics.trim().to_owned(),
+                                    ));
+                                }
+                                Err(error) => self.state = LoadState::Failed(error),
+                            }
+                        }
+                    }
                     ui.label("Provide event-specific D1S/R2S spatial curves. FARIS computes the history coupling and duration; this workflow does not run a general D1S/R2S transport solver.");
                     path_row(ui, "Designs", &mut self.inputs.designs, DoseField::Designs, &mut self.dialog);
-                    path_row(ui, "Assumptions", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog);
+                    path_row(ui, "Dose limits and calculation settings", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog);
                     path_row(ui, "Optional spatial dose curve cache", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog);
                     path_row(ui, "New result file", &mut self.inputs.output, DoseField::Output, &mut self.dialog);
                     ui.horizontal(|ui| {
                         if self.run.is_none() && ui.button("Run bounded dose coupling").clicked() {
-                            match start_dose_run(&self.inputs) {
+                            let cad_designs_match = self.cad_context.is_none()
+                                || self.cad_designs_inputs.as_ref()
+                                    == Some(&(
+                                        self.inputs.designs.trim().to_owned(),
+                                        self.cad_history_assumptions.trim().to_owned(),
+                                        self.cad_dose_physics.trim().to_owned(),
+                                    ));
+                            let started = if cad_designs_match {
+                                start_dose_run(&self.inputs)
+                            } else {
+                                Err("The CAD design inputs changed after the guided setup. Recreate the hash-bound CAD dose design file before running.".into())
+                            };
+                            match started {
                                 Ok(run) => self.run = Some(run),
                                 Err(error) => self.state = LoadState::Failed(error),
                             }
@@ -272,6 +477,68 @@ impl MaintenanceDosePanel {
     }
 }
 
+fn validation_detail(ui: &mut egui::Ui, quantity: Quantity, label: &str) {
+    let mark = faris_model::validation::ValidationMark::current(quantity);
+    let note = note(quantity);
+    ui.label(format!(
+        "{label} validation: {} · scope: {} · why: {} · next: {}",
+        mark.state.label(),
+        note.scope,
+        note.why,
+        note.next_step
+    ));
+}
+
+fn write_cad_designs(
+    context: &CadHistoryContext,
+    history_assumptions: &str,
+    dose_physics: &str,
+    output: &str,
+) -> Result<PathBuf, String> {
+    let required = |label: &str, text: &str| -> Result<PathBuf, String> {
+        let path = PathBuf::from(text.trim());
+        if !path.is_file() {
+            return Err(format!("choose an existing {label}"));
+        }
+        path.canonicalize().map_err(|e| format!("{label}: {e}"))
+    };
+    let history_assumptions = required("operating history assumptions file", history_assumptions)?;
+    let assumptions_bytes = faris_engine::reactor::read_json_bytes(&history_assumptions)
+        .map_err(|e| format!("operating history assumptions: {e}"))?;
+    let assumptions: faris_model::history::OperatingHistoryAssumptions =
+        serde_json::from_slice(&assumptions_bytes)
+            .map_err(|e| format!("operating history assumptions: {e}"))?;
+    assumptions.validate()?;
+    let dose_physics = required("prepared CAD dose-physics manifest", dose_physics)?;
+    let output = PathBuf::from(output.trim());
+    if output.as_os_str().is_empty() || output.exists() {
+        return Err(
+            "choose a new CAD designs file path; existing files are never overwritten".into(),
+        );
+    }
+    let path_value = |path: &Path| -> Result<String, String> {
+        path.canonicalize()
+            .map(|p| p.display().to_string())
+            .map_err(|e| e.to_string())
+    };
+    let value = serde_json::json!({
+        "schema_version": faris_engine::maintenance::files::CAD_DOSE_DESIGNS_VERSION,
+        "designs": {
+            (context.design_id.clone()): {
+                "scenario": path_value(&context.scenario)?,
+                "history_run": path_value(&context.history_rates)?,
+                "history_assumptions": history_assumptions.display().to_string(),
+                "dose_physics": dose_physics.display().to_string(),
+            }
+        }
+    });
+    let mut bytes = serde_json::to_vec_pretty(&value).map_err(|e| e.to_string())?;
+    bytes.push(b'\n');
+    faris_engine::atomic_file::write_new(&output, &bytes)
+        .map_err(|e| format!("cannot write {}: {e}", output.display()))?;
+    Ok(output)
+}
+
 fn path_row(
     ui: &mut egui::Ui,
     label: &str,
@@ -287,7 +554,7 @@ fn path_row(
             *pending = Some((field, rx));
             std::thread::spawn(move || {
                 let dialog = rfd::FileDialog::new().add_filter("JSON", &["json"]);
-                let path = if matches!(field, DoseField::Output) {
+                let path = if matches!(field, DoseField::Output | DoseField::CadDesignFile) {
                     dialog.save_file()
                 } else {
                     dialog.pick_file()
@@ -351,7 +618,10 @@ fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
     })
 }
 
-fn start_dose_prepare(config: &str) -> Result<DosePrepareState, String> {
+fn start_dose_prepare(
+    config: &str,
+    cad_context: Option<CadHistoryContext>,
+) -> Result<DosePrepareState, String> {
     let config = required_path("dose CAD preparation config", config)?;
     let worker = default_event_dose_worker().ok_or(
         "OpenMC event-dose worker script was not found in the application package or source tree",
@@ -361,10 +631,100 @@ fn start_dose_prepare(config: &str) -> Result<DosePrepareState, String> {
     let python = PathBuf::from("python3");
     let (tx, receiver) = mpsc::channel();
     std::thread::spawn(move || {
-        let result = prepare_dose_cad(&config, &python, &worker, &worker_cancel);
+        let result = cad_context
+            .as_ref()
+            .map_or(Ok(()), |context| {
+                verify_cad_prepare_binding(&config, context)
+            })
+            .and_then(|()| prepare_dose_cad(&config, &python, &worker, &worker_cancel));
         let _ = tx.send(result);
     });
     Ok(DosePrepareState { cancel, receiver })
+}
+
+fn verify_cad_prepare_binding(
+    config_path: &Path,
+    context: &CadHistoryContext,
+) -> Result<(), String> {
+    let bytes = faris_engine::reactor::read_json_bytes(config_path)
+        .map_err(|e| format!("CAD dose preparation config: {e}"))?;
+    let config: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|e| format!("CAD dose preparation config: {e}"))?;
+    if config["schema_version"] != "faris-maintenance-dose-cad-config/v0.2" {
+        return Err(
+            "CAD dose preparation config must use faris-maintenance-dose-cad-config/v0.2".into(),
+        );
+    }
+    let base = config_path.parent().unwrap_or_else(|| Path::new("."));
+    let bound_path = |value: &serde_json::Value, label: &str| -> Result<PathBuf, String> {
+        let text = value
+            .as_str()
+            .ok_or_else(|| format!("CAD dose config has no {label} path"))?;
+        let path = PathBuf::from(text);
+        let path = if path.is_absolute() {
+            path
+        } else {
+            base.join(path)
+        };
+        path.canonicalize()
+            .map_err(|e| format!("CAD dose {label} path: {e}"))
+    };
+    for (key, expected, label) in [
+        ("design_file", &context.design, "design"),
+        ("import_report", &context.check_report, "check report"),
+    ] {
+        if bound_path(&config[key], label)? != expected.canonicalize().map_err(|e| e.to_string())? {
+            return Err(format!(
+                "CAD dose config {label} does not match the checked transport run"
+            ));
+        }
+    }
+    let xs = bound_path(&config["cross_sections_xml"]["path"], "cross-section index")?;
+    if xs
+        != context
+            .cross_sections
+            .canonicalize()
+            .map_err(|e| e.to_string())?
+    {
+        return Err(
+            "CAD dose config cross-section index does not match the transport history".into(),
+        );
+    }
+    let configured_hash = config["cross_sections_xml"]["sha256"]
+        .as_str()
+        .ok_or("CAD dose config has no cross-section index SHA-256")?;
+    if !configured_hash.eq_ignore_ascii_case(&context.cross_sections_sha256) {
+        return Err(
+            "CAD dose config cross-section hash does not match the transport history".into(),
+        );
+    }
+    let (current_hash, _) = faris_study::sha256_file(&xs)
+        .map_err(|e| format!("cannot recheck cross-section index: {e}"))?;
+    if !current_hash.eq_ignore_ascii_case(&context.cross_sections_sha256) {
+        return Err(
+            "cross-section index changed after CAD transport; rerun the history-rate calculation"
+                .into(),
+        );
+    }
+    let actual: std::collections::BTreeMap<String, String> =
+        serde_json::from_value(config["solid_history_components"].clone())
+            .map_err(|e| format!("CAD dose solid-to-component map: {e}"))?;
+    let mut expected = std::collections::BTreeMap::new();
+    for (component, solids) in &context.history_components {
+        for solid in solids {
+            if expected.insert(solid.clone(), component.clone()).is_some() {
+                return Err(format!(
+                    "CAD history map assigns solid {solid} more than once"
+                ));
+            }
+        }
+    }
+    if actual != expected {
+        return Err(
+            "CAD dose solid-to-component map differs from the transport history map".into(),
+        );
+    }
+    Ok(())
 }
 
 fn required_path(label: &str, value: &str) -> Result<PathBuf, String> {
@@ -429,6 +789,25 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
             egui::Color32::from_rgb(165, 90, 20),
             format!("NOT_EVALUATED: {} Next step: {}", ne.reason, ne.next_step),
         );
+    }
+    validation_detail(
+        ui,
+        Quantity::ShutdownDoseRate,
+        "Computed outage and shutdown-dose rates",
+    );
+    validation_detail(ui, Quantity::ShutdownDoseRatio, "D1S/R2S comparison ratios");
+    validation_detail(
+        ui,
+        Quantity::Availability,
+        "Fixed/computed downtime and availability",
+    );
+    if design
+        .computed
+        .summary
+        .as_ref()
+        .is_some_and(|summary| summary.lifetime_net_electricity_mwh.is_some())
+    {
+        validation_detail(ui, Quantity::NetElectricPower, "Net electricity");
     }
     egui::ScrollArea::both().max_height(460.0).show(ui, |ui| {
         egui::Grid::new("dose-maintenance-events")
@@ -520,6 +899,8 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
                     ),
                     |ui| {
                         ui.label(&curve.validation_scope);
+                        validation_detail(ui, Quantity::ShutdownDoseRate, "Spatial dose rates");
+                        validation_detail(ui, Quantity::ShutdownDoseRatio, "D1S/R2S ratios");
                         ui.label(format!(
                             "Normalization: {}",
                             curve
@@ -612,5 +993,130 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
     }
     if design.computed.validation == ComparisonStatus::InconclusiveCovariance {
         ui.colored_label(egui::Color32::from_rgb(165, 90, 20), "D1S/R2S central values are in band, but comparison covariance is unknown. Physical validation remains inconclusive; pointwise standard errors are not cooling-time uncertainty.");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cad_design_input_binds_scenario_rates_assumptions_and_dose_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let scenario = dir.path().join("scenario.json");
+        let rates = dir.path().join("history-driving-rates.json");
+        let history_assumptions = dir.path().join("history-assumptions.json");
+        let dose_manifest = dir.path().join("dose-physics.json");
+        for path in [&scenario, &rates, &dose_manifest] {
+            std::fs::write(path, "{}").unwrap();
+        }
+        std::fs::write(
+            &history_assumptions,
+            include_bytes!("../../../scenarios/arc-inspired/demo-operating-assumptions.json"),
+        )
+        .unwrap();
+        let output = dir.path().join("cad-designs.json");
+        let context = CadHistoryContext {
+            design: scenario.clone(),
+            check_report: scenario.clone(),
+            scenario: scenario.clone(),
+            history_rates: rates.clone(),
+            cross_sections: scenario.clone(),
+            cross_sections_sha256: faris_study::sha256_file(&scenario).unwrap().0,
+            history_components: std::collections::BTreeMap::from([(
+                "blanket".into(),
+                vec!["blanket-solid".into()],
+            )]),
+            design_id: "device-cad".into(),
+        };
+        let written = write_cad_designs(
+            &context,
+            history_assumptions.to_str().unwrap(),
+            dose_manifest.to_str().unwrap(),
+            output.to_str().unwrap(),
+        )
+        .unwrap();
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(written).unwrap()).unwrap();
+        assert_eq!(
+            value["schema_version"],
+            faris_engine::maintenance::files::CAD_DOSE_DESIGNS_VERSION
+        );
+        let design = &value["designs"]["device-cad"];
+        assert_eq!(
+            design["scenario"],
+            scenario.canonicalize().unwrap().display().to_string()
+        );
+        assert_eq!(
+            design["history_run"],
+            rates.canonicalize().unwrap().display().to_string()
+        );
+        assert!(design.get("physics").is_none());
+        assert!(design.get("spectrum_run").is_none());
+        assert!(
+            write_cad_designs(
+                &context,
+                history_assumptions.to_str().unwrap(),
+                dose_manifest.to_str().unwrap(),
+                output.to_str().unwrap(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn cad_prepare_rejects_mapping_or_cross_section_drift_from_transport() {
+        let dir = tempfile::tempdir().unwrap();
+        let design = dir.path().join("design.json");
+        let report = dir.path().join("import-report.json");
+        let scenario = dir.path().join("scenario.json");
+        let rates = dir.path().join("rates.json");
+        let xs = dir.path().join("cross_sections.xml");
+        for path in [&design, &report, &scenario, &rates, &xs] {
+            std::fs::write(path, "{}").unwrap();
+        }
+        let context = CadHistoryContext {
+            design: design.clone(),
+            check_report: report.clone(),
+            scenario,
+            history_rates: rates,
+            cross_sections: xs.clone(),
+            cross_sections_sha256: faris_study::sha256_file(&xs).unwrap().0,
+            history_components: std::collections::BTreeMap::from([(
+                "blanket".into(),
+                vec!["blanket-solid".into()],
+            )]),
+            design_id: "device-cad".into(),
+        };
+        let config = dir.path().join("prepare.json");
+        let xs_sha256 = faris_study::sha256_file(&xs).unwrap().0;
+        let value = |solid_map: serde_json::Value, xs_path: &Path| {
+            serde_json::json!({
+                "schema_version": "faris-maintenance-dose-cad-config/v0.2",
+                "design_file": design,
+                "import_report": report,
+                "cross_sections_xml": {"path": xs_path, "sha256": xs_sha256},
+                "solid_history_components": solid_map,
+            })
+        };
+        let correct = value(serde_json::json!({"blanket-solid":"blanket"}), &xs);
+        std::fs::write(&config, serde_json::to_vec(&correct).unwrap()).unwrap();
+        verify_cad_prepare_binding(&config, &context).unwrap();
+        let wrong_map = value(serde_json::json!({"blanket-solid":"divertor"}), &xs);
+        std::fs::write(&config, serde_json::to_vec(&wrong_map).unwrap()).unwrap();
+        assert!(
+            verify_cad_prepare_binding(&config, &context)
+                .unwrap_err()
+                .contains("mapping differs")
+        );
+        let other_xs = dir.path().join("other-cross-sections.xml");
+        std::fs::write(&other_xs, "{}").unwrap();
+        let wrong_xs = value(serde_json::json!({"blanket-solid":"blanket"}), &other_xs);
+        std::fs::write(&config, serde_json::to_vec(&wrong_xs).unwrap()).unwrap();
+        assert!(
+            verify_cad_prepare_binding(&config, &context)
+                .unwrap_err()
+                .contains("index does not match")
+        );
     }
 }

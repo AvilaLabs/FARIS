@@ -41,6 +41,7 @@ pub const REPORT_NAME: &str = "design-transport-report.json";
 pub enum Field {
     Design,
     CheckReport,
+    HistoryScenario,
     Output,
     OpenmcPython,
     CrossSections,
@@ -102,6 +103,12 @@ pub static TOOLS: [ToolInfo; 5] = [
 pub struct RunInputs {
     pub design: String,
     pub check_report: String,
+    /// Optional operating scenario for same-batch CAD history-rate responses.
+    pub history_scenario: String,
+    /// Explicit component ID to CAD solid ID lists, authored as JSON.
+    pub history_components_json: String,
+    /// Component receiving the integrated tritium-production response.
+    pub h3_component_id: String,
     /// Empty: `faris-transport-run` beside the design file, numbered if it exists.
     pub output: String,
     pub openmc_python: String,
@@ -122,6 +129,9 @@ impl Default for RunInputs {
         Self {
             design: String::new(),
             check_report: String::new(),
+            history_scenario: String::new(),
+            history_components_json: String::new(),
+            h3_component_id: "blanket".into(),
             output: String::new(),
             openmc_python: String::new(),
             cross_sections: String::new(),
@@ -141,6 +151,7 @@ impl RunInputs {
         match field {
             Field::Design => &mut self.design,
             Field::CheckReport => &mut self.check_report,
+            Field::HistoryScenario => &mut self.history_scenario,
             Field::Output => &mut self.output,
             Field::OpenmcPython => &mut self.openmc_python,
             Field::CrossSections => &mut self.cross_sections,
@@ -154,6 +165,7 @@ impl RunInputs {
         match field {
             Field::Design => &self.design,
             Field::CheckReport => &self.check_report,
+            Field::HistoryScenario => &self.history_scenario,
             Field::Output => &self.output,
             Field::OpenmcPython => &self.openmc_python,
             Field::CrossSections => &self.cross_sections,
@@ -210,6 +222,65 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
             "choose the check report again.",
         )),
         Some(_) => {}
+    }
+    let history_configured = !inputs.history_scenario.trim().is_empty()
+        || !inputs.history_components_json.trim().is_empty();
+    if history_configured {
+        match trimmed(&inputs.history_scenario) {
+            None => problems.push(missing_file(
+                Field::HistoryScenario,
+                "operating scenario",
+                "choose the scenario whose fusion power and operating plan will consume the CAD rates.",
+            )),
+            Some(path) if !path.is_file() => problems.push(Problem::new(
+                Field::HistoryScenario,
+                format!("The history scenario {} does not exist.", path.display()),
+                "choose the scenario JSON again.",
+            )),
+            Some(_) => {}
+        }
+        if inputs.history_components_json.trim().is_empty() {
+            problems.push(Problem::new(
+                None,
+                "The CAD history component map is empty.",
+                "map every active non-void CAD solid exactly once in the component map.",
+            ));
+        } else if serde_json::from_str::<std::collections::BTreeMap<String, Vec<String>>>(
+            &inputs.history_components_json,
+        )
+        .is_err()
+        {
+            problems.push(Problem::new(
+                None,
+                "The CAD history component map is not a JSON object of component IDs to solid ID arrays.",
+                "enter a map such as {\"blanket\":[\"solid-1\"],\"magnets\":[\"solid-2\"]}.",
+            ));
+        }
+        if inputs.h3_component_id.trim() != "blanket" {
+            problems.push(Problem::new(
+                None,
+                "The current shared history model requires the H3 response component ID `blanket`.",
+                "include `blanket` in the map and keep H3 component set to `blanket`.",
+            ));
+        }
+        if !inputs.window_python.trim().is_empty() {
+            problems.push(Problem::new(
+                None,
+                "CAD whole-life history responses currently require analog transport; weight windows are enabled.",
+                "clear the optional Window Python tool for this history-rate run.",
+            ));
+        }
+        if let Ok(components) = serde_json::from_str::<
+            std::collections::BTreeMap<String, Vec<String>>,
+        >(&inputs.history_components_json)
+            && !components.contains_key("blanket")
+        {
+            problems.push(Problem::new(
+                None,
+                "The CAD history map has no `blanket` component for the tritium-production response.",
+                "map the breeder solids to `blanket` and choose it as the H3 component.",
+            ));
+        }
     }
     for row in tool_rows(inputs) {
         let info = row.info;
@@ -282,6 +353,17 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
         plasma_source_path: trimmed(&inputs.plasma_source),
         ..ToolPaths::default()
     };
+    let (history_components, history_scenario, h3_component_id) = if history_configured {
+        let components = serde_json::from_str(&inputs.history_components_json)
+            .expect("history map JSON checked above");
+        (
+            Some(components),
+            trimmed(&inputs.history_scenario),
+            Some(inputs.h3_component_id.trim().to_owned()),
+        )
+    } else {
+        (None, None, None)
+    };
     let options = DesignTransportOptions {
         check_report: trimmed(&inputs.check_report).expect("checked above"),
         out_dir: out_dir.expect("checked above"),
@@ -294,9 +376,9 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
         window_python: trimmed(&inputs.window_python),
         openmc_package_path: trimmed(&inputs.openmc_package),
         group: None,
-        history_components: None,
-        history_scenario: None,
-        h3_component_id: None,
+        history_components,
+        history_scenario,
+        h3_component_id,
         cache_dir: inputs.keep_cache.then(|| beside(&design).join(CACHE_NAME)),
         progress: None,
         cancellation: Cancellation::default(),
@@ -731,6 +813,49 @@ mod tests {
         assert_eq!(inputs.max_histories, 50_000_000);
         assert_eq!(inputs.max_seconds, 3600);
         assert!(inputs.keep_cache);
+        assert!(inputs.history_scenario.is_empty());
+        assert!(inputs.history_components_json.is_empty());
+    }
+
+    #[test]
+    fn cad_history_mapping_is_an_explicit_all_or_nothing_run_input() {
+        let (dir, mut inputs) = tree();
+        let scenario = dir.path().join("scenario.json");
+        std::fs::write(
+            &scenario,
+            include_bytes!("../../../scenarios/arc-inspired/scenario.json"),
+        )
+        .unwrap();
+        inputs.history_scenario = scenario.display().to_string();
+        inputs.history_components_json =
+            r#"{"blanket":["blanket-solid"],"magnets":["tf-solid"]}"#.into();
+        inputs.h3_component_id = "blanket".into();
+        let plan = validate(&inputs).unwrap();
+        assert_eq!(
+            plan.options.history_components,
+            Some(std::collections::BTreeMap::from([
+                ("blanket".into(), vec!["blanket-solid".into()]),
+                ("magnets".into(), vec!["tf-solid".into()]),
+            ]))
+        );
+        assert_eq!(plan.options.history_scenario, Some(scenario));
+        assert_eq!(plan.options.h3_component_id.as_deref(), Some("blanket"));
+
+        let mut partial = inputs;
+        partial.history_components_json.clear();
+        assert!(
+            refused(&partial)
+                .iter()
+                .any(|problem| problem.why.contains("map is empty"))
+        );
+
+        let mut no_breeder = inputs;
+        no_breeder.history_components_json = r#"{"magnets":["tf-solid"]}"#.into();
+        assert!(
+            refused(&no_breeder)
+                .iter()
+                .any(|problem| problem.why.contains("no `blanket` component"))
+        );
     }
 
     #[test]

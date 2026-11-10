@@ -11,7 +11,7 @@ use crate::{
     badge::{self, Kind},
     design_shared::{missing_count_text, needs_list, path_row},
     design_tools::{SharedTools, ToolsModel, Window},
-    design_transport_result::{LimitView, ResultView, Row, result_view},
+    design_transport_result::{LimitView, ResultView, Row, parse_report, result_view},
     design_transport_run::{
         Field, Job, MIN_HISTORIES, Problem, RunInputs, RunningView, failure_text, tool_rows,
         validate,
@@ -22,6 +22,7 @@ use crate::{
 use eframe::egui;
 use faris_engine::design::LimitStatus;
 use std::{
+    io::Read,
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, TryRecvError},
 };
@@ -29,8 +30,23 @@ use std::{
 /// A finished run as the window keeps it.
 struct Shown {
     view: ResultView,
+    report: faris_engine::design::DesignTransportReport,
+    history_context: Option<CadHistoryContext>,
+    opened_from: Option<PathBuf>,
     /// Where the report was saved, or why it was not.
     saved: Result<PathBuf, String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CadHistoryContext {
+    pub design: PathBuf,
+    pub check_report: PathBuf,
+    pub scenario: PathBuf,
+    pub history_rates: PathBuf,
+    pub cross_sections: PathBuf,
+    pub cross_sections_sha256: String,
+    pub history_components: std::collections::BTreeMap<String, Vec<String>>,
+    pub design_id: String,
 }
 
 pub struct DesignTransportPanel {
@@ -44,6 +60,16 @@ pub struct DesignTransportPanel {
     /// Inputs the idle-state problems were last computed for, and those problems.
     preview: Option<(RunInputs, Vec<Problem>)>,
     result: Option<Shown>,
+    history_handoff: Option<CadHistoryContext>,
+    running_history_context: Option<CadHistoryContext>,
+    running_inputs: Option<RunInputs>,
+    stale_run_message: Option<String>,
+    report_pick: Option<Receiver<Option<PathBuf>>>,
+    report_loading:
+        Option<Receiver<Result<(PathBuf, faris_engine::design::DesignTransportReport), String>>>,
+    history_solid_source: String,
+    history_solid_summary: Vec<String>,
+    history_solid_error: Option<String>,
 }
 
 impl Default for DesignTransportPanel {
@@ -65,6 +91,7 @@ fn dialog_title(field: Field) -> &'static str {
         Field::Design => "Choose the design file",
         Field::CheckReport => "Choose the design check report",
         Field::Output => "Name a new folder for the run",
+        Field::HistoryScenario => "Choose the operating scenario",
         // The tools are chosen in the shared Tools section, not here.
         Field::OpenmcPython
         | Field::CrossSections
@@ -85,6 +112,15 @@ impl DesignTransportPanel {
             problems: Vec::new(),
             preview: None,
             result: None,
+            history_handoff: None,
+            running_history_context: None,
+            running_inputs: None,
+            stale_run_message: None,
+            report_pick: None,
+            report_loading: None,
+            history_solid_source: String::new(),
+            history_solid_summary: Vec::new(),
+            history_solid_error: None,
         }
     }
 
@@ -118,13 +154,97 @@ impl DesignTransportPanel {
         self.job.is_running()
     }
 
+    pub fn take_history_handoff(&mut self) -> Option<CadHistoryContext> {
+        self.history_handoff.take()
+    }
+
     /// The floating window; takes a finished run every frame, window open or not.
     pub fn window(&mut self, ctx: &egui::Context) {
         if let Some((report, saved)) = self.job.poll() {
-            self.result = Some(Shown {
+            let inputs_current = self.running_inputs.as_ref() == Some(&self.inputs);
+            self.running_inputs = None;
+            let mut history_context = self.running_history_context.take();
+            if report.history_rates_artifact.is_none() {
+                history_context = None;
+            }
+            if let (Some(context), Some(reference)) = (
+                history_context.as_mut(),
+                report.history_rates_artifact.as_ref(),
+            ) {
+                context.history_rates = PathBuf::from(&reference.path);
+                context.cross_sections_sha256 = report.cross_sections_sha256.clone();
+                context.design_id = report
+                    .design
+                    .id
+                    .clone()
+                    .unwrap_or_else(|| "CAD design".into());
+            }
+            self.result = inputs_current.then(|| Shown {
                 view: result_view(&report),
-                saved,
+                report,
+                history_context,
+                opened_from: None,
+                saved: saved.clone(),
             });
+            if !inputs_current {
+                self.stale_run_message = Some(match saved {
+                    Ok(path) => format!(
+                        "The run finished after its inputs changed. Its report is saved at {}; rerun with the current inputs before continuing the CAD life study.",
+                        path.display()
+                    ),
+                    Err(error) => format!(
+                        "The run finished after its inputs changed and the report was not saved: {error}. Rerun with the current inputs before continuing the CAD life study."
+                    ),
+                });
+            }
+        }
+        if let Some(receiver) = &self.report_pick {
+            match receiver.try_recv() {
+                Ok(path) => {
+                    self.report_pick = None;
+                    if let Some(path) = path {
+                        let (tx, rx) = mpsc::channel();
+                        let _ = crate::thread::Builder::new()
+                            .name("faris-design-report-reader".into())
+                            .spawn(move || {
+                                let result = load_saved_report(&path).map(|report| (path, report));
+                                let _ = tx.send(result);
+                            });
+                        self.report_loading = Some(rx);
+                    }
+                }
+                Err(TryRecvError::Disconnected) => self.report_pick = None,
+                Err(TryRecvError::Empty) => {
+                    ctx.request_repaint_after(Duration::from_millis(100));
+                }
+            }
+        }
+        if let Some(receiver) = &self.report_loading {
+            match receiver.try_recv() {
+                Ok(Ok((path, report))) => {
+                    self.result = Some(Shown {
+                        view: result_view(&report),
+                        report,
+                        history_context: None,
+                        opened_from: Some(path.clone()),
+                        saved: Ok(path),
+                    });
+                    self.report_loading = None;
+                    self.history_handoff = None;
+                }
+                Ok(Err(error)) => {
+                    self.stale_run_message = Some(error);
+                    self.report_loading = None;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    self.stale_run_message =
+                        Some("The saved report reader stopped without a result.".into());
+                    self.report_loading = None;
+                }
+                Err(TryRecvError::Empty) => {
+                    ctx.request_repaint_after(Duration::from_millis(100));
+                }
+            }
         }
         if !self.open {
             return;
@@ -157,6 +277,7 @@ impl DesignTransportPanel {
                     Field::Design | Field::CheckReport => {
                         dialog.add_filter("JSON", &["json"]).pick_file()
                     }
+                    Field::HistoryScenario => dialog.add_filter("JSON", &["json"]).pick_file(),
                     _ => dialog.pick_file(),
                 };
                 let _ = sender.send(picked);
@@ -190,8 +311,34 @@ impl DesignTransportPanel {
 
     fn view(&mut self, ui: &mut egui::Ui) {
         self.poll_pick();
+        self.refresh_history_solid_summary();
         let ctx = ui.ctx().clone();
         let running = self.job.is_running();
+        ui.horizontal(|ui| {
+            if !running
+                && self.report_loading.is_none()
+                && self.report_pick.is_none()
+                && ui.button("Open saved transport report…").clicked()
+            {
+                let (tx, rx) = mpsc::channel();
+                self.report_pick = Some(rx);
+                let _ = crate::thread::Builder::new()
+                    .name("faris-design-report-dialog".into())
+                    .spawn(move || {
+                        let path = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .pick_file();
+                        let _ = tx.send(path);
+                    });
+            }
+            if self.report_loading.is_some() {
+                ui.spinner();
+                ui.label("Reading saved report");
+            }
+        });
+        if let Some(message) = &self.stale_run_message {
+            ui.colored_label(Kind::NotEvaluated.color(), message);
+        }
         ui.weak(
             "The neutron flux in the solids a fluence limit of a checked design applies to \
              (the TF magnets above 0.1 MeV when it has none), compared with that limit over the \
@@ -207,6 +354,8 @@ impl DesignTransportPanel {
         self.sync_tools();
         if self.inputs != tools_before {
             self.problems.clear();
+            self.result = None;
+            self.history_handoff = None;
         }
         // Show what is missing before the first click, too; checked again only when an input
         // changed, so the disk is not asked every frame.
@@ -239,6 +388,10 @@ impl DesignTransportPanel {
         });
         if self.inputs != before {
             self.problems.clear();
+            // Never offer a previously completed CAD result as belonging to newly edited
+            // scenario or component-mapping inputs.
+            self.result = None;
+            self.history_handoff = None;
         }
         if let Some(field) = pick {
             self.pick_path(&ctx, field);
@@ -270,16 +423,80 @@ impl DesignTransportPanel {
                 Ok(plan) => {
                     self.problems.clear();
                     self.result = None;
+                    self.stale_run_message = None;
+                    self.running_history_context = plan
+                        .options
+                        .history_scenario
+                        .as_ref()
+                        .zip(plan.options.history_components.as_ref())
+                        .map(|(scenario, history_components)| CadHistoryContext {
+                            design: plan.design.clone(),
+                            check_report: plan.options.check_report.clone(),
+                            scenario: scenario.clone(),
+                            history_rates: PathBuf::new(),
+                            cross_sections: PathBuf::from(self.inputs.cross_sections.trim()),
+                            cross_sections_sha256: String::new(),
+                            history_components: history_components.clone(),
+                            design_id: "CAD design".into(),
+                        });
+                    self.running_inputs = Some(self.inputs.clone());
                     self.job.start(plan, &ctx);
                 }
                 Err(problems) => self.problems = problems,
             }
         }
         self.status(ui);
+        if let Some(message) = &self.stale_run_message {
+            ui.colored_label(Kind::NotEvaluated.color(), message);
+        }
         if let Some(shown) = &self.result {
             ui.separator();
-            show_result(ui, shown);
+            if show_result(ui, shown) {
+                if let Some(context) = &shown.history_context {
+                    self.history_handoff = Some(context.clone());
+                }
+            }
         }
+    }
+
+    fn refresh_history_solid_summary(&mut self) {
+        let design_path = self.inputs.design.trim();
+        if design_path == self.history_solid_source {
+            return;
+        }
+        self.history_solid_source = design_path.to_owned();
+        self.history_solid_summary.clear();
+        self.history_solid_error = None;
+        if design_path.is_empty() {
+            return;
+        }
+        let path = PathBuf::from(design_path);
+        let bytes = match faris_engine::reactor::read_json_bytes(&path) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                self.history_solid_error = Some(error.to_string());
+                return;
+            }
+        };
+        let Some(design) = faris_model::design::parse_design(&bytes).design else {
+            self.history_solid_error =
+                Some("The design file does not parse as a FARIS design.".into());
+            return;
+        };
+        self.history_solid_summary = design
+            .solids
+            .into_iter()
+            .filter(|solid| solid.material_id.as_deref().is_some_and(|id| id != "void"))
+            .map(|solid| {
+                format!(
+                    "{} · {} · replacement group {} · material {}",
+                    solid.id,
+                    solid.step_name.as_deref().unwrap_or("unnamed solid"),
+                    solid.replacement_group_id.as_deref().unwrap_or("none"),
+                    solid.material_id.as_deref().unwrap_or("missing")
+                )
+            })
+            .collect();
     }
 
     fn files_and_tools(
@@ -321,6 +538,56 @@ impl DesignTransportPanel {
                     }
                 }
             });
+        ui.add_space(6.0);
+        ui.collapsing("Whole-life history rates (optional)", |ui| {
+            ui.weak("Enable this to score CAD-derived history responses in the same OpenMC batches. The selected operating scenario must have the exact fusion power authored in the CAD source. This does not infer component mappings or service limits.");
+            if let Some(error) = &self.history_solid_error {
+                ui.weak(format!("CAD solid list unavailable: {error}"));
+            } else if !self.history_solid_summary.is_empty() {
+                ui.strong("Active material solids to map exactly once:");
+                egui::ScrollArea::vertical()
+                    .max_height(100.0)
+                    .show(ui, |ui| {
+                        for solid in &self.history_solid_summary {
+                            ui.label(solid);
+                        }
+                    });
+            }
+            let note = shown
+                .iter()
+                .find(|p| p.field == Some(Field::HistoryScenario))
+                .map(Problem::text);
+            let note = note.as_deref().map(|text| (kind, text));
+            if path_row(
+                ui,
+                "Operating scenario",
+                "scenario JSON whose fusion power must match CAD exactly",
+                &mut self.inputs.history_scenario,
+                note,
+            ) {
+                *pick = Some(Field::HistoryScenario);
+            }
+            ui.label("Component ID → CAD solid IDs (JSON). Map every non-void solid exactly once; use the CAD replacement groups as the life components where appropriate.");
+            ui.add(
+                egui::TextEdit::multiline(&mut self.inputs.history_components_json)
+                    .desired_rows(3)
+                    .desired_width(f32::INFINITY)
+                    .hint_text(r#"{"blanket":["blanket-solid"],"magnets":["tf-solid"]}"#),
+            );
+            ui.horizontal(|ui| {
+                ui.label("H3 component");
+                ui.text_edit_singleline(&mut self.inputs.h3_component_id);
+                ui.weak("Current history model: blanket");
+            });
+            if !self.inputs.history_components_json.trim().is_empty()
+                && serde_json::from_str::<std::collections::BTreeMap<String, Vec<String>>>(
+                    &self.inputs.history_components_json,
+                )
+                .is_err()
+            {
+                ui.colored_label(kind.color(), "Map must be a JSON object of component IDs to arrays of solid IDs.");
+            }
+        });
         ui.add_space(6.0);
         ui.strong("Tools the run needs");
         needs_list(ui, &tool_rows(&self.inputs));
@@ -437,6 +704,26 @@ fn running_status(ui: &mut egui::Ui, view: &RunningView) {
     ui.weak(format!("Run folder: {}", view.out_dir.display()));
 }
 
+fn load_saved_report(path: &Path) -> Result<faris_engine::design::DesignTransportReport, String> {
+    const MAX_REPORT_BYTES: u64 = 16 * 1024 * 1024;
+    let metadata = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    if !metadata.is_file() || metadata.len() > MAX_REPORT_BYTES {
+        return Err(
+            "saved design transport report must be a regular file no larger than 16 MiB".into(),
+        );
+    }
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .map_err(|e| e.to_string())?
+        .take(MAX_REPORT_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MAX_REPORT_BYTES {
+        return Err("saved design transport report exceeds the 16 MiB limit".into());
+    }
+    parse_report(&bytes)
+}
+
 fn row_ui(ui: &mut egui::Ui, row: &Row) {
     ui.horizontal_wrapped(|ui| {
         ui.weak(&row.caption);
@@ -445,7 +732,7 @@ fn row_ui(ui: &mut egui::Ui, row: &Row) {
     });
 }
 
-fn show_result(ui: &mut egui::Ui, shown: &Shown) {
+fn show_result(ui: &mut egui::Ui, shown: &Shown) -> bool {
     let view = &shown.view;
     ui.heading(&view.heading);
     if let Some(reused) = &view.reused {
@@ -506,17 +793,37 @@ fn show_result(ui: &mut egui::Ui, shown: &Shown) {
     }
     ui.add_space(4.0);
     ui.weak(format!("Run folder: {}", view.run_directory));
-    match &shown.saved {
-        Ok(path) => {
-            ui.weak(format!("Report saved to {}", path.display()));
+    let mut continue_to_dose = false;
+    if let Some(reference) = &shown.report.history_rates_artifact {
+        ui.label(format!(
+            "CAD history rates: {} · SHA-256 {}",
+            reference.path, reference.sha256
+        ));
+        if shown.history_context.is_some() {
+            continue_to_dose = ui
+                .button("Continue CAD life study with coupled heating")
+                .clicked();
         }
-        Err(error) => {
-            ui.colored_label(
+    }
+    if let Some(path) = &shown.opened_from {
+        ui.weak(format!(
+            "Opened saved report from {}. This report is view-only.",
+            path.display()
+        ));
+    } else {
+        match &shown.saved {
+            Ok(path) => {
+                ui.weak(format!("Report saved to {}", path.display()));
+            }
+            Err(error) => {
+                ui.colored_label(
                 Kind::Partial.color(),
                 format!("The report file was not saved: {error}. Next step: the result above is complete; copy it before closing, or run again with a writable run folder."),
             );
+            }
         }
     }
+    continue_to_dose
 }
 
 fn limit_ui(ui: &mut egui::Ui, limit: &LimitView) {
@@ -577,16 +884,49 @@ mod tests {
         };
         frame(&mut panel);
         assert!(panel.result.is_none());
+        let report = sample_report();
         panel.result = Some(Shown {
-            view: result_view(&sample_report()),
+            view: result_view(&report),
+            report,
+            history_context: None,
+            opened_from: None,
             saved: Err("no folder".into()),
         });
         frame(&mut panel);
+        let report = sample_report();
         panel.result = Some(Shown {
-            view: result_view(&sample_report()),
+            view: result_view(&report),
+            report,
+            history_context: None,
+            opened_from: None,
             saved: Ok(PathBuf::from("/runs/one/design-transport-report.json")),
         });
         frame(&mut panel);
+    }
+
+    #[test]
+    fn v04_saved_report_is_view_only_and_cannot_offer_a_cad_handoff() {
+        let ctx = egui::Context::default();
+        let mut value = serde_json::to_value(sample_report()).unwrap();
+        value["schema_version"] = "faris-design-transport-report/v0.4".into();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("history_rates_artifact");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("report.json");
+        std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        let report = load_saved_report(&path).unwrap();
+        let shown = Shown {
+            view: result_view(&report),
+            report,
+            history_context: None,
+            opened_from: Some(path.clone()),
+            saved: Ok(path),
+        };
+        let text = drawn_text(&ctx, &shown);
+        assert!(text.contains("view-only"));
+        assert!(!text.contains("Continue CAD life study"));
     }
 
     /// The text a frame draws, to check what a person would read.
@@ -617,6 +957,9 @@ mod tests {
         let ctx = egui::Context::default();
         let shown = |report| Shown {
             view: result_view(&report),
+            report,
+            history_context: None,
+            opened_from: None,
             saved: Err("no folder".into()),
         };
         // Two frames: the first lays out, the second draws the text.

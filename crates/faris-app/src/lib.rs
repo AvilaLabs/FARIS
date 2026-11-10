@@ -1596,6 +1596,7 @@ impl FarisApp {
             &self.manifest.source_sha256,
             &self.manifest.variants[self.variant].id,
         );
+        self.maintenance_dose.history_section(ui);
     }
 
     fn compare_step(&mut self, ui: &mut egui::Ui) {
@@ -1691,6 +1692,7 @@ impl FarisApp {
                 sweep.view(ui, &preset);
             }
         });
+        self.maintenance_dose.compare_section(ui);
     }
 }
 
@@ -2114,7 +2116,17 @@ impl eframe::App for FarisApp {
             self.design_flux.open = true;
         }
         self.design_flux.window(&ctx);
+        if let Some(context) = self.design_flux.take_history_handoff() {
+            if let Err(error) = self.design_heating.prefill_cad_history(context) {
+                self.message = error;
+            }
+        }
         self.design_heating.window(&ctx);
+        if let Some(context) = self.design_heating.take_history_handoff() {
+            if let Err(error) = self.maintenance_dose.prefill_cad_history(context) {
+                self.message = error;
+            }
+        }
         if self.sign_in_prompt
             && !self.tour.active
             && !self.notice.open

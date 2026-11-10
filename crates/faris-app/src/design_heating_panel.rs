@@ -19,7 +19,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{design_tools::SharedTools, settings::Tool};
+use crate::{design_tools::SharedTools, design_transport_panel::CadHistoryContext, settings::Tool};
 
 struct Running {
     cancellation: Cancellation,
@@ -40,6 +40,10 @@ pub struct DesignHeatingPanel {
     tools: Option<SharedTools>,
     running: Option<Running>,
     result: Option<Result<DesignHeatingReport, String>>,
+    cad_history: Option<CadHistoryContext>,
+    combine: Option<Receiver<Result<PathBuf, String>>>,
+    history_handoff: Option<CadHistoryContext>,
+    cad_history_message: Option<String>,
 }
 
 impl Default for DesignHeatingPanel {
@@ -57,16 +61,51 @@ impl Default for DesignHeatingPanel {
             tools: None,
             running: None,
             result: None,
+            cad_history: None,
+            combine: None,
+            history_handoff: None,
+            cad_history_message: None,
         }
     }
 }
 
 impl DesignHeatingPanel {
+    pub fn prefill_cad_history(&mut self, context: CadHistoryContext) -> Result<(), String> {
+        if self.is_running() {
+            return Err(
+                "Finish or cancel the current heating run before switching CAD design.".into(),
+            );
+        }
+        self.prefill(Some(&context.design), Some(&context.check_report));
+        self.output = crate::maintenance_run::unused_path(
+            &context
+                .design
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new("."))
+                .join("faris-heating-run"),
+        )
+        .display()
+        .to_string();
+        self.result = None;
+        self.history_handoff = None;
+        self.cad_history_message = None;
+        self.cad_history = Some(context);
+        self.open = true;
+        Ok(())
+    }
+
+    pub fn take_history_handoff(&mut self) -> Option<CadHistoryContext> {
+        self.history_handoff.take()
+    }
+
     pub fn use_tools(&mut self, tools: SharedTools) {
         self.tools = Some(tools);
     }
 
     pub fn prefill(&mut self, design: Option<&std::path::Path>, report: Option<&std::path::Path>) {
+        self.cad_history = None;
+        self.history_handoff = None;
+        self.cad_history_message = None;
         if let Some(path) = design {
             self.design = path.display().to_string();
             if self.output.is_empty() {
@@ -134,10 +173,24 @@ impl DesignHeatingPanel {
             threads: 4,
             cancellation: worker_cancellation,
         };
+        let history_rates = self
+            .cad_history
+            .as_ref()
+            .map(|context| context.history_rates.clone());
         crate::thread::Builder::new()
             .name("faris-design-heating".into())
             .spawn(move || {
-                let result = design_heating(&design, &tools, &options).map_err(|e| e.to_string());
+                let result = if let Some(history_rates) = history_rates {
+                    faris_engine::design::design_heating_with_history_rates(
+                        &design,
+                        &tools,
+                        &options,
+                        &history_rates,
+                    )
+                } else {
+                    design_heating(&design, &tools, &options)
+                }
+                .map_err(|e| e.to_string());
                 let _ = sender.send(result);
             })
             .map_err(|e| format!("Could not start the heating worker: {e}"))?;
@@ -151,10 +204,75 @@ impl DesignHeatingPanel {
     }
 
     fn poll(&mut self, ctx: &egui::Context) {
+        if let Some(receiver) = &self.combine {
+            match receiver.try_recv() {
+                Ok(Ok(path)) => {
+                    self.combine = None;
+                    if let Some(context) = &self.cad_history {
+                        let mut context = context.clone();
+                        context.history_rates = path;
+                        self.history_handoff = Some(context);
+                    }
+                    ctx.request_repaint();
+                }
+                Ok(Err(error)) => {
+                    self.combine = None;
+                    self.result = Some(Err(error));
+                }
+                Err(TryRecvError::Disconnected) => {
+                    self.combine = None;
+                    self.result = Some(Err("CAD history-energy binding worker stopped.".into()));
+                }
+                Err(TryRecvError::Empty) => ctx.request_repaint_after(Duration::from_millis(100)),
+            }
+        }
         let Some(running) = &self.running else { return };
         match running.receiver.try_recv() {
             Ok(result) => {
                 self.running = None;
+                let energy_response_ready = result.as_ref().ok().is_some_and(|report| {
+                    report
+                        .history_energy_response
+                        .as_ref()
+                        .is_some_and(|response| {
+                            response.status == "CALCULATED"
+                                && response.target_reached
+                                && response.closure_residual.within_3se
+                        })
+                });
+                if energy_response_ready
+                    && let (Ok(report), Some(context)) = (&result, self.cad_history.as_ref())
+                {
+                    let base = context.history_rates.clone();
+                    let scenario_path = context.scenario.clone();
+                    let report_path = PathBuf::from(&report.run_directory).join("report.json");
+                    let output =
+                        PathBuf::from(&report.run_directory).join("cad-history-energy-rates.json");
+                    let (tx, rx) = mpsc::channel();
+                    let _ = crate::thread::Builder::new()
+                        .name("faris-cad-history-energy-binding".into())
+                        .spawn(move || {
+                            let result = faris_engine::reactor::read_json_bytes(&scenario_path)
+                                .map_err(|e| e.to_string())
+                                .and_then(|bytes| {
+                                    faris_model::LoadedScenario::from_bytes(&bytes)
+                                        .map_err(|e| e.to_string())
+                                })
+                                .and_then(|scenario| {
+                                    faris_engine::design::combine_history_energy_rates(
+                                        &base,
+                                        &report_path,
+                                        &scenario,
+                                        &output,
+                                    )
+                                })
+                                .map(|_| output);
+                            let _ = tx.send(result);
+                        });
+                    self.combine = Some(rx);
+                } else if self.cad_history.is_some() && result.is_ok() {
+                    self.cad_history_message = Some("CAD life study paused: the whole-model heating response did not reach CALCULATED with its target reached and energy closure within 3 SE. Next step: complete the coupled-heating energy response before dose-governed history can run.".into());
+                }
                 self.result = Some(result);
                 ctx.request_repaint();
             }
@@ -167,7 +285,7 @@ impl DesignHeatingPanel {
     }
 
     pub fn is_running(&self) -> bool {
-        self.running.is_some()
+        self.running.is_some() || self.combine.is_some()
     }
 
     pub fn window(&mut self, ctx: &egui::Context) {
@@ -186,6 +304,14 @@ impl DesignHeatingPanel {
 
     fn ui(&mut self, ui: &mut egui::Ui) {
         ui.weak("Separate all-energy neutron, photon, electron and positron heating in solids explicitly classified as winding pack. The checked CAD conversion supplies geometry identity; sampled ring voxels estimate the peak.");
+        if let Some(context) = &self.cad_history {
+            ui.label(format!(
+                "Whole-life rates for {}: {}",
+                context.design_id,
+                context.history_rates.display()
+            ));
+            ui.weak("This run also scores the complete active CAD model for the operating-energy ledger. The winding-pack peak remains a separate response. The resulting energy response is bound to the same checked CAD source and transport history.");
+        }
         ui.add_enabled_ui(!self.is_running(), |ui| {
             egui::Grid::new("design-heating-inputs")
                 .num_columns(2)
@@ -242,7 +368,11 @@ impl DesignHeatingPanel {
                 }
             } else {
                 ui.spinner();
-                ui.label("OpenMC coupled heating is running");
+                ui.label(if self.combine.is_some() {
+                    "Binding whole-model heating to the CAD history rates"
+                } else {
+                    "OpenMC coupled heating is running"
+                });
                 if let Some(update) = self.running.as_ref().and_then(|run| run.progress.lock().ok()?.clone()) {
                     let mean = update.mean_relative_error.map_or_else(|| "n/a".into(), |v| format!("{:.1}%", 100.0 * v));
                     let peak = update.peak_relative_error.map_or_else(|| "n/a".into(), |v| format!("{:.1}%", 100.0 * v));
@@ -263,6 +393,9 @@ impl DesignHeatingPanel {
                     ui.separator();
                     ui.monospace(render_design_heating_text(report));
                     ui.label(heating_validation_summary(&report.validation));
+                    if let Some(message) = &self.cad_history_message {
+                        ui.colored_label(ui.visuals().warn_fg_color, message);
+                    }
                 }
                 Err(message) => {
                     ui.colored_label(ui.visuals().error_fg_color, message);
