@@ -87,12 +87,16 @@ stock binary):
 ```bash
 python integrations/openmc/risk_tests/imp0_entry_control.py \
   --openmc-executable /path/to/patched/openmc \
+  --openmc-library /path/to/patched/lib/libopenmc.so \
   --cross-sections /path/to/openmc-0.15.3/cross_sections.xml \
   --output-dir runs/continuation/mcnp-imp0-control-20261109-v1
 ```
 
-The script refuses a reused output directory, checks the exact CLI-linked
-library capability, and records CLI, linked library, Python, cross-section index, final geometry,
+Run the command with the selected OpenMC 0.15.3 Python and a sanitized loader
+environment whose `LD_LIBRARY_PATH` starts with the patched library directory.
+The script requires the explicit library path to match the selected CLI's `ldd`
+binding, checks its capability in that Python runtime, refuses a reused output
+directory, and records CLI, linked library, Python, cross-section index, final geometry,
 and statepoint identities. It accepts any bounded regular `cross_sections.xml`
 that lists neutron and photon catalogues and whose referenced library files
 resolve. This is an index/path preflight only; it neither authenticates nor

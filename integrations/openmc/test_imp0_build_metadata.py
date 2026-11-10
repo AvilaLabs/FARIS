@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -55,6 +56,62 @@ constexpr const char* VERSION_COMMIT_HASH = "{BUILDER.SOURCE_HEAD}";
         for invalid in ("27e38e894", "g" * 40, "27e38e894697bb32a1dac7848d2618818b6b8daf\n"):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 BUILDER.render_archival_version_metadata(invalid)
+
+    def test_capability_probe_requires_exact_identity_record(self) -> None:
+        python = Path("/selected/openmc-python")
+        library = Path("/isolated/libopenmc.so")
+        digest = "a" * 64
+        report = {
+            "schema": "faris.openmc-imp0-capability-probe/1.0.0",
+            "python_executable": str(python.resolve()),
+            "openmc_version": "0.15.3",
+            "library_path": str(library.resolve()),
+            "library_sha256": digest,
+            "patch_version": 1,
+        }
+        encoded = __import__("json").dumps(report, sort_keys=True, separators=(",", ":"))
+        self.assertEqual(
+            BUILDER.validate_capability_probe(
+                encoded, python=python, library=library, library_sha256=digest
+            ),
+            report,
+        )
+        with self.assertRaisesRegex(RuntimeError, "invalid JSON"):
+            BUILDER.validate_capability_probe(
+                encoded + "\n{}", python=python, library=library, library_sha256=digest
+            )
+        report["library_path"] = "/other/libopenmc.so"
+        encoded = __import__("json").dumps(report)
+        with self.assertRaisesRegex(RuntimeError, "identity differs"):
+            BUILDER.validate_capability_probe(
+                encoded, python=python, library=library, library_sha256=digest
+            )
+
+    def test_capability_probe_runs_in_selected_python_with_runtime_environment(self) -> None:
+        python = Path(sys.executable)
+        library = Path(__file__).resolve()
+        env = {"LD_LIBRARY_PATH": "/isolated/lib:/selected/runtime/lib"}
+        digest = BUILDER.sha256_file(library)
+        report = {
+            "schema": "faris.openmc-imp0-capability-probe/1.0.0",
+            "python_executable": str(python.resolve()),
+            "openmc_version": "0.15.3",
+            "library_path": str(library),
+            "library_sha256": digest,
+            "patch_version": 1,
+        }
+        completed = __import__("subprocess").CompletedProcess(
+            [str(python)], 0,
+            __import__("json").dumps(report, sort_keys=True, separators=(",", ":")),
+            "",
+        )
+        with patch.object(BUILDER.subprocess, "run", return_value=completed) as mocked:
+            result = BUILDER.probe_imp0_capability(python, library, env)
+        self.assertEqual(result, report)
+        argv = mocked.call_args.args[0]
+        self.assertEqual(argv[0], str(python.resolve()))
+        self.assertEqual(argv[1:3], ["-c", BUILDER.CAPABILITY_PROBE])
+        self.assertEqual(mocked.call_args.kwargs["env"], env)
 
 
 if __name__ == "__main__":

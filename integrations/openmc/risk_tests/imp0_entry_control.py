@@ -17,13 +17,13 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "integrations/openmc"))
-import reactor_transport as WORKER  # noqa: E402
 from imp0_cross_sections import validate_cross_sections_index  # noqa: E402
 
 HISTORIES = 1000
@@ -87,6 +87,38 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def verify_cli_library_binding(executable: Path, library: Path, env: dict[str, str]) -> str:
+    """Require the explicit library to be the one this CLI resolves at runtime."""
+    result = subprocess.run(
+        ["ldd", str(executable)], env=env, check=False, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"cannot inspect selected OpenMC executable dependencies: {result.stdout[-2000:]}"
+        )
+    rows = [
+        line for line in result.stdout.splitlines()
+        if re.match(r"^\s*libopenmc\.so\s+=>", line)
+    ]
+    if len(rows) != 1:
+        raise RuntimeError("selected OpenMC executable does not resolve exactly one libopenmc.so")
+    match = re.fullmatch(r"\s*libopenmc\.so\s+=>\s+(\S+)\s+\(0x[0-9a-fA-F]+\)\s*", rows[0])
+    if match is None or match.group(1) == "not":
+        raise RuntimeError(f"selected OpenMC executable has an unresolved libopenmc.so: {rows[0]}")
+    try:
+        resolved = Path(match.group(1)).resolve(strict=True)
+    except OSError as error:
+        raise RuntimeError(
+            f"selected OpenMC library path does not exist: {match.group(1)}"
+        ) from error
+    if resolved != library.resolve(strict=True):
+        raise RuntimeError(
+            f"explicit OpenMC library {library} differs from selected CLI dependency {resolved}"
+        )
+    return rows[0].strip()
 
 
 def make_model(openmc, directory: Path, *, particle: str, source_in_zero_cell: bool,
@@ -238,11 +270,14 @@ def run_case(openmc, executable: Path, root: Path, case: dict, env: dict[str, st
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openmc-executable", type=Path, required=True)
+    parser.add_argument("--openmc-library", type=Path, required=True,
+                        help="exact shared library resolved by the selected CLI (checked with ldd)")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--cross-sections", type=Path, required=True,
                         help="existing OpenMC 0.15.3 cross_sections.xml used by the control")
     args = parser.parse_args()
     executable = args.openmc_executable.resolve(strict=True)
+    library = args.openmc_library.resolve(strict=True)
     python = Path(sys.executable).resolve(strict=True)
     output_dir = args.output_dir.expanduser().resolve(strict=False)
     cross_sections_identity = validate_cross_sections_index(args.cross_sections)
@@ -252,9 +287,21 @@ def main() -> int:
         raise ValueError("output directory must be new; refusing to overwrite prior controls")
 
     env = os.environ.copy()
+    for name in ("LD_PRELOAD", "LD_AUDIT"):
+        env.pop(name, None)
+    loader_paths = [
+        Path(item).resolve()
+        for item in env.get("LD_LIBRARY_PATH", "").split(os.pathsep)
+        if item
+    ]
+    if not loader_paths or loader_paths[0] != library.parent:
+        raise RuntimeError(
+            "sanitized LD_LIBRARY_PATH must select the explicit CLI-linked library directory first"
+        )
     env["OMP_NUM_THREADS"] = "1"
     env.setdefault("OPENBLAS_NUM_THREADS", "1")
-    library, library_sha256 = WORKER.selected_openmc_library(executable, python, env)
+    cli_library_binding = verify_cli_library_binding(executable, library, env)
+    library_sha256 = sha256(library)
     cli_sha256 = sha256(executable)
     python_sha256 = sha256(python)
     dll = ctypes.CDLL(str(library))
@@ -283,8 +330,9 @@ def main() -> int:
     if (sha256(executable) != cli_sha256 or sha256(python) != python_sha256 or
             cross_sections_identity_after != cross_sections_identity_before):
         raise RuntimeError("selected CLI, Python, or cross-section index changed during the control")
-    library_after, library_sha256_after = WORKER.selected_openmc_library(executable, python, env)
-    if library_after.resolve() != library.resolve() or library_sha256_after != library_sha256:
+    cli_library_binding_after = verify_cli_library_binding(executable, library, env)
+    if (cli_library_binding_after != cli_library_binding or
+            sha256(library) != library_sha256):
         raise RuntimeError("selected CLI-linked OpenMC library changed during the control")
     report = {
         "schema": "faris.openmc-mcnp-imp0-control/1.0.0",
@@ -298,6 +346,7 @@ def main() -> int:
             "selected_cli_sha256": cli_sha256,
             "selected_linked_library_path": str(library),
             "selected_linked_library_sha256": library_sha256,
+            "selected_cli_ldd_binding": cli_library_binding,
             "faris_patch_version_symbol": patch_version,
             "python_path": str(python),
             "python_sha256": python_sha256,

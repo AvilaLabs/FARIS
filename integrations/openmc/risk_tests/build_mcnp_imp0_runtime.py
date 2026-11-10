@@ -10,7 +10,6 @@ when invoked. Review paths and free-space policy before running it.
 from __future__ import annotations
 
 import argparse
-import ctypes
 import hashlib
 import json
 import os
@@ -51,6 +50,99 @@ RESERVE_BYTES = 8 * 1024**3
 BUILD_HEADROOM_BYTES = 4 * 1024**3
 PATCH_VERSION_SYMBOL = "faris_openmc_mcnp_imp0_patch_version"
 ARCHIVAL_DESCRIBE_NAME = "v0.15.3-faris-aim-imp0"
+
+# Run this in the selected OpenMC Python rather than the builder process. The
+# coordinator may itself have loaded a system OpenSSL before the micromamba
+# runtime is added to LD_LIBRARY_PATH; loading OpenMC's DSO there can fail on
+# symbol-version conflicts unrelated to the selected runtime.
+CAPABILITY_PROBE = r'''
+import contextlib, ctypes, hashlib, json, pathlib, sys
+library = pathlib.Path(sys.argv[1]).resolve(strict=True)
+with contextlib.redirect_stdout(sys.stderr):
+    dll = ctypes.CDLL(str(library))
+    patch_version = ctypes.c_int.in_dll(dll, "faris_openmc_mcnp_imp0_patch_version").value
+    import openmc
+mapped = set()
+with open("/proc/self/maps", encoding="utf-8") as maps:
+    for line in maps:
+        fields = line.rstrip().split(maxsplit=5)
+        if len(fields) == 6 and fields[5].startswith("/"):
+            try:
+                mapped.add(str(pathlib.Path(fields[5].removesuffix(" (deleted)")).resolve()))
+            except OSError:
+                pass
+if str(library) not in mapped:
+    raise RuntimeError("selected OpenMC library is not mapped from the requested path")
+digest = hashlib.sha256(library.read_bytes()).hexdigest()
+print(json.dumps({
+    "schema": "faris.openmc-imp0-capability-probe/1.0.0",
+    "python_executable": str(pathlib.Path(sys.executable).resolve()),
+    "openmc_version": openmc.__version__,
+    "library_path": str(library),
+    "library_sha256": digest,
+    "patch_version": patch_version,
+}, sort_keys=True, separators=(",", ":"), allow_nan=False))
+'''
+
+
+def validate_capability_probe(
+    stdout: str, *, python: Path, library: Path, library_sha256: str
+) -> dict[str, object]:
+    """Accept only the small identity record emitted by the selected runtime."""
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"non-finite JSON constant {value}")
+
+    try:
+        result = json.loads(stdout, parse_constant=reject_constant)
+    except (json.JSONDecodeError, ValueError) as error:
+        raise RuntimeError(f"OpenMC capability subprocess returned invalid JSON: {error}") from error
+    expected_keys = {
+        "schema",
+        "python_executable",
+        "openmc_version",
+        "library_path",
+        "library_sha256",
+        "patch_version",
+    }
+    if not isinstance(result, dict) or set(result) != expected_keys:
+        raise RuntimeError("OpenMC capability subprocess returned an unexpected record shape")
+    expected = {
+        "schema": "faris.openmc-imp0-capability-probe/1.0.0",
+        "python_executable": str(python.resolve()),
+        "openmc_version": "0.15.3",
+        "library_path": str(library.resolve()),
+        "library_sha256": library_sha256,
+        "patch_version": 1,
+    }
+    if result != expected:
+        raise RuntimeError(f"selected OpenMC runtime capability identity differs: {result}")
+    return result
+
+
+def probe_imp0_capability(
+    python: Path, library: Path, env: dict[str, str]
+) -> dict[str, object]:
+    """Probe the exact linked DSO in a fresh selected-OpenMC-Python process."""
+    python = python.resolve(strict=True)
+    library = library.resolve(strict=True)
+    completed = subprocess.run(
+        [str(python), "-c", CAPABILITY_PROBE, str(library)],
+        env=env,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip()[-4000:]
+        raise RuntimeError(f"selected OpenMC capability subprocess failed: {detail}")
+    return validate_capability_probe(
+        completed.stdout,
+        python=python,
+        library=library,
+        library_sha256=sha256_file(library),
+    )
 
 
 def render_archival_version_metadata(commit_hash: str) -> str:
@@ -359,6 +451,8 @@ def main() -> int:
     if not executable.is_file() or not library.is_file():
         raise RuntimeError("expected patched OpenMC CLI/shared library outputs are missing")
     runtime_env = os.environ.copy()
+    for name in ("LD_PRELOAD", "LD_AUDIT"):
+        runtime_env.pop(name, None)
     openmc_library_directory = Path("/home/connoravila/micromamba/envs/openmc0153dd/lib")
     runtime_env["LD_LIBRARY_PATH"] = os.pathsep.join(
         (str(library.parent), str(openmc_library_directory))
@@ -366,13 +460,8 @@ def main() -> int:
     linked = run(["ldd", str(executable)], env=runtime_env)
     if str(library.resolve()) not in linked:
         raise RuntimeError("built CLI does not resolve to the new isolated libopenmc.so")
-    dll = ctypes.CDLL(str(library.resolve()))
-    try:
-        patch_version = ctypes.c_int.in_dll(dll, PATCH_VERSION_SYMBOL).value
-    except ValueError as error:
-        raise RuntimeError("isolated shared library lacks the imp0 capability symbol") from error
-    if patch_version != 1:
-        raise RuntimeError(f"unexpected isolated patch version {patch_version}")
+    capability = probe_imp0_capability(openmc_python, library.resolve(), runtime_env)
+    patch_version = capability["patch_version"]
     if sha256_file(cmake_executable) != cmake_sha256:
         raise RuntimeError("the selected CMake executable changed during the build")
     py_version = run(
@@ -388,6 +477,7 @@ def main() -> int:
     control_cmd = [
         str(openmc_python), str(ROOT / "integrations/openmc/risk_tests/imp0_entry_control.py"),
         "--openmc-executable", str(executable),
+        "--openmc-library", str(library.resolve()),
         "--cross-sections", str(cross_sections),
         "--output-dir", str(control_dir),
     ]
@@ -459,6 +549,7 @@ def main() -> int:
             "openmc_python_path": str(openmc_python),
             "openmc_python_sha256": sha256_file(openmc_python),
             "openmc_python_version": py_version,
+            "capability_probe": capability,
         },
         "protected_installed_runtime_hashes_before_after": {
             path: {"before_sha256": digest, "after_sha256": protected_after[path]}

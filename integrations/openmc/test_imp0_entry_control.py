@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "integrations/openmc/risk_tests"))
@@ -61,6 +63,31 @@ class SealedReceipt(unittest.TestCase):
     def test_nonfinite_receipt_values_are_refused(self) -> None:
         with self.assertRaises(ValueError):
             CONTROL.canonical_receipt_digest({"value": float("nan")})
+
+
+class ExplicitCliLibraryBinding(unittest.TestCase):
+    def test_requires_exact_ldd_binding(self) -> None:
+        executable = Path(sys.executable).resolve(strict=True)
+        library = Path(__file__).resolve(strict=True)
+        row = f"\tlibopenmc.so => {library} (0x1234)"
+        completed = subprocess.CompletedProcess(["ldd"], 0, row + "\n", "")
+        with patch.object(CONTROL.subprocess, "run", return_value=completed) as mocked:
+            binding = CONTROL.verify_cli_library_binding(executable, library, {})
+        self.assertEqual(binding, row.strip())
+        self.assertEqual(mocked.call_args.args[0], ["ldd", str(executable)])
+
+    def test_refuses_other_or_unresolved_cli_library(self) -> None:
+        executable = Path(sys.executable).resolve(strict=True)
+        library = Path(__file__).resolve(strict=True)
+        for output in (
+            "libopenmc.so => /other/libopenmc.so (0x1234)\n",
+            "libopenmc.so => not found\n",
+            "libopenmc.so => /one.so (0x1234)\nlibopenmc.so => /two.so (0x5678)\n",
+        ):
+            completed = subprocess.CompletedProcess(["ldd"], 0, output, "")
+            with patch.object(CONTROL.subprocess, "run", return_value=completed):
+                with self.subTest(output=output), self.assertRaises(RuntimeError):
+                    CONTROL.verify_cli_library_binding(executable, library, {})
 
 
 if __name__ == "__main__":
