@@ -1,0 +1,567 @@
+{
+  "evidence_hashes": {
+    "analysis": {
+      "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/analysis.json",
+      "sha256": "df3ae3e3072f2e6515f3eb207da9d5a3264b75f73abf0d9da988fd71b9e155a5"
+    },
+    "analysis_log": {
+      "path": "runs/continuation/checks/rm-m-v3-fom-analysis-v72.log",
+      "sha256": "df3ae3e3072f2e6515f3eb207da9d5a3264b75f73abf0d9da988fd71b9e155a5"
+    },
+    "campaign_completion_log": {
+      "path": "runs/continuation/checks/rm-m-v3-fom-campaign-live-v4.log",
+      "sha256": "124df50e12e71b97b500e2c4ad85ff14fdc01c89612688f8010714e7fc199376"
+    },
+    "campaign_plan": {
+      "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/campaign-plan.json",
+      "sha256_canonical_used_by_runs": "11476e778d9e4d52bb9872916901b99bfcca628f2e3ee73d1453c8260129518f",
+      "sha256_raw": "248b77a99450312c359353330e697034333eff2160f148861c0c28bd538bcd3f"
+    },
+    "source_v3_campaign_plan_raw_sha256": "e78b0817ce67e86f079d10c7d9b240dade7757a40dbcaad85cae5f8055704ee6",
+    "v4_plan_snapshot": {
+      "path": "runs/continuation/checks/rm-m-v3-fom-plan-v4.json",
+      "sha256": "248b77a99450312c359353330e697034333eff2160f148861c0c28bd538bcd3f"
+    },
+    "window_preparation_log": {
+      "path": "runs/continuation/checks/rm-m-v3-fom-prepare-live-v3.log",
+      "sha256": "b0277632773eae640e5b81251f2b54eabb77c447851886a15ef0b368dc576657"
+    },
+    "windows_reuse_receipt": {
+      "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/windows-reuse-receipt.json",
+      "sha256": "c0293037a609ba6dd98725237f9ef463e195f0c433158b1bd1071e7ef731bdc8"
+    }
+  },
+  "identities": {
+    "cross_sections": {
+      "all_files_present": true,
+      "data_manifest_sha256": "a4d18f65c926f6366b8dbc3c640009a1ded061b87d908c77da5ae8deb184ddc6",
+      "neutron_file_count": 22,
+      "note": "Identity is hash-bound; this does not qualify data accuracy, temperature coverage, or redistribution rights.",
+      "xml_path": "/home/connoravila/Documents/Avila-Labs/project-faris/data/raw/combined-fendl32-endfbvii1/cross_sections.xml",
+      "xml_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b"
+    },
+    "finalization_receipt": {
+      "path": "runs/continuation/s0g-rm-m-v3-finalized-v1/finalization_receipt.json",
+      "producer_h5m_sha256": "06673817be78973ee6a74c0b7bc2e719dee8029ab04a038302049cf45fab4e69",
+      "random_ray_h5m_sha256": "871f289329b528409bbae985c47000fed37f6d719eadc88fe7cccd5a9a035ed5",
+      "sha256": "6dc0f93e62c4f1edf50f7c5edad7e477157871097ce603a12e197054830eb5b1",
+      "status": "complete",
+      "step_sha256": "427981051e45ba2b1b64dcc5a013738b896a52b892b44b7d89abf94cd3dd4edf"
+    },
+    "hash_check_scope": "Recomputed SHA-256 for all JSON/log records and the retained weight-window HDF5; cross-checked runtime, data and geometry hashes across the eight solver receipts against the frozen preflight/integrity entries. Bulk libraries and runtime shared-object bytes were not rescanned.",
+    "rm_m_input_hashes": {
+      "model_card": "6a4d977bcca288ec2589730c751d77b05a73d1886f9484634aa6a4a4fdc307cb",
+      "random_ray_h5m": "871f289329b528409bbae985c47000fed37f6d719eadc88fe7cccd5a9a035ed5",
+      "roles": "06e642de4acc78d4abb63b459597fdd7e8f81951ef6b7dee6dd1833d5c2b8353",
+      "transport_h5m": "25d125f609293bbbce37482984eb9144de851d53c23b42a227d00ad762ce979d"
+    },
+    "runtime": {
+      "openmc_cli_shared_library": "/home/connoravila/micromamba/envs/openmc016/lib/libopenmc.so",
+      "openmc_cli_shared_library_sha256": "b0e7cd8725503cd1c1e720a7ad242fb155a9485675ffa549795d90c5a409a55f",
+      "openmc_cli_version": "0.16.0",
+      "openmc_executable": "/home/connoravila/micromamba/envs/openmc016/bin/openmc",
+      "openmc_executable_sha256": "0221b9ef9acacab9739a4d334d89a49841c6e04b89401a56872fa4f4ba5bc9ed",
+      "openmc_python_shared_library": "/home/connoravila/micromamba/envs/openmc016/lib/python3.13/site-packages/openmc/lib/libopenmc.so",
+      "openmc_python_shared_library_sha256": "63c095806572c8d3aa1608bcd45db019f8532cbcf5f9e24dffa45d81af66f120",
+      "openmc_version": "0.16.0",
+      "path_openmc_executable": null,
+      "python_cli_library_same_file": false,
+      "python_cli_library_same_sha256": false
+    }
+  },
+  "protocol": {
+    "batches_per_seed": 60,
+    "campaign_plan": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/campaign-plan.json",
+    "generation_seeds_reserved": [
+      811500991,
+      811500993
+    ],
+    "histories_per_seed": {
+      "analog": 27000000,
+      "windows": 3000000
+    },
+    "memory_limit_bytes": 6442450944,
+    "protocol": "NUC-050 RM-M inboard fast-flux v1",
+    "response": {
+      "energy_max_ev": 20000000.0,
+      "energy_min_ev": 100000.0,
+      "name": "NUC-050 inboard TF fast flux",
+      "quantity": "neutron flux",
+      "region_cm": {
+        "x": [
+          -130.0,
+          130.0
+        ],
+        "y": [
+          -130.0,
+          130.0
+        ],
+        "z": [
+          -150.0,
+          150.0
+        ]
+      },
+      "solid_role": "toroidal-field coil"
+    },
+    "response_sha256": "4a56c7a620fa3bfe3f9ba00713ac307a5695bf83564bf23fee4a910d75ddc5cc",
+    "seed_pairs": "replicate-index paired across configurations; analog and windowed production seeds are disjoint",
+    "seeds": {
+      "analog": [
+        830050001,
+        830050002,
+        830050003,
+        830050004
+      ],
+      "windows": [
+        830050101,
+        830050102,
+        830050103,
+        830050104
+      ]
+    },
+    "source_configuration_sha256": "d5a869e9f0662c54907e5f91dc445af3d1b0d1ef136719eaaba00ae9d6a26077",
+    "threads": 4
+  },
+  "receipt_id": "rm-m-v3-nuc050-control-20261110",
+  "recorded_utc": "2026-11-10T12:15:24.565075+00:00",
+  "result": {
+    "independently_recomputed": true,
+    "pass_conditions": {
+      "all_8_measured_loss_counts_zero": true,
+      "all_per_seed_and_pooled_vov_below_0_1": true,
+      "all_planned_histories_batches_and_seed_assignments_match": true,
+      "bonferroni_lower_95_at_least_100x": true,
+      "pooled_mean_bias_within_3_sigma": true
+    },
+    "requirement": "NUC-050 RM-M v3 inboard fast-neutron flux variance-reduction performance control",
+    "status": "PASS",
+    "target_fom_gain_lower_95": 100.0
+  },
+  "runs": [
+    {
+      "batches": 60,
+      "configuration": "analog",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050001/openmc-capi.log",
+          "sha256": "5c92a1d624a996bc85d71e5299410421ca3a95df808148a9bcecb2a49dc62ee5"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050001/record.json",
+          "sha256": "e7941217da73aaf4ec1d9df3b7a164222f96b831ccf65449340adfc30fa34464"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050001/solver-record.json",
+          "sha256": "ac6780fad67ee87b0707817abdfebcd8e0bd0ac61bc6b2a95d598bca1d0a7d05"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050001/solver-request.json",
+          "sha256": "4c3b4440dba4e39676106af898d108685a51a46e3f7265c6f4a0a157a5c6c6d3"
+        }
+      },
+      "fom": 0.04747524868222104,
+      "histories": 27000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.00023679385374756817,
+      "relative_error": 0.14179314389301975,
+      "replicate_index": 0,
+      "seed": 830050001,
+      "solver_model_xml_sha256": "77e04b6400527ff174c116391d69a8f049f24fba71b7197a398fde4a360ca5d5",
+      "solver_terminal_status": 1,
+      "standard_error": 3.357574497741161e-05,
+      "threads": 4,
+      "transport_elapsed_seconds": 1047.664643821001,
+      "vov": 0.030207487199503755
+    },
+    {
+      "batches": 60,
+      "configuration": "analog",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050002/openmc-capi.log",
+          "sha256": "94b6921b669cc33b95da5fff84a6d88a227f3e429ee831d73a229267ba197cf3"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050002/record.json",
+          "sha256": "83a04355b050b72c2bd8570275487189abb55ee2b2284cd25823faf438469f46"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050002/solver-record.json",
+          "sha256": "f23f7c6d5c7fef213522c7e4213c3a0e0493a4a22dcd8ecd9cbd2df7268dd168"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050002/solver-request.json",
+          "sha256": "55f301aea89853ed7cac79db486f32944cceaf10f84971f0f7cf3b587b2bcfa2"
+        }
+      },
+      "fom": 0.04178623719650429,
+      "histories": 27000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.00021183189385071466,
+      "relative_error": 0.1524430704334241,
+      "replicate_index": 1,
+      "seed": 830050002,
+      "solver_model_xml_sha256": "6090b4c413bf6f247adaa4690c8867141e6af5e0cc913747c6e07fad860ce0ca",
+      "solver_terminal_status": 1,
+      "standard_error": 3.229230431433011e-05,
+      "threads": 4,
+      "transport_elapsed_seconds": 1029.7963774350028,
+      "vov": 0.03724081247681821
+    },
+    {
+      "batches": 60,
+      "configuration": "analog",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050003/openmc-capi.log",
+          "sha256": "f3217423901cac6e7d5d3d5d05204bce404a755b9931a190236d7609b66e9b63"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050003/record.json",
+          "sha256": "02f58b85663e32bc35cabe63c2979c84e1f2c0940a8bbb81fcd4a154267a1dda"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050003/solver-record.json",
+          "sha256": "3ffae2d86c15dff8bdcac6d72a4ec7025f5b7584d5b2a8221af214d46a2a8b4e"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050003/solver-request.json",
+          "sha256": "c0574a88d29402837b662a4a4ed638ed01e1e85853b63d7a7b8ce2dc62ea30db"
+        }
+      },
+      "fom": 0.04457165200540335,
+      "histories": 27000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.000266831426713702,
+      "relative_error": 0.14767176976300986,
+      "replicate_index": 2,
+      "seed": 830050003,
+      "solver_model_xml_sha256": "f1f519f791849a8b00e8df9c857393f9b2c6ab9ed995eb528fdc2a433d186504",
+      "solver_terminal_status": 1,
+      "standard_error": 3.940346901120124e-05,
+      "threads": 4,
+      "transport_elapsed_seconds": 1028.8363726230018,
+      "vov": 0.07224772435096269
+    },
+    {
+      "batches": 60,
+      "configuration": "analog",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050004/openmc-capi.log",
+          "sha256": "8527201aa9c43119af108396c17de3b6b8117819518cfe52ef657c696b7356da"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050004/record.json",
+          "sha256": "d2415e5b6e3239e36d243133d42e6eadd1af725b3290a4946d89119c2fa7d4d9"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050004/solver-record.json",
+          "sha256": "a9f9033ce7d0d8cb20cf599e26278d34723b37b86b45555f427c09be99bbb2a8"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/analog-seed-830050004/solver-request.json",
+          "sha256": "378e93cb0a506cae45ebc22501caba0283a559152d3764b91b73915e98ac05a3"
+        }
+      },
+      "fom": 0.034874896787116055,
+      "histories": 27000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.00021830616779810815,
+      "relative_error": 0.16645237494874993,
+      "replicate_index": 3,
+      "seed": 830050004,
+      "solver_model_xml_sha256": "36ca81bdceda7389733d59667b017f1d77fe90f3ac69cfa96f78ef55d3a8477a",
+      "solver_terminal_status": 1,
+      "standard_error": 3.633758009595542e-05,
+      "threads": 4,
+      "transport_elapsed_seconds": 1034.9207078559994,
+      "vov": 0.0675586111633911
+    },
+    {
+      "batches": 60,
+      "configuration": "windows",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050101/openmc-capi.log",
+          "sha256": "ab8d76cb8b739d70d752784a3df320f6f7ac4557849e0421ce9e65cc324be942"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050101/record.json",
+          "sha256": "c485b78a9a67cd634af29e4eba223fa1071652984f13b3391128711ba4f2b8f3"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050101/solver-record.json",
+          "sha256": "5afeae28059151e9bd2a0f583cac03abb36fe53fdd5bfdde739844c5cf79c2c0"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050101/solver-request.json",
+          "sha256": "2fe8878b68b3903e42d25707d150d7f7afad7c95ea0e3b24d6997ec3a638ce8d"
+        }
+      },
+      "fom": 14.65272691989896,
+      "histories": 3000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.0002432813632819408,
+      "relative_error": 0.03060502801042211,
+      "replicate_index": 0,
+      "seed": 830050101,
+      "solver_model_xml_sha256": "0c68abc476fc049deaea1dc262b05911931cd49810a55e0403b3a937aaaf2c27",
+      "solver_terminal_status": 1,
+      "standard_error": 7.445632937657475e-06,
+      "threads": 4,
+      "transport_elapsed_seconds": 72.86114327800169,
+      "vov": 0.04030369632453591
+    },
+    {
+      "batches": 60,
+      "configuration": "windows",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050102/openmc-capi.log",
+          "sha256": "2e99183fedd2e0b2a152ee6bc56a249b27d56cb74ba847706123bc22f4b2dd0b"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050102/record.json",
+          "sha256": "fd9f23f24b54a0557695d198bf6a3ae0875707730197c8f9d68c3173b783d69e"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050102/solver-record.json",
+          "sha256": "00073d6e028f7d5962484baa6ec69cc40101c9ebcbcd5a67eebc30801414a9f3"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050102/solver-request.json",
+          "sha256": "ae44dc6182aa96e0ab8d9905f990461dfa0e2113ad85ca00b5b503738395741d"
+        }
+      },
+      "fom": 9.612511638573597,
+      "histories": 3000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.00024504034298336157,
+      "relative_error": 0.03553447054311934,
+      "replicate_index": 1,
+      "seed": 830050102,
+      "solver_model_xml_sha256": "729b6da5f7f0e52d3fbe4cd548f7796153cca816bb100bf2c5b9c5b5b3b5d79e",
+      "solver_terminal_status": 1,
+      "standard_error": 8.707378849618121e-06,
+      "threads": 4,
+      "transport_elapsed_seconds": 82.38789816500139,
+      "vov": 0.025822424357974483
+    },
+    {
+      "batches": 60,
+      "configuration": "windows",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050103/openmc-capi.log",
+          "sha256": "870fcb5b16b3f983e835ac15401d50eea8645e1967f85b4e814e460d19d92113"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050103/record.json",
+          "sha256": "9717ed0ffd31c32e90df85915c80ac54d9ed632dbfe511ae055d4c6ac575d164"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050103/solver-record.json",
+          "sha256": "c0b2544b69452ffda9ffb64fb516d926d7c969ff77dbd90d705f45534d0ac08a"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050103/solver-request.json",
+          "sha256": "63fa2de97d41ff5c754c48658c85b12a4db5277d3dacf4f34007bda5ff854c58"
+        }
+      },
+      "fom": 13.908042071236673,
+      "histories": 3000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.0002515127754466423,
+      "relative_error": 0.03122904563140164,
+      "replicate_index": 2,
+      "seed": 830050103,
+      "solver_model_xml_sha256": "1cb55425d426cddaf42186a39bff8303d18bf613562e534af846d3ae092857f4",
+      "solver_terminal_status": 1,
+      "standard_error": 7.854503941303666e-06,
+      "threads": 4,
+      "transport_elapsed_seconds": 73.72530531099983,
+      "vov": 0.03034867423208078
+    },
+    {
+      "batches": 60,
+      "configuration": "windows",
+      "evidence_files": {
+        "openmc_capi_log": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050104/openmc-capi.log",
+          "sha256": "07e2177f2bc1395e0d63673e1f42ea66bf070a56dc7b5445de17286258b29e27"
+        },
+        "record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050104/record.json",
+          "sha256": "0aeceffc0a3b9d137db2a3ddded507de8367d4c335dd8ee6c7b94b24f3080f48"
+        },
+        "solver_record_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050104/solver-record.json",
+          "sha256": "7969d9cf4a94d2acba712e552837fbb6b5bb90333c722c9b0b84a42785b9882f"
+        },
+        "solver_request_json": {
+          "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/runs/windows-seed-830050104/solver-request.json",
+          "sha256": "858443ec6cdc3aa77dcc2391c72166c21e92f3efb53fac4854573a177eaf5e2c"
+        }
+      },
+      "fom": 15.195185984907301,
+      "histories": 3000000,
+      "lost_particle_status": "PASS",
+      "lost_particles": 0,
+      "mean": 0.0002526312423535634,
+      "relative_error": 0.029901759938142022,
+      "replicate_index": 3,
+      "seed": 830050104,
+      "solver_model_xml_sha256": "cc6eb33540ce23a457c8594758e5531f356f91f3876483ff7f82fff72a60e94b",
+      "solver_terminal_status": 1,
+      "standard_error": 7.55411876173083e-06,
+      "threads": 4,
+      "transport_elapsed_seconds": 73.60384107199934,
+      "vov": 0.027025111952740103
+    }
+  ],
+  "schema": "faris-rm-m-v3-nuc050-control/1.0.0",
+  "scope_and_limits": [
+    "Response is neutron flux above 0.1 MeV in the exact inboard TF-coil box; no nuclear heating, dose, or broader physical qualification is established.",
+    "The FW-CADIS adjoint target covers the whole homogenized TF-coil material, broader than the final inboard-box response.",
+    "The result is conditional on the recorded locally installed data set; hashed identity is not physical-data qualification.",
+    "The Student-t lower bound uses four seed pairs, and its independent approximately normal seed-block assumption materially limits tail inference."
+  ],
+  "statistics_recomputed_from_batch_values": {
+    "batch_bootstrap_lower_2_5_percentile": {
+      "method": "independent resampling of each configuration\u2019s 240 batch means; total production-transport seconds in FOM denominator",
+      "resamples": 2000,
+      "seed": 20261109,
+      "value": 244.25227444908907
+    },
+    "bias_within_3_sigma": true,
+    "bias_z": 0.8095279214190509,
+    "bonferroni_lower_95": 186.40908045026114,
+    "gain_mean": 321.6057026241499,
+    "paired_fom_gain_by_pair": [
+      308.63928734692956,
+      230.04013482644356,
+      312.0378412168933,
+      435.70554710633314
+    ],
+    "pooled_fom": {
+      "analog": {
+        "batches": 240,
+        "fom": 0.042021905943819146,
+        "histories": 108000000,
+        "mean": 0.00023344083552752324,
+        "production_transport_seconds": 4141.218101735005,
+        "relative_error": 0.07580503890541979,
+        "standard_error": 1.7695991619277602e-05,
+        "vov_by_seed": {
+          "830050001": 0.030207487199503755,
+          "830050002": 0.03724081247681821,
+          "830050003": 0.07224772435096269,
+          "830050004": 0.0675586111633911
+        },
+        "vov_max": 0.07224772435096269,
+        "vov_pooled": 0.015111624824365094
+      },
+      "windows": {
+        "batches": 240,
+        "fom": 13.128430335067144,
+        "histories": 12000000,
+        "mean": 0.000248116431016377,
+        "production_transport_seconds": 302.57818782600225,
+        "relative_error": 0.01586626812805227,
+        "standard_error": 3.936681821481221e-06,
+        "vov_by_seed": {
+          "830050101": 0.04030369632453591,
+          "830050102": 0.025822424357974483,
+          "830050103": 0.03034867423208078,
+          "830050104": 0.027025111952740103
+        },
+        "vov_max": 0.04030369632453591,
+        "vov_pooled": 0.007776842123590098
+      }
+    },
+    "pooled_fom_gain": 312.41872638092843,
+    "raw_analysis_agreement": "All independently recalculated values agree with analysis.json (floating-point tolerance 1e-10); deterministic bootstrap lower bound reproduces exactly.",
+    "student_t_lower_97_5_df3": {
+      "assumptions": "four independent approximately normal seed-pair ratios; small-sample tail inference",
+      "critical_t": 3.182,
+      "formula": "mean(ratio) - t * sample_sd(ratio)/sqrt(4)",
+      "value": 186.40908045026114
+    },
+    "vov_max_over_seeds": {
+      "analog": 0.07224772435096269,
+      "windows": 0.04030369632453591
+    },
+    "vov_pooled": {
+      "analog": 0.015111624824365094,
+      "windows": 0.007776842123590098
+    }
+  },
+  "timing": {
+    "analog_production_transport_seconds": 4141.218101735005,
+    "note": "Production transport clocks are the FOM denominators. Preparation time is listed separately and is not part of those denominators.",
+    "window_generation_preparation_seconds_separate": 184.04974918800144,
+    "windowed_production_transport_seconds": 302.57818782600225
+  },
+  "weight_windows": {
+    "bytes": 22812760,
+    "campaign_windows_record_sha256": "e2d5bb2e049a7b579ef6d83dbc3cae0737652242444f112e0cc9182a717150a2",
+    "mgxs_sha256": "ef35031f9afee161e0d28bf74bd99f6abd0c92d4f62951fcaa5dc5e44ee86a3c",
+    "note": "The previous completed MGXS/FW-CADIS generation artifacts were reused; no transport result or acceptance is inferred from that reuse.",
+    "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/windows/filled.h5",
+    "reuse_receipt": {
+      "artifact_hashes_verified_source_and_destination": {
+        "campaign-windows.json": {
+          "destination_sha256": "e2d5bb2e049a7b579ef6d83dbc3cae0737652242444f112e0cc9182a717150a2",
+          "matches_receipt": true,
+          "source_sha256": "e2d5bb2e049a7b579ef6d83dbc3cae0737652242444f112e0cc9182a717150a2"
+        },
+        "filled.h5": {
+          "destination_sha256": "f5f80808cc4fe7e306560a8b5f9198ca89a0ffd133b22d029c835d6d85747aa7",
+          "matches_receipt": true,
+          "source_sha256": "f5f80808cc4fe7e306560a8b5f9198ca89a0ffd133b22d029c835d6d85747aa7"
+        },
+        "mgxs/mgxs.h5": {
+          "destination_sha256": "ef35031f9afee161e0d28bf74bd99f6abd0c92d4f62951fcaa5dc5e44ee86a3c",
+          "matches_receipt": true,
+          "source_sha256": "ef35031f9afee161e0d28bf74bd99f6abd0c92d4f62951fcaa5dc5e44ee86a3c"
+        },
+        "mgxs/record.json": {
+          "destination_sha256": "80425ad0fa04786c8ba4478fddeda705b48af3ade17ad560ecedd8b2360d6a6d",
+          "matches_receipt": true,
+          "source_sha256": "80425ad0fa04786c8ba4478fddeda705b48af3ade17ad560ecedd8b2360d6a6d"
+        },
+        "solve/filled.h5": {
+          "destination_sha256": "f5f80808cc4fe7e306560a8b5f9198ca89a0ffd133b22d029c835d6d85747aa7",
+          "matches_receipt": true,
+          "source_sha256": "f5f80808cc4fe7e306560a8b5f9198ca89a0ffd133b22d029c835d6d85747aa7"
+        },
+        "solve/openmc.log": {
+          "destination_sha256": "a79b1a6cb5815efaffbcfb7724de26005917f6818e28e56855bfa8346a706c05",
+          "matches_receipt": true,
+          "source_sha256": "a79b1a6cb5815efaffbcfb7724de26005917f6818e28e56855bfa8346a706c05"
+        },
+        "solve/record.json": {
+          "destination_sha256": "69af64df6067a6e2f1f9fb0492c6b797e0c2ef55df097b73faf6c9164f2bddff",
+          "matches_receipt": true,
+          "source_sha256": "69af64df6067a6e2f1f9fb0492c6b797e0c2ef55df097b73faf6c9164f2bddff"
+        }
+      },
+      "destination_campaign_plan_sha256": "248b77a99450312c359353330e697034333eff2160f148861c0c28bd538bcd3f",
+      "path": "runs/continuation/rm-m-v3-nuc050-fom-20261110-v4/windows-reuse-receipt.json",
+      "preparation_seconds_charged": 184.04974918800144,
+      "scope": "Reuse only of completed MGXS/FW-CADIS proposal generation. No transport result or physical acceptance is inferred.",
+      "sha256": "c0293037a609ba6dd98725237f9ef463e195f0c433158b1bd1071e7ef731bdc8",
+      "source_campaign_plan_sha256": "e78b0817ce67e86f079d10c7d9b240dade7757a40dbcaad85cae5f8055704ee6"
+    },
+    "sha256": "f5f80808cc4fe7e306560a8b5f9198ca89a0ffd133b22d029c835d6d85747aa7",
+    "solve_record_sha256": "69af64df6067a6e2f1f9fb0492c6b797e0c2ef55df097b73faf6c9164f2bddff"
+  }
+}

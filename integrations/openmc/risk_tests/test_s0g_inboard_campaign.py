@@ -239,6 +239,7 @@ class CampaignAnalysisTests(unittest.TestCase):
                     se=(window_se if config == "windows" else 0.01))
                 for config in ("analog", "windows") for replicate_index in range(4)]
 
+    # Verifies: NUC-050
     def test_unbiased_gain_and_lower_bound_pass_at_large_gain(self):
         p = plan()
         rows = []
@@ -252,6 +253,7 @@ class CampaignAnalysisTests(unittest.TestCase):
         self.assertTrue(result["unbiased_within_3_sigma"])
         self.assertTrue(result["nuc050_met"])
 
+    # Verifies: NUC-050
     def test_bias_fails_closed_and_unresolved_vov_is_reported(self):
         p = plan()
         rows = []
@@ -271,6 +273,7 @@ class CampaignAnalysisTests(unittest.TestCase):
         self.assertFalse(unresolved["nuc050_met"])
         self.assertTrue(unresolved["nuc050_outcome"].startswith("INCONCLUSIVE"))
 
+    # Verifies: NUC-050
     def test_requires_all_four_runs_for_both_configurations(self):
         p = plan()
         rows = [run(config, replicate_index)
@@ -301,6 +304,7 @@ class CampaignAnalysisTests(unittest.TestCase):
             with self.subTest(terminal=terminal), self.assertRaisesRegex(ValueError, "terminal OpenMC status"):
                 CAMPAIGN.analyze_records(rows, plan())
 
+    # Verifies: NUC-050
     def test_reported_stats_and_fom_must_match_batch_recomputation(self):
         for field in ("stats", "stats.batches", "fom"):
             rows = self.analysis_rows()

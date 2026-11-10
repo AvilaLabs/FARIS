@@ -10,18 +10,19 @@ S0–S5 stages define the remaining release work. The broader F1/F2 requirements
 for 1.0 are a later completion boundary; passing this release's fixed gate does
 not establish that the full 1.0 target set is met.
 
-At this baseline, the requirement tables record 14 of the 44 release-gate IDs
-as Met. That count describes recorded evidence, not a fresh release-gate pass.
-SRC-002 source-power bookkeeping is now Met after native checks, bringing the
-recorded count to 15 of 44. The NUC-053 evidence review confirms that the
-implemented generation/production separation meets its stated seed-disjointness
-criterion, bringing the recorded count to 16 of 44; it does not assert formal
-PRNG stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
+At this baseline, the requirement tables recorded 14 of the 44 release-gate IDs
+as Met. SRC-002 source-power bookkeeping, NUC-053 seed separation, NUC-050
+replicated fast-flux performance, MAG-003 peak-density/volume display, and
+SEC-001 file-opening controls now meet their written criteria, bringing the
+recorded count to 19 of 44. This is recorded evidence, not a fresh release-gate
+pass or physical qualification. The NUC-053 control does not assert formal PRNG
+stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The
 2026-11-10 RM-M v3 acceptance control is recorded at
 [references/rm-m-v3-acceptance-control-20261110.json](../references/rm-m-v3-acceptance-control-20261110.json);
-this execution evidence does not change the recorded Met count or qualify the
-composite physical coverage.
+that geometry/source execution evidence does not qualify the composite physical
+coverage. The separate [NUC-050 performance receipt](../references/rm-m-v3-nuc050-control-20261110.json)
+records the completed four-pair comparison and its confidence assumptions.
 Code already includes CAD import/check/transport, native design windows,
 activation, replacement groups and remote-handling calculations. Research
 results count toward product completion only when the required product path
@@ -29,9 +30,9 @@ and its checks exist.
 
 | Stage | Current boundary | Remaining exit work |
 | --- | --- | --- |
-| S0 | Feasibility and streaming controls recorded; inboard transport gain has only a pilot | Replicate the inboard fast-flux performance measurement, retain uncertainty and bias checks, and settle version/data prerequisites |
+| S0 | Feasibility and streaming controls recorded; replicated inboard fast-flux performance passes the 100× lower-bound target (186.41×), bias and tail checks | Finish the RM-M preview timing and remaining data/method prerequisites; retain the distinct runtimes and data limitations |
 | S1 | The synthetic four-torus CAD control passes all nine native import checks, including proven whole-facet bounds at 0.1 mm; a fresh native three-torus conversion passes all nine checks at 1 mm; RM-M v3 conversion and strict mesh audit are complete. Its 2026-11-10 acceptance control passes all 30 volume checks (worst 0.008524%), 0/1,000,000 particle losses and 200,000/200,000 source sites both free and plasma-cell constrained; see [the acceptance receipt](../references/rm-m-v3-acceptance-control-20261110.json). This remains unqualified composite physical coverage. | Finish the default-tolerance corpus (16 conversion cases complete; 8 port cases have not started); establish integrated volume and bounded refinement across the required cases; retain the original corpus conversion's genuine 1.18 mm deviation failure |
-| S2 | Sources, target-error runs, windows and peak-flux paths implemented in part; coupled winding-pack heating is integrated for native checks | Qualify heating, complete product integration and seed/void controls, and obtain replicated RM-M performance evidence |
+| S2 | Sources, target-error runs, windows and peak-flux paths implemented in part; coupled winding-pack heating is integrated for native checks | Qualify heating, complete product integration and void controls, and measure the native RM-M preview and production paths |
 | S3 | Actual checked-CAD transport completed 30,000 histories and native invalid-map Run refusal passes; dose preparation and the 709-group neutron stage succeed, but ACTINV reports incomplete activation data and the whole-plant source is refused; a 50,000-history heating run remains INCONCLUSIVE on energy closure | Resolve and retain the activation data-gap evidence; complete the actual CAD transport-to-dose control, heat-to-energy validation and native interaction checks; validate the event-dose worker and its data, source-resolution convergence and D1S/R2S comparison |
 | S4 | Validation registry, scoring and report generation implemented; FNS iron decay heat retains all 20 points, INCONCLUSIVE with unknown covariance; the twelve-response AIM vacuum control passes verification; the actual native FARIS lifecycle control passes all seven control checks, while PROCESS and bluemira retain a pulse-discretization disagreement | Produce the remaining sealed case runs; retain the unresolved Fe-5 source-support limit and peer agreement failure; complete validation-state presentation and remaining benchmark translations |
 | S5 | Quality checks and packaging tools implemented in part | Complete the outstanding product requirements and run the final tests, performance, accessibility, fuzz, reproducibility, documentation and release gates on the candidate |
@@ -218,6 +219,13 @@ that depends on it starts.
      release's question rests on fast-neutron fluence, so NUC-050 is 100× on
      fast flux in the inboard leg, NUC-055 joins the gate, and the heating
      figure becomes NUC-078 at a later phase.
+   - 2026-11-10: the frozen RM-M v3 four-pair control completes 108M analogue
+     and 12M windowed histories. Pooled gain is 312.42×; the one-sided 95 % lower
+     bound is 186.41×, bias z = 0.810, and all per-seed variance-of-variance values
+     are below 0.1. [The receipt](../references/rm-m-v3-nuc050-control-20261110.json)
+     records production clocks separately from 184.05 s of window preparation.
+     This meets NUC-050 for fast flux; heating and physical validation remain
+     separate work.
 2. **Laptop run time.** CAD is about 8× slower. PERF-025 asks for a preview
    within 60 s on the laptop for RM-M.
    - Test: preview-tier error achievable in 60 s on RM-M with windows.

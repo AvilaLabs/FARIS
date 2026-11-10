@@ -3347,6 +3347,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
+    // Verifies: MAG-003
     #[test]
     fn two_volumes_scale_density_and_sampling_error_independently() {
         let a =
@@ -3420,6 +3421,7 @@ mod tests {
         assert!(!closure_mean_matches(1.0e308, 1.0e308, &[1.0e308, 1.0e308]));
     }
 
+    // Verifies: MAG-003
     #[test]
     fn paired_winding_pack_report_numbers_are_classified() {
         let score = HeatingScore {
