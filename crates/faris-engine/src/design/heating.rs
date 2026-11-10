@@ -2941,9 +2941,9 @@ mod tests {
             source_kernel_sha256: "f".repeat(64),
         };
         let map_hash = sha256_hex(&serde_json::to_vec(&component_map).unwrap());
-        let a = 3.0e100;
-        let b = 2.0e100;
-        let c = -0.5e100;
+        let a: f64 = 3.0e100;
+        let b: f64 = 2.0e100;
+        let c: f64 = -0.5e100;
         // The whole-model response is exactly the sum of the two component
         // responses. Component responses are anticorrelated, so the covariance
         // matrix is rank deficient with both positive and negative off-diagonals.
