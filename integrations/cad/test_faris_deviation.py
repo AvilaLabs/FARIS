@@ -138,6 +138,121 @@ if 'np' in globals():
                                  for origin, normal, _poly in concave.convex_planar_faces()))
 
 
+    class FiniteCylinderBounds(unittest.TestCase):
+        cylinder = {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "r": .06, "v0": -2., "v1": 2.}
+
+        @staticmethod
+        def triangle():
+            angles = np.array([0., .12, -.12])
+            return np.stack([.06*np.cos(angles), .06*np.sin(angles), np.array([-.4,.2,.2])], axis=1)[None]
+
+        def test_hessian_bound_covers_dense_finite_cylinder_samples(self):
+            tri=self.triangle()
+            bound=fd.full_cylinder_triangle_bounds(tri,[self.cylinder])[0]
+            self.assertTrue(math.isfinite(bound))
+            for i in range(101):
+                for j in range(101-i):
+                    a,b=i/100,j/100
+                    p=(1-a-b)*tri[0,0]+a*tri[0,1]+b*tri[0,2]
+                    actual=abs(math.hypot(p[0],p[1])-.06)
+                    self.assertLessEqual(actual,bound+1e-12)
+
+        def test_axial_trim_gap_is_included_outward(self):
+            tri=self.triangle(); tri[:,:,2]+=3.
+            bound=fd.full_cylinder_triangle_bounds(tri,[self.cylinder])[0]
+            self.assertTrue(math.isfinite(bound))
+            for i in range(101):
+                for j in range(101-i):
+                    a,b=i/100,j/100
+                    p=(1-a-b)*tri[0,0]+a*tri[0,1]+b*tri[0,2]
+                    radial=abs(math.hypot(p[0],p[1])-.06)
+                    gap=max(self.cylinder["v0"]-p[2],p[2]-self.cylinder["v1"],0.)
+                    self.assertLessEqual(math.hypot(radial,gap),bound+1e-12)
+
+        def test_analytic_subdivision_certifies_without_cad_queries(self):
+            class FullCylinderOracle:
+                def convex_planar_faces(self): return []
+                def full_torus_faces(self): return []
+                def full_cylinder_faces(self): return [FiniteCylinderBounds.cylinder]
+                def point_distance(self,*_args,**_kwargs): raise AssertionError("no CAD query expected")
+            result=fd.certify_triangles(FullCylinderOracle(),self.triangle(),.0005,max_queries=1,max_depth=8)
+            self.assertEqual(result["status"],"certified")
+            self.assertEqual(result["queries"],0)
+
+
+    class PlanarRegionBounds(unittest.TestCase):
+        origin=np.zeros(3); normal=np.array([0.,0.,1.]); x=np.array([1.,0.,0.]); y=np.array([0.,1.,0.])
+        outer=np.array([[-5.,-5.],[5.,-5.],[5.,5.],[-5.,5.]])
+
+        def region(self,kind,outer=None,hole=None,radius=None):
+            face={"kind":kind,"o":self.origin,"z":self.normal,"x":self.x,"y":self.y}
+            if outer is not None: face["outer"]=np.asarray(outer,dtype=float)
+            if kind=="disk": face.update(center=np.zeros(2),radius=radius)
+            if kind=="polygon_circle_hole": face["hole"]={"center":np.asarray(hole,dtype=float),"radius":radius}
+            if kind=="polygon_polygon_hole": face["hole"]={"polygon":np.asarray(hole,dtype=float)}
+            return face
+
+        def test_filled_disk_center_has_only_outward_roundoff(self):
+            tri=np.array([[-.5,-.5,0.],[.5,-.5,0.],[0.,.5,0.]])
+            bound=fd.planar_region_triangle_bound(tri,self.region("disk",radius=1.))
+            self.assertLessEqual(bound,1.1e-6)
+
+        def test_circle_hole_center_and_rim_are_covered(self):
+            face=self.region("polygon_circle_hole",self.outer,np.zeros(2),1.)
+            for tri in (np.array([[-.8,-.8,0.],[.8,-.8,0.],[0.,.8,0.]]),
+                        np.array([[-.1,-.1,0.],[.1,-.1,0.],[0.,.1,0.]])):
+                bound=fd.planar_region_triangle_bound(tri,face)
+                if np.max(np.linalg.norm(tri[:,:2],axis=1))<.2:
+                    self.assertGreaterEqual(bound,1.)
+                for i in range(41):
+                    for j in range(41-i):
+                        a,b=i/40,j/40
+                        q=(1-a-b)*tri[0,:2]+a*tri[1,:2]+b*tri[2,:2]
+                        hole_gap=max(0.,1.-float(np.linalg.norm(q)))
+                        self.assertLessEqual(hole_gap,bound+1e-12)
+
+        def test_rectangular_hole_corner_is_covered(self):
+            hole=np.array([[-1.,-1.],[1.,-1.],[1.,1.],[-1.,1.]])
+            face=self.region("polygon_polygon_hole",self.outer,hole)
+            tri=np.array([[.7,.7,0.],[1.4,.7,0.],[.7,1.4,0.]])
+            bound=fd.planar_region_triangle_bound(tri,face)
+            for i in range(41):
+                for j in range(41-i):
+                    a,b=i/40,j/40
+                    q=(1-a-b)*tri[0,:2]+a*tri[1,:2]+b*tri[2,:2]
+                    sd=fd._polygon_signed_edge_distances(q,hole)
+                    exact=max(0.,float(np.min(sd))) if np.min(sd)>=0. else 0.
+                    self.assertLessEqual(exact,bound+1e-12)
+
+        def test_outer_corner_and_normal_offset_are_covered(self):
+            tri=np.array([[4.8,4.8,.1],[6.,4.8,.2],[4.8,6.,.3]])
+            bound=fd.planar_region_triangle_bound(tri,self.region("polygon",self.outer))
+            for p in tri:
+                exact=math.hypot(fd._point_convex_polygon_distance_2d(p[:2],self.outer),abs(p[2]))
+                self.assertLessEqual(exact,bound+1e-12)
+
+        def test_acute_outer_corner_does_not_hide_outside_distance(self):
+            theta=5e-8
+            outer=np.array([[0.,0.],[1000.,1000.*math.tan(theta)],[1000.,-1000.*math.tan(theta)]])
+            roundoff=128*np.finfo(float).eps*1000.
+            d=roundoff/(2*math.sin(theta))
+            tri=np.array([[-d,-1e-7,0.],[-d,0.,0.],[-d,1e-7,0.]])
+            bound=fd.planar_region_triangle_bound(tri,self.region("polygon",outer))
+            exact=max(fd._point_convex_polygon_distance_2d(p[:2],outer) for p in tri)
+            self.assertGreater(exact,1e-4)
+            self.assertGreaterEqual(bound,exact)
+
+        def test_short_edge_circle_center_uses_zero_lower_radius(self):
+            tri2=np.array([[1000.,1000.],[1000.+1e-8,1000.+1e-8],[1000.,1000.+2e-8]])
+            center=np.array([1000.+1e-9,1000.+1e-9])
+            roundoff=128*np.finfo(float).eps*1000.
+            self.assertEqual(fd._point_triangle_distance_2d(center,tri2,roundoff),0.)
+            outer=np.array([[900.,900.],[1100.,900.],[1100.,1100.],[900.,1100.]])
+            face=self.region("polygon_circle_hole",outer,center,1e-6)
+            tri3=np.column_stack((tri2,np.zeros(3)))
+            self.assertGreaterEqual(fd.planar_region_triangle_bound(tri3,face),1e-6)
+
+
 if not HAVE_CAD:
 
     @unittest.skipUnless(CAD_PYTHON.is_file(), "no CAD interpreter (set FARIS_CAD_PYTHON)")
@@ -156,6 +271,45 @@ else:
     import faris_facets
     from OCP.ElSLib import ElSLib
     from OCP.gp import gp_Pnt
+
+    class AnalyticFaceTopology(unittest.TestCase):
+        """OCP-backed guards for the analytic face classifiers."""
+        def test_full_cylinder_accepted_and_angular_trim_rejected(self):
+            whole = fd.SolidFaces(cq.Solid.makeCylinder(60.0, 100.0).wrapped)
+            faces = whole.full_cylinder_faces()
+            self.assertEqual(len(faces), 1)
+            self.assertAlmostEqual(faces[0]["r"], 60.0)
+            self.assertLessEqual(abs((faces[0]["u1"] - faces[0]["u0"]) - 2 * math.pi), 1e-8)
+
+            cylinder = cq.Solid.makeCylinder(60.0, 100.0)
+            half_box = cq.Workplane().box(60.0, 140.0, 120.0).translate((30.0, 0.0, 50.0)).val()
+            trimmed = fd.SolidFaces(cylinder.intersect(half_box).wrapped)
+            self.assertEqual(trimmed.full_cylinder_faces(), [])
+
+        def test_disk_and_annulus_topology_are_recognized(self):
+            disk = fd.SolidFaces(cq.Solid.makeCylinder(3.0, 2.0).wrapped)
+            self.assertGreaterEqual(sum(f["kind"] == "disk" for f in disk.planar_region_faces()), 2)
+
+            outer = cq.Solid.makeBox(20.0, 20.0, 2.0, cq.Vector(-10.0, -10.0, 0.0))
+            bore = cq.Solid.makeCylinder(3.0, 4.0, cq.Vector(0.0, 0.0, -1.0))
+            ring = fd.SolidFaces(outer.cut(bore).wrapped)
+            self.assertGreaterEqual(sum(f["kind"] == "polygon_circle_hole" for f in ring.planar_region_faces()), 2)
+
+        def test_polygon_hole_accepted_and_multiple_holes_rejected(self):
+            outer = cq.Solid.makeBox(20.0, 20.0, 2.0, cq.Vector(-10.0, -10.0, 0.0))
+            inner = cq.Solid.makeBox(8.0, 8.0, 4.0, cq.Vector(-4.0, -4.0, -1.0))
+            frame = fd.SolidFaces(outer.cut(inner).wrapped)
+            self.assertGreaterEqual(sum(f["kind"] == "polygon_polygon_hole" for f in frame.planar_region_faces()), 2)
+
+            h1 = cq.Solid.makeCylinder(2.0, 4.0, cq.Vector(-4.0, 0.0, -1.0))
+            h2 = cq.Solid.makeCylinder(2.0, 4.0, cq.Vector(4.0, 0.0, -1.0))
+            multiple = fd.SolidFaces(outer.cut(h1).cut(h2).wrapped)
+            self.assertEqual(sum(f["kind"] == "polygon_circle_hole" for f in multiple.planar_region_faces()), 0)
+
+        def test_finite_cylinder_axial_ends_are_recorded(self):
+            faces = fd.SolidFaces(cq.Solid.makeCylinder(2.0, 7.0).wrapped).full_cylinder_faces()
+            self.assertEqual(len(faces), 1)
+            self.assertAlmostEqual(faces[0]["v1"] - faces[0]["v0"], 7.0, places=7)
 
     class PlaneOracle:
         """Boundary-distance fixture for the Lipschitz subdivision proof."""

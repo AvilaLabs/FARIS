@@ -888,10 +888,10 @@ def overlap_booleans(args) -> int:
 def deviation(args) -> int:
     """GEO-032: sample diagnostics and a bounded global upper bound over all facet triangles.
 
-    The global bound evaluates nearest-boundary distances at triangle centroids and adds the
-    maximum centroid-to-vertex radius, subdividing triangles whose upper bound exceeds tolerance.
-    Sample diagnostics use closed forms on analytic faces and may stride OpenCASCADE projections;
-    they do not determine the global pass/fail result.
+    The global bound first applies verified planar, disk, single-hole planar-region, finite-cylinder,
+    and torus bounds, with query-free analytic subdivision. Remaining triangles use the attained
+    nearest-boundary distance at their centroid plus the maximum centroid-to-vertex radius. Sample
+    diagnostics may stride OpenCASCADE projections; they do not determine the global proof result.
     """
     import numpy as np
 
@@ -973,7 +973,7 @@ def deviation(args) -> int:
         "method": (
             "closed-form distance to plane, cylinder, cone, sphere and torus faces (accepted when the foot point is in the face, "
             "by OpenCASCADE's face classifier); BRepExtrema_DistShapeShape for other faces and for points whose foot point is outside the face; "
-            "global triangle coverage uses vertex-distance upper bounds to verified convex planar faces, outward-rounded Hessian bounds to topology-verified complete torus faces, and the 1-Lipschitz distance bound with bounded recursive subdivision for other cases"
+            "global triangle coverage uses verified convex planar-face bounds, topology-verified filled disks and single-hole convex planar regions, and outward-rounded finite-cylinder/torus bounds with query-free analytic subdivision; remaining triangles use the 1-Lipschitz CAD-distance bound with bounded recursive subdivision"
         ),
         "solids": per_solid,
         "timing_seconds": timing,

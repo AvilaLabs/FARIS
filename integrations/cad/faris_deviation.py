@@ -29,8 +29,9 @@ solid, it cannot raise the maximum and is settled. The rest go to OpenCASCADE.
 Coverage is reported per solid. A solid whose every point was settled or measured has a
 "maximum over all points": exact over the sample points, not a bound over the points between
 them. Otherwise the result is a "sampled maximum". Triangle coverage uses vertex-distance
-bounds for verified convex planar faces and topology-proven full tori, and the 1-Lipschitz
-subdivision bound otherwise. The analytic shortcuts exclude uncertain trims.
+bounds for verified convex planar faces, topology-verified planar disks and single-hole convex
+regions, and topology-proven complete finite cylinders and tori. Remaining triangles use the
+1-Lipschitz CAD-distance bound. Uncertain trims stay on the conservative path.
 """
 from __future__ import annotations
 
@@ -516,7 +517,9 @@ class SolidFaces:
             self.slot[ids] = np.arange(len(ids))
         self._classifiers = {}
         self._convex_planar_faces = None
+        self._planar_region_faces = None
         self._full_torus_faces = None
+        self._full_cylinder_faces = None
         self.measured_witness_distance = None
 
     def full_torus_faces(self):
@@ -583,6 +586,87 @@ class SolidFaces:
                             for edge in unique_edges)):
                 result.append(self.params[i])
         self._full_torus_faces = result
+        return result
+
+    def full_cylinder_faces(self):
+        """Return finite cylinder faces proven to be complete axial strips.
+
+        Accepted topology is one valid wire with exactly four line pcurves: two full-U
+        end rims at v0/v1 and two closed-on-face seam sides at u0/u1 spanning v0/v1.
+        This rejects partial angular trims, extra wires/holes, and non-axial trims. For a
+        triangle whose axial projection lies in [v0, v1], projection onto the full periodic
+        cylinder stays on the face and its exact face distance is abs(rho-r).
+        """
+        if self._full_cylinder_faces is not None:
+            return self._full_cylinder_faces
+        from OCP.BRep import BRep_Tool
+        from OCP.BRepCheck import BRepCheck_Analyzer
+        from OCP.Geom2dAdaptor import Geom2dAdaptor_Curve
+        from OCP.GeomAbs import GeomAbs_Line
+        from OCP.TopAbs import TopAbs_EDGE, TopAbs_WIRE
+        from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
+
+        result = []
+        uv_slack = 1.0e-8
+        for i, face in enumerate(self.faces):
+            if self.kind[i] != "cylinder" or not BRepCheck_Analyzer(face).IsValid():
+                continue
+            params = self.params[i]
+            u0, u1, v0, v1 = (params[key] for key in ("u0", "u1", "v0", "v1"))
+            radius = params["r"]
+            if (not all(math.isfinite(x) for x in (u0, u1, v0, v1, radius))
+                    or radius <= 0.0 or v1 <= v0
+                    or abs((u1-u0)-TWO_PI) > uv_slack):
+                continue
+            wires = TopExp_Explorer(face, TopAbs_WIRE)
+            if not wires.More():
+                continue
+            wire = wires.Current()
+            wires.Next()
+            if wires.More():
+                continue
+            edges = TopExp_Explorer(wire, TopAbs_EDGE)
+            seam_count = rim_count = edge_count = 0
+            valid = True
+            while edges.More():
+                edge = TopoDS.Edge_s(edges.Current())
+                edge_count += 1
+                is_seam = bool(BRep_Tool.IsClosed_s(edge, face))
+                first, last = BRep_Tool.Range_s(edge, face)
+                curve = BRep_Tool.CurveOnSurface_s(edge, face, 0.0, 0.0)
+                if curve is None or not (math.isfinite(first) and math.isfinite(last) and last > first):
+                    valid = False
+                    break
+                adaptor = Geom2dAdaptor_Curve(curve, first, last)
+                if adaptor.GetType() != GeomAbs_Line:
+                    valid = False
+                    break
+                a, b = curve.Value(first), curve.Value(last)
+                u_a, v_a, u_b, v_b = float(a.X()), float(a.Y()), float(b.X()), float(b.Y())
+                if not all(math.isfinite(x) for x in (u_a, v_a, u_b, v_b)):
+                    valid = False
+                    break
+                if is_seam:
+                    on_period_edge = (abs(u_a-u0) <= uv_slack and abs(u_b-u0) <= uv_slack
+                                      or abs(u_a-u1) <= uv_slack and abs(u_b-u1) <= uv_slack)
+                    if not (on_period_edge and abs(min(v_a, v_b)-v0) <= uv_slack
+                            and abs(max(v_a, v_b)-v1) <= uv_slack):
+                        valid = False
+                        break
+                    seam_count += 1
+                else:
+                    on_end_circle = (abs(v_a-v0) <= uv_slack and abs(v_b-v0) <= uv_slack
+                                     or abs(v_a-v1) <= uv_slack and abs(v_b-v1) <= uv_slack)
+                    if not (on_end_circle and abs(min(u_a, u_b)-u0) <= uv_slack
+                            and abs(max(u_a, u_b)-u1) <= uv_slack):
+                        valid = False
+                        break
+                    rim_count += 1
+                edges.Next()
+            if valid and edge_count == 4 and seam_count == 2 and rim_count == 2:
+                result.append(params)
+        self._full_cylinder_faces = result
         return result
 
     def convex_planar_faces(self):
@@ -674,6 +758,169 @@ class SolidFaces:
                 continue
             result.append((origin, normal, p))
         self._convex_planar_faces = result
+        return result
+
+    def planar_region_faces(self):
+        """Return strictly validated planar disks and single-hole convex planar regions.
+
+        A region is accepted only when OpenCASCADE validates the face and its complete wire
+        topology is either one full circle, one convex line polygon, or an outer convex line
+        polygon with exactly one strictly-contained circular or convex polygonal inner wire.
+        Multiple holes, curved/nonconvex polygon loops, and ambiguous containment are omitted.
+        """
+        if self._planar_region_faces is not None:
+            return self._planar_region_faces
+        from OCP.BRep import BRep_Tool
+        from OCP.BRepAdaptor import BRepAdaptor_Curve
+        from OCP.BRepCheck import BRepCheck_Analyzer
+        from OCP.GeomAbs import GeomAbs_Circle, GeomAbs_Line
+        from OCP.TopAbs import TopAbs_EDGE, TopAbs_VERTEX, TopAbs_WIRE
+        from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
+
+        result = []
+        eps = max(CLASSIFY_TOLERANCE, FAST_MARGIN)
+        period_slack = 1.0e-8
+
+        def polygon_from_wire(wire, origin, x_axis, y_axis):
+            edges = TopExp_Explorer(wire, TopAbs_EDGE)
+            segments = []
+            while edges.More():
+                edge = TopoDS.Edge_s(edges.Current())
+                curve = BRepAdaptor_Curve(edge)
+                if curve.GetType() != GeomAbs_Line:
+                    return None
+                vertices = TopExp_Explorer(edge, TopAbs_VERTEX)
+                points = []
+                while vertices.More():
+                    point = BRep_Tool.Pnt_s(TopoDS.Vertex_s(vertices.Current()))
+                    points.append(_pnt(point))
+                    vertices.Next()
+                if len(points) != 2 or np.linalg.norm(points[0]-points[1]) <= eps:
+                    return None
+                if max(abs(float(np.dot(points[j]-origin, np.cross(x_axis,y_axis)))) for j in range(2)) > eps:
+                    return None
+                a = np.array([np.dot(points[0]-origin,x_axis), np.dot(points[0]-origin,y_axis)])
+                b = np.array([np.dot(points[1]-origin,x_axis), np.dot(points[1]-origin,y_axis)])
+                segments.append((a,b))
+                edges.Next()
+            if len(segments) < 3:
+                return None
+            polygon = [segments[0][0], segments[0][1]]
+            remaining = list(segments[1:])
+            while remaining:
+                current = polygon[-1]
+                matches = [(j, b if np.linalg.norm(a-current) <= eps else a)
+                           for j,(a,b) in enumerate(remaining)
+                           if min(np.linalg.norm(a-current),np.linalg.norm(b-current)) <= eps]
+                if len(matches) != 1:
+                    return None
+                j, nxt = matches[0]
+                remaining.pop(j)
+                if np.linalg.norm(nxt-polygon[0]) <= eps:
+                    if remaining:
+                        return None
+                    break
+                polygon.append(nxt)
+            p=np.asarray(polygon,dtype=np.float64)
+            if len(p)<3 or not _strict_convex_polygon_2d(p):
+                return None
+            return p
+
+        def circle_from_wire(wire, origin, normal, x_axis, y_axis):
+            edges=TopExp_Explorer(wire,TopAbs_EDGE)
+            if not edges.More():
+                return None
+            edge=TopoDS.Edge_s(edges.Current()); edges.Next()
+            if edges.More():
+                return None
+            curve=BRepAdaptor_Curve(edge)
+            if curve.GetType()!=GeomAbs_Circle:
+                return None
+            first,last=curve.FirstParameter(),curve.LastParameter()
+            if not all(math.isfinite(x) for x in (first,last)) or abs((last-first)-TWO_PI)>period_slack:
+                return None
+            circle=curve.Circle(); center=circle.Location(); axis=circle.Axis().Direction()
+            c3=_pnt(center); n3=_vec(axis)
+            if abs(abs(float(np.dot(n3,normal)))-1.0)>1e-10:
+                return None
+            if abs(float(np.dot(c3-origin,normal)))>eps:
+                return None
+            c2=np.array([np.dot(c3-origin,x_axis),np.dot(c3-origin,y_axis)],dtype=np.float64)
+            radius=float(circle.Radius())
+            return {"center":c2,"radius":radius} if math.isfinite(radius) and radius>eps else None
+
+        def area2(poly):
+            return sum(float(poly[i,0]*poly[(i+1)%len(poly),1]-poly[i,1]*poly[(i+1)%len(poly),0])
+                       for i in range(len(poly)))
+
+        for i,face in enumerate(self.faces):
+            if self.kind[i]!="plane" or not BRepCheck_Analyzer(face).IsValid():
+                continue
+            params=self.params[i]
+            origin,normal,x_axis,y_axis=(params[k] for k in ("o","z","x","y"))
+            if not all(np.isfinite(params[k]).all() for k in ("o","z","x","y")):
+                continue
+            if any(abs(float(np.linalg.norm(params[k]))-1.0)>1e-10 for k in ("z","x","y")):
+                continue
+            if max(abs(float(np.dot(x_axis,y_axis))),abs(float(np.dot(x_axis,normal))),abs(float(np.dot(y_axis,normal))))>1e-10:
+                continue
+            wires=TopExp_Explorer(face,TopAbs_WIRE)
+            wire_list=[]
+            while wires.More():
+                wire_list.append(wires.Current()); wires.Next()
+            if len(wire_list) not in (1,2):
+                continue
+            loops=[]
+            for wire in wire_list:
+                circle=circle_from_wire(wire,origin,normal,x_axis,y_axis)
+                if circle is not None:
+                    loops.append(("circle",circle))
+                    continue
+                polygon=polygon_from_wire(wire,origin,x_axis,y_axis)
+                if polygon is None:
+                    loops=[]; break
+                loops.append(("polygon",polygon))
+            if len(loops)!=len(wire_list):
+                continue
+            if len(loops)==1:
+                kind,loop=loops[0]
+                if kind=="circle":
+                    result.append({"kind":"disk","o":origin,"z":normal,"x":x_axis,"y":y_axis,
+                                   "center":loop["center"],"radius":loop["radius"]})
+                else:
+                    result.append({"kind":"polygon","o":origin,"z":normal,"x":x_axis,"y":y_axis,
+                                   "outer":loop})
+                continue
+            # Two wires: select the unique larger outer loop by area, then prove strict
+            # containment. Equal/ambiguous cases and circle-circle annuli are conservatively omitted.
+            areas=[(math.pi*loop["radius"]**2 if kind=="circle" else abs(area2(loop)))
+                   for kind,loop in loops]
+            if abs(areas[0]-areas[1])<=eps*max(1.0,*areas):
+                continue
+            oi=0 if areas[0]>areas[1] else 1; hi=1-oi
+            outer_kind,outer=loops[oi]; hole_kind,hole=loops[hi]
+            if outer_kind!="polygon":
+                continue
+            outer_orientation=1.0 if area2(outer)>0 else -1.0
+            contained=True
+            if hole_kind=="circle":
+                center=hole["center"]; radius=hole["radius"]
+                signed, errors = _polygon_signed_edge_distances_with_error(center, outer)
+                if np.any(signed-errors<=radius+eps):
+                    contained=False
+                if contained:
+                    result.append({"kind":"polygon_circle_hole","o":origin,"z":normal,"x":x_axis,"y":y_axis,
+                                   "outer":outer,"hole":{"center":center,"radius":radius}})
+            else:
+                for q in hole:
+                    signed, errors = _polygon_signed_edge_distances_with_error(q,outer)
+                    if not np.isfinite(signed).all() or not np.isfinite(errors).all() or np.min(signed-errors)<=eps:
+                        contained=False; break
+                if contained:
+                    result.append({"kind":"polygon_polygon_hole","o":origin,"z":normal,"x":x_axis,"y":y_axis,
+                                   "outer":outer,"hole":{"polygon":hole}})
+        self._planar_region_faces=result
         return result
 
     def __len__(self):
@@ -1080,6 +1327,289 @@ def convex_planar_triangle_bound(triangle, face):
     return max(bounds) + kernel_slack + 64.0 * np.finfo(np.float64).eps * scale
 
 
+def _polygon_orientation(polygon):
+    p = np.asarray(polygon, dtype=np.float64)
+    area2 = math.fsum(float(p[i, 0] * p[(i+1) % len(p), 1] - p[i, 1] * p[(i+1) % len(p), 0])
+                      for i in range(len(p)))
+    return 1.0 if area2 >= 0.0 else -1.0
+
+
+def _polygon_signed_edge_distances_with_error(point, polygon):
+    p = np.asarray(polygon, dtype=np.float64)
+    point = np.asarray(point, dtype=np.float64)
+    orientation = _polygon_orientation(p)
+    values, errors = [], []
+    eps = np.finfo(np.float64).eps
+    for i in range(len(p)):
+        a, b = p[i], p[(i+1) % len(p)]
+        edge = b-a
+        length = float(np.linalg.norm(edge))
+        scale = max(1.0, float(np.abs(a).max()), float(np.abs(b).max()), float(np.abs(point).max()))
+        length_lo = length - 8.0 * eps * scale
+        if not math.isfinite(length_lo) or length_lo <= 0.0:
+            return np.full(len(p), -math.inf), np.full(len(p), math.inf)
+        cross = float(edge[0] * (point[1]-a[1]) - edge[1] * (point[0]-a[0]))
+        values.append(orientation * cross / length)
+        # Covers subtraction, products, determinant accumulation, and normalization error;
+        # division by a short edge is explicit instead of hidden in a global coordinate slack.
+        errors.append(128.0 * eps * scale * scale / length_lo)
+    return np.asarray(values,dtype=np.float64), np.asarray(errors,dtype=np.float64)
+
+
+def _polygon_signed_edge_distances(point, polygon):
+    return _polygon_signed_edge_distances_with_error(point, polygon)[0]
+
+
+def _strict_convex_polygon_2d(polygon):
+    p=np.asarray(polygon,dtype=np.float64)
+    if p.ndim!=2 or p.shape[1]!=2 or len(p)<3 or not np.isfinite(p).all():
+        return False
+    scale=max(1.0,float(np.abs(p).max()))
+    eps=np.finfo(np.float64).eps
+    area2=math.fsum(float(p[i,0]*p[(i+1)%len(p),1]-p[i,1]*p[(i+1)%len(p),0]) for i in range(len(p)))
+    if abs(area2)<=128.0*eps*scale*scale*len(p):
+        return False
+    for i in range(len(p)):
+        a,b=p[i],p[(i+1)%len(p)]
+        edge_length=float(np.linalg.norm(b-a))
+        if edge_length<=128.0*eps*scale:
+            return False
+        # Check only nonadjacent vertices; adjacent endpoints define this edge.
+        for j,q in enumerate(p):
+            if j in (i,(i+1)%len(p)):
+                continue
+            edge=b-a
+            cross=float(edge[0]*(q[1]-a[1])-edge[1]*(q[0]-a[0]))
+            inward=(1.0 if area2>0.0 else -1.0)*cross/edge_length
+            err=128.0*eps*scale*scale/edge_length
+            if not math.isfinite(inward) or inward<=err:
+                return False
+    return True
+
+
+def _point_in_convex_polygon_2d(point, polygon, slack=0.0):
+    distances, errors = _polygon_signed_edge_distances_with_error(point, polygon)
+    return bool(np.isfinite(distances).all() and np.isfinite(errors).all()
+                and np.all(distances >= errors + slack))
+
+
+def _point_convex_polygon_distance_2d(point, polygon, slack=0.0):
+    p = np.asarray(polygon, dtype=np.float64)
+    if _point_in_convex_polygon_2d(point, p, slack=slack):
+        return 0.0
+    # In the uncertain/outer case, segment distances are upper candidates. Inflate each
+    # candidate by its coordinate/edge-length error before taking the minimum.
+    return min(_point_segment_distance_2d(point, p[i], p[(i+1) % len(p)])
+               + _polygon_signed_edge_distances_with_error(point, p)[1][i] + slack
+               for i in range(len(p)))
+
+
+def _point_triangle_distance_2d(point, triangle, roundoff):
+    """Conservative lower bound from point to a projected triangle.
+
+    Return zero unless one half-plane violation is proven outside after per-edge error
+    inflation. In the proven-outside case, subtract a conditioned segment-distance error
+    from each edge candidate before taking their minimum.
+    """
+    tri=np.asarray(triangle,dtype=np.float64)
+    point=np.asarray(point,dtype=np.float64)
+    scale=max(1.0,float(np.abs(tri).max()),float(np.abs(point).max()))
+    eps=np.finfo(np.float64).eps
+    area2=math.fsum(float(tri[i,0]*tri[(i+1)%3,1]-tri[i,1]*tri[(i+1)%3,0]) for i in range(3))
+    area_error=128.0*eps*scale*scale*3.0+6.0*roundoff*scale
+    if abs(area2)<=area_error:
+        return 0.0
+    orientation=1.0 if area2>0.0 else -1.0
+    signed=[]; errors=[]; lengths=[]
+    for i in range(3):
+        a,b=tri[i],tri[(i+1)%3]
+        edge=b-a
+        length=float(np.linalg.norm(edge))
+        length_lo=length-8.0*eps*scale
+        if not math.isfinite(length_lo) or length_lo<=0.0:
+            return 0.0
+        cross=float(edge[0]*(point[1]-a[1])-edge[1]*(point[0]-a[0]))
+        signed.append(orientation*cross/length)
+        errors.append(roundoff+128.0*eps*scale*scale/length_lo)
+        lengths.append(length_lo)
+    # If no edge is definitely violated, the center may be inside; zero is a safe lower
+    # bound and avoids a false positive radial minimum near acute or short projected edges.
+    if not any(signed[i]+errors[i] < 0.0 for i in range(3)):
+        return 0.0
+    segment_lowers=[]
+    for i in range(3):
+        d=_point_segment_distance_2d(point,tri[i],tri[(i+1)%3])
+        err=roundoff+128.0*eps*scale*scale/lengths[i]
+        segment_lowers.append(max(0.0,float(np.nextafter(d-err,-np.inf))))
+    return min(segment_lowers)
+
+
+
+def planar_region_triangle_bound(triangle, region, extra_slack=0.0):
+    """Sound upper bound from a triangle to a verified planar disk or one-hole convex region.
+
+    Regions use a local orthonormal frame and are one of: a filled disk; a convex polygon;
+    a convex polygon with one strictly-contained circular disk removed; or a convex polygon
+    with one strictly-contained convex polygon removed. For a hole, distance from the region
+    is bounded by the max of distance outside the convex outer polygon and distance to the
+    hole boundary. The latter uses exact triangle-to-circle-center distance or affine signed
+    edge-distance maxima. Unsupported/invalid records return infinity.
+    """
+    tri = np.asarray(triangle, dtype=np.float64)
+    if tri.shape != (3, 3) or not np.isfinite(tri).all():
+        return math.inf
+    try:
+        origin = np.asarray(region["o"], dtype=np.float64)
+        normal = np.asarray(region["z"], dtype=np.float64)
+        x_axis = np.asarray(region["x"], dtype=np.float64)
+        y_axis = np.asarray(region["y"], dtype=np.float64)
+        margin = float(extra_slack)
+        outer = np.asarray(region.get("outer", []), dtype=np.float64)
+        kind = region["kind"]
+    except (KeyError, TypeError, ValueError):
+        return math.inf
+    if (origin.shape != (3,) or normal.shape != (3,) or x_axis.shape != (3,) or y_axis.shape != (3,)
+            or not all(np.isfinite(v).all() for v in (origin, normal, x_axis, y_axis, outer))
+            or not math.isfinite(margin) or margin < 0.0):
+        return math.inf
+    if (any(abs(float(np.linalg.norm(v))-1.0)>1e-10 for v in (normal,x_axis,y_axis))
+            or any(abs(float(np.dot(a,b)))>1e-10 for a,b in ((normal,x_axis),(normal,y_axis),(x_axis,y_axis)))):
+        return math.inf
+    if kind not in ("disk", "polygon", "polygon_circle_hole", "polygon_polygon_hole"):
+        return math.inf
+    if kind != "disk" and (outer.ndim != 2 or outer.shape[1] != 2 or len(outer) < 3
+                            or not _strict_convex_polygon_2d(outer)):
+        return math.inf
+    eps = np.finfo(np.float64).eps
+    hole_data = region.get("hole", {})
+    if isinstance(hole_data, dict):
+        hole_scale = max((float(np.abs(np.asarray(v,dtype=np.float64)).max())
+                          for v in hole_data.values() if np.asarray(v).size), default=0.0)
+    else:
+        hole_scale = 0.0
+    scale = max(1.0, float(np.abs(tri).max()), float(np.abs(origin).max()),
+                float(np.abs(outer).max()) if outer.size else 0.0, hole_scale)
+    roundoff = 128.0 * eps * scale
+    rel = tri-origin
+    height = rel @ normal
+    projected = np.stack((rel @ x_axis, rel @ y_axis), axis=1)
+    if kind == "disk":
+        center = np.asarray(region.get("center"), dtype=np.float64)
+        radius = float(region.get("radius", math.nan))
+        if center.shape != (2,) or not np.isfinite(center).all() or not math.isfinite(radius) or radius <= 0.0:
+            return math.inf
+        distances = []
+        for h, q in zip(height, projected):
+            rho = float(np.linalg.norm(q-center))
+            distances.append(math.hypot(float(h), max(0.0, rho-radius)))
+        return float(np.nextafter(max(distances) + max(CLASSIFY_TOLERANCE, FAST_MARGIN)
+                                  + roundoff + margin, np.inf))
+    outer_d = max(_point_convex_polygon_distance_2d(q, outer, slack=0.0) for q in projected)
+    hole = region.get("hole")
+    if kind == "polygon_circle_hole":
+        center = np.asarray(hole.get("center"), dtype=np.float64)
+        radius = float(hole.get("radius", math.nan))
+        if center.shape != (2,) or not np.isfinite(center).all() or not math.isfinite(radius) or radius <= 0.0:
+            return math.inf
+        outer_signed, outer_errors = _polygon_signed_edge_distances_with_error(center, outer)
+        if not np.isfinite(outer_signed).all() or not np.isfinite(outer_errors).all() \
+                or np.min(outer_signed-outer_errors) <= radius + roundoff:
+            return math.inf
+        rho_min = _point_triangle_distance_2d(center, projected, roundoff)
+        hole_gap = max(0.0, radius-rho_min)
+    elif kind == "polygon_polygon_hole":
+        inner = np.asarray(hole.get("polygon"), dtype=np.float64)
+        if (inner.ndim != 2 or inner.shape[1] != 2 or len(inner) < 3 or not np.isfinite(inner).all()
+                or not _strict_convex_polygon_2d(inner)):
+            return math.inf
+        for q in inner:
+            signed, errors = _polygon_signed_edge_distances_with_error(q, outer)
+            if not np.isfinite(signed).all() or not np.isfinite(errors).all() \
+                    or np.min(signed-errors) <= roundoff:
+                return math.inf
+        # For each affine inward edge distance, its maximum over the triangle is at a vertex.
+        # max_T min_edge d <= min_edge max_T d, a sound upper bound on hole clearance.
+        edge_maxima = []
+        for i in range(len(inner)):
+            vals=[]
+            for q in projected:
+                signed, errors = _polygon_signed_edge_distances_with_error(q, inner)
+                vals.append(signed[i]+errors[i])
+            edge_maxima.append(float(max(vals)))
+        hole_gap = max(0.0, min(edge_maxima))
+    else:
+        hole_gap = 0.0
+    planar_upper = max(outer_d, hole_gap)
+    bound = math.hypot(float(np.max(np.abs(height))), planar_upper)
+    return float(np.nextafter(bound + max(CLASSIFY_TOLERANCE, FAST_MARGIN) + roundoff + margin, np.inf))
+
+
+def full_cylinder_triangle_bounds(triangles, params, extra_slack=0.0):
+    """Certified upper bounds to topologically complete finite cylinder faces.
+
+    A parameter record is admissible only after topology establishes a complete 2*pi
+    angular period with no trims other than the two axial end circles. The distance to
+    that finite face is ``hypot(abs(rho-radius), axial_gap)`` where axial_gap is distance
+    outside the face's finite V interval. The Hessian norm of rho is at most
+    1/rho away from the axis; Taylor interpolation gives the outward-rounded bound below.
+    """
+    tris = np.asarray(triangles, dtype=np.float64)
+    if tris.ndim != 3 or tris.shape[1:] != (3, 3) or not np.isfinite(tris).all():
+        return np.full(len(tris) if tris.ndim else 0, np.inf)
+    out = np.full(len(tris), np.inf)
+    eps = np.finfo(np.float64).eps
+    try:
+        margins = np.broadcast_to(np.asarray(extra_slack, dtype=np.float64), (len(tris),))
+    except ValueError:
+        return out
+    if not np.isfinite(margins).all() or np.any(margins < 0.0):
+        return out
+    for face in params:
+        origin, axis = np.asarray(face["o"], dtype=np.float64), np.asarray(face["z"], dtype=np.float64)
+        radius, v0, v1 = (float(face[k]) for k in ("r", "v0", "v1"))
+        if (origin.shape != (3,) or axis.shape != (3,) or not np.isfinite(origin).all()
+                or not np.isfinite(axis).all() or not math.isfinite(radius) or radius <= 0.0
+                or not all(math.isfinite(x) for x in (v0, v1)) or v1 <= v0):
+            continue
+        axis_norm = float(np.linalg.norm(axis))
+        if not math.isfinite(axis_norm) or abs(axis_norm - 1.0) > 64.0 * eps:
+            continue
+        rel = tris - origin
+        axial = np.einsum("ntk,k->nt", rel, axis)
+        perp = rel - axial[..., None] * axis
+        rho = np.linalg.norm(perp, axis=2)
+        edges = np.stack((tris[:, 0]-tris[:, 1], tris[:, 1]-tris[:, 2], tris[:, 2]-tris[:, 0]), axis=1)
+        # rho is constant along the cylinder axis, so use the projected diameter;
+        # axial triangle extent is checked separately against the finite face trim.
+        projected_edges = edges - np.einsum("nte,e->nt", edges, axis)[..., None] * axis
+        diameter = np.linalg.norm(projected_edges, axis=2).max(axis=1)
+        scale = np.maximum(1.0, np.maximum(np.abs(tris).max(axis=(1, 2)),
+                          np.maximum(float(np.abs(origin).max()), radius)))
+        slack = 1024.0 * eps * scale
+        diameter_hi = np.nextafter(diameter + slack, np.inf)
+        rho_lo = np.nextafter(rho.min(axis=1) - diameter_hi - slack, -np.inf)
+        axial_lo = np.nextafter(axial.min(axis=1) - slack, -np.inf)
+        axial_hi = np.nextafter(axial.max(axis=1) + slack, np.inf)
+        valid = (np.isfinite(rho_lo) & np.isfinite(axial_lo) & np.isfinite(axial_hi)
+                 & np.isfinite(diameter_hi) & (rho_lo > 0.0))
+        if not valid.any():
+            continue
+        curvature = np.nextafter(1.0 / rho_lo[valid], np.inf)
+        curvature = np.nextafter(curvature + 1024.0 * eps * np.maximum(1.0, curvature), np.inf)
+        vertex_deviation = np.nextafter(np.abs(rho - radius).max(axis=1) + slack, np.inf)
+        diameter_sq_hi = np.nextafter(diameter_hi[valid] * diameter_hi[valid], np.inf)
+        interpolation = np.nextafter(curvature * diameter_sq_hi, np.inf)
+        interpolation = np.nextafter(interpolation / 6.0, np.inf)
+        radial_bound = np.nextafter(vertex_deviation[valid] + interpolation, np.inf)
+        radial_bound = np.nextafter(radial_bound + max(CLASSIFY_TOLERANCE, FAST_MARGIN), np.inf)
+        radial_bound = np.nextafter(radial_bound + margins[valid], np.inf)
+        axial_gap = np.maximum(np.maximum(v0 - axial_lo[valid], axial_hi[valid] - v1), 0.0)
+        axial_gap = np.nextafter(axial_gap + slack[valid], np.inf)
+        bound = np.nextafter(np.hypot(radial_bound, axial_gap), np.inf)
+        out[valid] = np.minimum(out[valid], bound)
+    return out
+
+
 def full_torus_triangle_bounds(triangles, params, extra_slack=0.0):
     """Certified distance upper bounds for triangles against complete analytic tori.
 
@@ -1165,15 +1695,16 @@ def _batched_full_torus_triangle_bounds(triangles, params, batch_size=8192):
 def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_depth=18):
     """Bound distance to the CAD boundary over every point of every facet triangle.
 
-    Verified single-wire convex planar faces first provide a vertex-distance bound over the
-    whole triangle. Full torus faces then provide an analytic Hessian bound, with bounded
-    query-free subdivision of triangles that do not meet tolerance at first. Remaining leaves
+    Verified convex planar faces, filled disks, and single-hole convex planar regions provide
+    geometric upper bounds over each triangle. Complete finite cylinders and full tori add
+    outward-rounded Hessian bounds. Query-free analytic subdivision refines candidates that do
+    not meet tolerance at first. Remaining leaves
     use the generic 1-Lipschitz bound: for centroid ``c``, every point is within
     ``max(|vertex-c|)`` of c, so ``distance(c) + radius`` bounds the whole triangle.
     ``point_distance`` returns the attained nearest-boundary distance; query limits or a depth
-    limit leave the result unresolved, never certified by sampling alone. The planar shortcut
-    assumes OpenCASCADE's line and vertex geometry within ``max(CLASSIFY_TOLERANCE,
-    FAST_MARGIN)`` in shape units, which is included as outward slack. Analytic subdivision
+    limit leave the result unresolved, never certified by sampling alone. The planar bounds
+    require OpenCASCADE-verified wire topology, strict containment, and convexity; uncertain
+    trims are omitted. Kernel and arithmetic slack is rounded outward. Analytic subdivision
     work is capped at min(25.6 million face-bound evaluations, max(8192, 256 * max_queries));
     temporary triangle batches are bounded independently of facet count.
     """
@@ -1191,17 +1722,24 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
                 "max_queries": max_queries, "max_depth": max_depth,
                 "seconds": time.monotonic() - started}
     planar_faces = solid.convex_planar_faces() if hasattr(solid, "convex_planar_faces") else ()
+    planar_regions = solid.planar_region_faces() if hasattr(solid, "planar_region_faces") else ()
     planar_upper = np.full(len(triangles), np.inf)
     if planar_faces:
         for i, tri in enumerate(triangles):
             planar_upper[i] = min(convex_planar_triangle_bound(tri, face) for face in planar_faces)
+    planar_region_upper = np.full(len(triangles), np.inf)
+    if planar_regions:
+        for i, tri in enumerate(triangles):
+            planar_region_upper[i] = min(planar_region_triangle_bound(tri, face) for face in planar_regions)
     torus_faces = solid.full_torus_faces() if hasattr(solid, "full_torus_faces") else ()
     torus_upper = _batched_full_torus_triangle_bounds(triangles, torus_faces) if torus_faces else np.full(len(triangles), np.inf)
-    analytic_upper = np.minimum(planar_upper, torus_upper)
-    planar_done = analytic_upper <= tolerance
-    certified_upper = float(np.max(analytic_upper[planar_done])) if planar_done.any() else 0.0
+    cylinder_faces = solid.full_cylinder_faces() if hasattr(solid, "full_cylinder_faces") else ()
+    cylinder_upper = full_cylinder_triangle_bounds(triangles, cylinder_faces) if cylinder_faces else np.full(len(triangles), np.inf)
+    analytic_upper = np.minimum(np.minimum(np.minimum(planar_upper, planar_region_upper), torus_upper), cylinder_upper)
+    analytic_done = analytic_upper <= tolerance
+    certified_upper = float(np.max(analytic_upper[analytic_done])) if analytic_done.any() else 0.0
     witness_distance = getattr(solid, "measured_witness_distance", None)
-    if (torus_faces and witness_distance is not None and math.isfinite(witness_distance)
+    if ((torus_faces or cylinder_faces or planar_regions) and witness_distance is not None and math.isfinite(witness_distance)
             and witness_distance > tolerance and np.isfinite(analytic_upper).all()):
         # The measured witness proves the tolerance is exceeded. A finite analytic
         # upper bound over every triangle still certifies the complete global maximum.
@@ -1221,16 +1759,23 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
     # Initial bounds are mandatory; adaptive analytic work is separately capped so
     # subdivision cannot expand without limit. The cap scales with the CAD query budget.
     analytic_work_cap = min(25_600_000, max(8192, max_queries * 256))
-    analytic_work = len(triangles) * len(torus_faces)
+    analytic_faces = len(planar_faces) + len(planar_regions) + len(torus_faces) + len(cylinder_faces)
+    analytic_work = len(triangles) * analytic_faces
 
     def evaluate(tri, depth, coverage_slack=0.0):
         nonlocal queries, sampled_distance_upper, certified_upper
         analytic_bound = math.inf
         if planar_faces:
             analytic_bound = min(convex_planar_triangle_bound(tri, face) + coverage_slack for face in planar_faces)
+        if planar_regions:
+            analytic_bound = min(analytic_bound, min(planar_region_triangle_bound(
+                tri, face, extra_slack=coverage_slack) for face in planar_regions))
         if torus_faces:
             analytic_bound = min(analytic_bound, float(full_torus_triangle_bounds(
                 tri[None], torus_faces, extra_slack=coverage_slack)[0]))
+        if cylinder_faces:
+            analytic_bound = min(analytic_bound, float(full_cylinder_triangle_bounds(
+                tri[None], cylinder_faces, extra_slack=coverage_slack)[0]))
         if analytic_bound <= tolerance:
             certified_upper = max(certified_upper, analytic_bound)
             return analytic_bound, None, depth
@@ -1248,8 +1793,8 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
         sampled_distance_upper = max(sampled_distance_upper, value)
         return upper, center, depth
 
-    remaining_triangles = triangles[~planar_done]
-    if not torus_faces and len(remaining_triangles) > max_queries:
+    remaining_triangles = triangles[~analytic_done]
+    if not torus_faces and not cylinder_faces and not planar_regions and len(remaining_triangles) > max_queries:
         return {
             "status": "unresolved", "upper_bound": None, "queries": 0,
             "max_queries": max_queries, "max_depth": max_depth,
@@ -1268,16 +1813,16 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
             heapq.heappush(pending, (-upper, serial, tri, depth, coverage_slack))
             serial += 1
 
-    if torus_faces:
+    if torus_faces or cylinder_faces or planar_regions:
         # DFS over bounded batches. Each batch has at most 2048 triangles and each
         # stack entry at most that many, so even a deep refinement keeps memory fixed.
         # The four child groups are processed separately instead of materializing a
         # whole 4^depth frontier.
-        indices = np.flatnonzero(~planar_done)
+        indices = np.flatnonzero(~analytic_done)
         for start in range(0, len(indices), 2048):
             group = indices[start:start + 2048]
             roots = triangles[group]
-            root_bounds = torus_upper[group]
+            root_bounds = analytic_upper[group]
             stack = [(roots, np.zeros(len(roots), dtype=np.int16),
                       np.zeros(len(roots), dtype=np.float64), root_bounds)]
             while stack:
@@ -1291,7 +1836,7 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
                 if len(bad) == 0:
                     continue
                 can_split = (depths[bad] < max_depth
-                             ) & (analytic_work + 4 * len(bad) * len(torus_faces) <= analytic_work_cap)
+                             ) & (analytic_work + 4 * len(bad) * analytic_faces <= analytic_work_cap)
                 fallback = bad[~can_split]
                 for index in fallback:
                     enqueue_fallback(batch[index], int(depths[index]), float(slack[index]), float(bounds[index]))
@@ -1308,10 +1853,26 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
                 children = (np.stack((a, ab, ca), axis=1), np.stack((ab, b, bc), axis=1),
                             np.stack((ca, bc, c), axis=1), np.stack((ab, bc, ca), axis=1))
                 for child in children:
-                    child_bounds = full_torus_triangle_bounds(child, torus_faces, extra_slack=child_slack)
+                    child_bounds = np.full(len(child), np.inf)
+                    if torus_faces:
+                        child_bounds = np.minimum(child_bounds, full_torus_triangle_bounds(
+                            child, torus_faces, extra_slack=child_slack))
+                    if cylinder_faces:
+                        child_bounds = np.minimum(child_bounds, full_cylinder_triangle_bounds(
+                            child, cylinder_faces, extra_slack=child_slack))
+                    if planar_faces:
+                        for j, child_tri in enumerate(child):
+                            child_bounds[j] = min(child_bounds[j], min(
+                                convex_planar_triangle_bound(child_tri, face) + float(child_slack[j])
+                                for face in planar_faces))
+                    if planar_regions:
+                        for j, child_tri in enumerate(child):
+                            child_bounds[j] = min(child_bounds[j], min(
+                                planar_region_triangle_bound(child_tri, face, extra_slack=float(child_slack[j]))
+                                for face in planar_regions))
                     # The child bounds are computed here and included in the work cap;
                     # push the already bounded arrays so they are not recomputed.
-                    analytic_work += len(child) * len(torus_faces)
+                    analytic_work += len(child) * analytic_faces
                     stack.append((child, child_depth, child_slack, child_bounds))
     else:
         for tri in remaining_triangles:

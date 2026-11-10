@@ -1,0 +1,844 @@
+{
+  "schema": "faris-cad-port-global-bound-control/v1",
+  "recorded_date": "2026-11-10",
+  "scope": "Retained STEP-to-facet global deviation control for clean-port-0 through clean-port-7. CAD geometry evidence only; not transport, source, dose, physical, or plant qualification.",
+  "thresholds_and_caps": {
+    "tolerance_m": 0.001,
+    "max_queries_per_solid": 100000,
+    "max_depth": 18,
+    "workers": 1,
+    "block_points": 512,
+    "occt_sample_points_per_solid": 2000,
+    "cpu_affinity": "CPU 0",
+    "address_space_limit_bytes": 2147483648
+  },
+  "algorithm_helpers": {
+    "integrations/cad/faris_deviation.py": "7d3bba7b88b8db4d74a0089dddc073192af016f2b64b820d5f0c6b541285fc71",
+    "integrations/cad/faris_cad.py": "6751166310b3b0440e6c499b5e9b8aac393e34de8fab3e7cdbf603ee7d767f0b"
+  },
+  "historical_unresolved_control": {
+    "qualification_path": "runs/continuation/geo012-default-qual-resumed-20261110-v1/qualification.json",
+    "qualification_sha256": "84d2bb81c17dff2c2f4028d100eacb0d7e4a2cc23c30d809bc86d356b2a2b79d",
+    "qualification_status": "FAIL",
+    "note": "Prior global-bound exhaustion was recorded as unresolved and collapsed to a FAIL deviation gate. Those upper bounds did not prove geometric violations. This historical record is retained independently from the new certification.",
+    "cases": [
+      {
+        "case": "clean-port-0",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-0/convert/deviation.json",
+        "deviation_report_sha256": "0b8dc8706e97889ee78c5df212500ba2a5f0caa46138fe5c1c2705cf7412aba8",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.004790281000497723,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 1.8649079951032378e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.01668510795417944,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 1.8649079951032378e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.005752792296468481,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 0.0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-1",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-1/convert/deviation.json",
+        "deviation_report_sha256": "1708c9459e54b0b8309bb048201f4b1f033e0cf9ddfc0c687aaedc88446dce3a",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.005737945698997497,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 2.144644194369505e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.019187874132306368,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 2.144644194369505e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.0066157111259387575,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 5.684341886080802e-17
+          }
+        ]
+      },
+      {
+        "case": "clean-port-2",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-2/convert/deviation.json",
+        "deviation_report_sha256": "a9d63f31208b3972f1673a260fb92cb8b000f5e108b5f7e9ec7c4e7d830b93eb",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.0064662126082332865,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 2.42438039363293e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.02169064031043327,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 2.42438039363293e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.00747862995540903,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 0.0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-3",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-3/convert/deviation.json",
+        "deviation_report_sha256": "4399261cb892fb8e1baf369fb7c5602bb29c6c3dfebdba8294eaddf49f5baa4c",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.00792044813425886,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 2.797361992655567e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.025027661881269172,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 2.797361992655567e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.008629188394702727,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 0.0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-4",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-4/convert/deviation.json",
+        "deviation_report_sha256": "0d2d71ed4a7b6a4ecb4a73bde15bad8107ecead00400a8d7422a139af57b6c36",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.008184984628503481,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 3.170343591673941e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.028364683452105046,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 3.170343591673941e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.009779746833996421,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 0.0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-5",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-5/convert/deviation.json",
+        "deviation_report_sha256": "88ae08e21c507cd1b0aec5dd2ebaeb0dce4a8fe6f983783b62d4a796dc6483c9",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.009602327446863769,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 3.7298159902064755e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.03337021580835888,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 3.7298159902064755e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.011505584492936961,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 0.0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-6",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-6/convert/deviation.json",
+        "deviation_report_sha256": "be143465836b70b6389f98a90475ecaf69913239e2a05bebd04616d4f280d578",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.011870724542215744,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 4.475779188248907e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.04004425895003065,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 4.475779188248907e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.013806701371524364,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 0.0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-7",
+        "campaign_status": "FAIL",
+        "deviation_gate": "FAIL",
+        "deviation_report_path": "clean-port-7/convert/deviation.json",
+        "deviation_report_sha256": "d36384f2b8622cf699121a89b1473b58d2e667d853de75309b0fb6a5a7b8a0ea",
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.015840896168517717,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 5.594723985311134e-05
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.05005532366253834,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 5.594723985311134e-05
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "unresolved",
+            "global_upper_bound_m": 0.017258376689405455,
+            "global_bound_queries": 100000,
+            "global_bound_max_queries": 100000,
+            "global_bound_max_depth": 18,
+            "sampled_max_distance_m": 0.0
+          }
+        ]
+      }
+    ]
+  },
+  "current_canonical_proof": {
+    "summary_path": "runs/continuation/cad-bound-efficiency-canonical-v1/summary.json",
+    "summary_sha256": "ad141660e23ddce82df7800220836f273f9ac5c7f45ac2c1a7cff0939ae31442",
+    "status": "CERTIFIED",
+    "certified_solids": 24,
+    "total_solids": 24,
+    "all_global_bound_queries_zero": true,
+    "maximum_global_upper_bound_m": 7.849978495251977e-05,
+    "unchanged_thresholds": true,
+    "cases": [
+      {
+        "case": "clean-port-0",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-0/clean-port-0.step",
+            "sha256": "59ce39a6e3419ecc7b50647b397545555f974bb3739365c5732b5b7ec1d0811c"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-0/convert/model.facets.bin",
+            "sha256": "83a34eb9cccef5143b75904552a6e3593a83898650ad5f7ac6e220b717c7c518"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-0/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-0-deviation.json",
+          "sha256": "68580bb1a65b0cad813eeb4a141a80713e4cc7654008c362cd4cc744bc2dda34"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 2.616726164090382e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 1.8649079951032378e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 2.6167261650166213e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 1.8649079951032378e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.0000348165940525e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 0.0,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-1",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-1/clean-port-1.step",
+            "sha256": "89e79917d9ef3b085c14e254cb9e2df69721f558a7d282df82b123fd1f9ca58c"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-1/convert/model.facets.bin",
+            "sha256": "4ccb29fff336f6a20f2437c00b81679c8e1e43323962a68943fe94327555d7ce"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-1/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-1-deviation.json",
+          "sha256": "da3129f1978d81ba8007e1250d28af190216615036739c378606ce5b131abc6a"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 3.009220088709587e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 2.144644194369505e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 3.0092200897747615e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 2.144644194369505e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.0000400390831602e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 5.684341886080802e-17,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-2",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-2/clean-port-2.step",
+            "sha256": "dd818bb123527ca30a93c17c894ce346fc1f0058b6826a46f2a59d44572f3ead"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-2/convert/model.facets.bin",
+            "sha256": "efc96ddbead59e3a9a90b10e25274227a7a126b0e6eb9857403637ec19e2a772"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-2/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-2-deviation.json",
+          "sha256": "d14283548be2019e1fc6177fd39e7cb5256161eaa9c3d954d2a5c9a0317f4ba1"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 3.40171401333172e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 2.42438039363293e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 3.4017140145358314e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 2.42438039363293e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.0000452615722682e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 0.0,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-3",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-3/clean-port-3.step",
+            "sha256": "a033bb0e9cf374e48ab2b3f0c119f301d1b8e768f276646750c0d4bdd94fafe7"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-3/convert/model.facets.bin",
+            "sha256": "581ee2fd747f61d145c9b58cc5e15ca674abc823ea7c6369c4ad24a0e835161e"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-3/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-3-deviation.json",
+          "sha256": "23165a8e2da1d6e69ebe92c14e4be7ec73a3a24737749cbe130bc4d4ca1ebb43"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 3.925039246160315e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 2.797361992655567e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 3.925039247549674e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 2.797361992655567e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.0000522248910785e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 0.0,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-4",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-4/clean-port-4.step",
+            "sha256": "85269dd4243bfab9262635ec17c30ed4b988cfd8586719fa90b1b4ff39987b9e"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-4/convert/model.facets.bin",
+            "sha256": "555065b704ff2fb393aea54cf45357b080b1f38fa087dcfad1704e6d968b1db7"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-4/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-4-deviation.json",
+          "sha256": "1d5cb088613fa89d74c25947a0b746ea7da0f43b3b252119954c2091ca3b59ac"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 4.44836447899588e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 3.170343591673941e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 4.448364480570487e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 3.170343591673941e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.000059188209889e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 0.0,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-5",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-5/clean-port-5.step",
+            "sha256": "7219e5a9bdb15ce9bdda08550bfe8cf326d5c95e056a65dccf090a6839ad8e33"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-5/convert/model.facets.bin",
+            "sha256": "8b563188c29fe8ef4e667851120442a58485dc6d59bb61d2ae385e59d1770b75"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-5/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-5-deviation.json",
+          "sha256": "2e9198e91949ec0383a87909e64321586acbd5227487eb92303e282e2ce54f65"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 5.233352328248599e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 3.7298159902064755e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 5.2333523301010775e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 3.7298159902064755e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.0000696331881047e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 0.0,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-6",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-6/clean-port-6.step",
+            "sha256": "d9fbb4b1b297b223cbac85791008b5af45423580ef2abe4f710d5d77a629eadc"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-6/convert/model.facets.bin",
+            "sha256": "bda38896b1ddb834ecbe3ce71263a0b9269997d3d6e614e0917559cc2d0c430a"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-6/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-6-deviation.json",
+          "sha256": "273511f9205de5fcfd42bdcfccd9ca53e58e3be7ffb654aeaa744b6f009c4d99"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 6.280002793930336e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 4.475779188248907e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 6.28000279615331e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 4.475779188248907e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.0000835598257255e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 0.0,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      },
+      {
+        "case": "clean-port-7",
+        "inputs": {
+          "step": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-7/clean-port-7.step",
+            "sha256": "c83ba6fad13d712d7363a90da25a698614d54fc66ed8ec811df3b398591afe1e"
+          },
+          "facets": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-7/convert/model.facets.bin",
+            "sha256": "01cab99e4b28c740eba61c93d8de7487f827cc9cc48447234aeb9f55718b824f"
+          },
+          "deviation_map": {
+            "path": "runs/continuation/geo012-default-qual-resumed-20261110-v1-work/clean-port-7/convert/deviation-map.json",
+            "sha256": "c0aeadc3df0c8be03c4b542689a3d4b573e9f5b34a955e313933d8e9d3c864ec"
+          }
+        },
+        "proof_report": {
+          "path": "runs/continuation/cad-bound-efficiency-canonical-v1/port-7-deviation.json",
+          "sha256": "24d9184fb3d42c4e23fd9abd8bf7716ffa9b176046ad9bcc2faa87e070989d05"
+        },
+        "solids": [
+          {
+            "volume": 1,
+            "step_index": 0,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 7.849978492473259e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 5.594723985311134e-05,
+            "points": 1250,
+            "faces": 3,
+            "occt_calls": 0
+          },
+          {
+            "volume": 2,
+            "step_index": 1,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 7.849978495251977e-05,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 5.594723985311134e-05,
+            "points": 1300,
+            "faces": 7,
+            "occt_calls": 0
+          },
+          {
+            "volume": 3,
+            "step_index": 2,
+            "global_bound_status": "certified",
+            "global_upper_bound_m": 1.0001044497821569e-09,
+            "global_bound_queries": 0,
+            "sampled_max_distance_m": 0.0,
+            "points": 80,
+            "faces": 10,
+            "occt_calls": 0
+          }
+        ]
+      }
+    ]
+  },
+  "native_product_case": {
+    "status": "prepared_not_run_v96_binary_pending",
+    "binary_path": "runs/continuation/native-target-v33/debug/faris",
+    "design_sidecar": "runs/continuation/geo012-port-adaptive-same-step-v1/geometry-control.faris-design.json",
+    "design_sidecar_sha256": "ec2c4e6960e47dd423615e2328c50ef015bd0fc9dd5367adda3db936e50c015b",
+    "report_output": "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-import-report.json",
+    "work_output": "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-work",
+    "argv": [
+      "runs/continuation/native-target-v33/debug/faris",
+      "design",
+      "check",
+      "runs/continuation/geo012-port-adaptive-same-step-v1/geometry-control.faris-design.json",
+      "--report",
+      "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-import-report.json",
+      "--work-dir",
+      "runs/continuation/geo012-port-adaptive-same-step-v1/v96-rust-work",
+      "--no-reuse",
+      "--threads",
+      "1",
+      "--imprint-threads",
+      "1",
+      "--cad-reader",
+      "native",
+      "--cad-python",
+      "/home/connoravila/.cache/avila-night/envs/c2d-0143/bin/python"
+    ],
+    "constraints": [
+      "Keep design.cad.faceting_tolerance_m null to exercise the native default adaptive path.",
+      "Do not launch until the v96 binary has finished building.",
+      "Geometry-only control; copied materials, roles, and history are scaffolding.",
+      "Do not modify query/depth defaults."
+    ],
+    "must_review": [
+      "geometry.adaptive_chord.was_default",
+      "geometry.adaptive_chord.attempt_records",
+      "geometry.deviation.solids[].global_bound_status",
+      "checks[8].status",
+      "checks[8].sub_checks"
+    ]
+  },
+  "remaining_boundary": [
+    "GEO-012 is not yet recorded Met. The Python canonical proof now certifies retained port-0..7 facets; native v96 default adaptive/product integration still needs an actual port case run and review.",
+    "Run an actual native adaptive tori-7 case; no tori-7 pass is claimed here.",
+    "Preserve the original corpus conversion deviation failure/witness (1.17957 mm) as distinct from this same-step Python proof."
+  ]
+}
