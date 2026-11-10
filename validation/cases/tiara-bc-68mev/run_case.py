@@ -11,11 +11,14 @@ dropping a surface or card. `build` exports XML and performs no transport;
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import hashlib
 import json
 import math
+import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -468,6 +471,81 @@ def score_from_tally(tally, parsed: dict) -> list[dict]:
     return results
 
 
+def aperture_bias_plan(deck: str, beta: float) -> dict:
+    """Describe an unbiased isotropic/rectangle angular mixture for AIM-patched OpenMC."""
+    require(math.isfinite(beta) and 0.0 < beta < 1.0,
+            "aperture mixture beta must be between zero and one so isotropic support remains positive")
+    surface = re.search(r"(?im)^\s*237\s+rcc\s+(.+?)\s*(?:\$.*)?$", deck)
+    require(surface is not None, "audited BC501A detector RCC surface 237 is missing")
+    values = _numbers(surface.group(1).split())
+    require(len(values) == 7, "BC501A detector RCC surface 237 changed")
+    x, y, z, ax, ay, az, radius = values
+    require(ax > 0 and ay == 0 and az == 0 and math.isclose(ax, 12.7, abs_tol=1e-10)
+            and y == 0.0 and z == 0.0 and math.isclose(radius, 6.35, abs_tol=1e-10),
+            "BC501A is no longer the audited x-axis 12.7 cm by 12.7 cm cylinder")
+    # The patch aims into a rectangle. Choosing a square with half-side r/sqrt(2)
+    # keeps every aimed point inside the projected circular detector face.
+    half_side = radius / math.sqrt(2.0)
+    rectangle = (x, y, z, 0.0, half_side, 0.0, 0.0, 0.0, half_side)
+    spec = " ".join(format(v, ".17g") for v in (beta, *rectangle))
+    return {
+        "method": "FARIS OpenMC 0.15.3 aperture-mixture angular source bias",
+        "beta": beta,
+        "physical_source": "unchanged isotropic SP2 law; q=(1-beta)*p_iso + beta*p_rectangle",
+        "weight_correction": "w *= p_iso/q = 1/((1-beta)+4*pi*beta*p_rectangle(direction))",
+        "sampling_support": f"beta={beta:g} leaves the positive (1-beta) isotropic component in every physical direction",
+        "target": {"geometry": "square inscribed in the projected circular BC501A front face",
+                   "center_cm": [x, y, z], "u_cm": [0.0, half_side, 0.0],
+                   "v_cm": [0.0, 0.0, half_side], "one_sided": True},
+        "environment": {"OPENMC_APERTURE_BIAS": spec, "OPENMC_APERTURE_ONE_SIDED": "1"},
+        "variance_reduction_claim": "not established; compare against the analog control using tally uncertainty and figure of merit",
+    }
+
+
+def verify_aim_executable(executable: Path, library: Path) -> dict:
+    """Fail closed unless the CLI executable is linked to the selected AIM-patched library."""
+    executable, library = executable.resolve(strict=True), library.resolve(strict=True)
+    markers = (b"OPENMC_APERTURE_BIAS", b"OPENMC_APERTURE_ONE_SIDED")
+    lib_bytes = library.read_bytes()
+    require(all(marker in lib_bytes for marker in markers),
+            f"selected library lacks FARIS aperture AIM support: {library}")
+    readelf = shutil.which("readelf")
+    require(readelf is not None, "readelf is required to verify the AIM-patched OpenMC executable/library pair")
+    dynamic = subprocess.run([readelf, "-d", str(executable)], check=True, capture_output=True,
+                             text=True, timeout=10).stdout
+    has_search_path = "Library rpath:" in dynamic or "Library runpath:" in dynamic
+    require("Shared library: [libopenmc.so]" in dynamic and has_search_path,
+            "AIM mode requires an OpenMC CLI executable with a verifiable libopenmc.so dependency and RPATH/RUNPATH")
+    clean_env = {k: v for k, v in os.environ.items() if k not in ("LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT")}
+    linked_output = subprocess.run(["ldd", str(executable)], check=True, capture_output=True,
+                                   text=True, timeout=10, env=clean_env).stdout
+    linked_match = re.search(r"(?m)^\s*libopenmc\.so\s+=>\s+(\S+)", linked_output)
+    require(linked_match is not None, "ldd could not resolve the AIM executable's libopenmc.so")
+    linked = Path(linked_match.group(1)).resolve(strict=True)
+    require(linked == library, f"OpenMC executable resolves {linked}, not requested AIM library {library}")
+    return {"executable": str(executable), "library": str(library),
+            "library_sha256": sha256(library), "linkage": "verified OpenMC RPATH/RUNPATH with sanitized ldd",
+            "aim_patch_sha256": sha256(ROOT / "integrations/openmc/patches/faris-openmc-0.15.3-aim.patch")}
+
+
+@contextlib.contextmanager
+def patched_aim_environment(plan: dict):
+    """Temporarily expose only the audited source-aperture settings to the solver."""
+    names = set(plan["environment"]) | {"LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT"}
+    previous = {name: os.environ.get(name) for name in names}
+    try:
+        for name in ("LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT"):
+            os.environ.pop(name, None)
+        os.environ.update(plan["environment"])
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
 def check_xs_coverage(openmc, xml_path: Path, nuclides: list[str], max_energy_ev: float = MAX_SOURCE_ENERGY_EV) -> dict:
     """Verify every neutron table supports the full source energy; never allow implicit extrapolation."""
     root = openmc.data.DataLibrary.from_xml(xml_path)
@@ -523,7 +601,15 @@ def _cli() -> int:
     parser.add_argument("--work-dir", type=Path, default=Path("tiara-work"))
     parser.add_argument("--particles", type=int, default=DEFAULT_PARTICLES)
     parser.add_argument("--batches", type=int, default=DEFAULT_BATCHES)
+    parser.add_argument("--statepoint-every", type=int, default=5,
+                        help="write restartable statepoints at this interval and at the final batch")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--aim-aperture-beta", type=float,
+                        help="enable the optional, exact-weight AIM aperture mixture (must be 0 < beta < 1)")
+    parser.add_argument("--aim-openmc-exec", type=Path,
+                        help="OpenMC CLI executable linked to the AIM library; required with --aim-aperture-beta")
+    parser.add_argument("--aim-library", type=Path,
+                        help="AIM-patched libopenmc.so linked by --aim-openmc-exec; required with --aim-aperture-beta")
     parser.add_argument("--i-have-the-cpu", action="store_true")
     args = parser.parse_args()
     manifest = load_manifest(HERE.parent / args.case / "manifest.json")
@@ -565,7 +651,23 @@ def _cli() -> int:
         raise SystemExit("run can consume substantial CPU; repeat with --i-have-the-cpu")
     if not args.cross_sections.is_file():
         raise SystemExit(f"cross_sections.xml does not exist: {args.cross_sections}")
+    aim_plan = None
+    aim_identity = None
+    aim_executable = None
+    if args.aim_aperture_beta is not None:
+        if args.aim_library is None or args.aim_openmc_exec is None:
+            raise SystemExit("AIM mode requires both --aim-openmc-exec and --aim-library; it is never inferred")
+        aim_plan = aperture_bias_plan(deck, args.aim_aperture_beta)
+        aim_identity = verify_aim_executable(args.aim_openmc_exec, args.aim_library)
+        aim_executable = Path(aim_identity["executable"])
+        if os.environ.get("LD_PRELOAD") or os.environ.get("LD_AUDIT"):
+            raise SystemExit("AIM mode refuses LD_PRELOAD or LD_AUDIT because they can replace the verified library")
+    elif args.aim_library is not None or args.aim_openmc_exec is not None:
+        raise SystemExit("AIM executable/library arguments require explicit --aim-aperture-beta")
     model.settings.particles, model.settings.batches, model.settings.seed = args.particles, args.batches, args.seed
+    if args.statepoint_every < 1:
+        raise SystemExit("--statepoint-every must be a positive batch count")
+    model.settings.statepoint = {"batches": sorted(set(range(args.statepoint_every, args.batches + 1, args.statepoint_every)) | {args.batches})}
     xs = check_xs_coverage(openmc, args.cross_sections, [n for m in model.materials for n in m.get_nuclides()])
     if not xs["complete"]:
         print(json.dumps({"status": "NOT_EVALUATED", "nuclear_data_preflight": xs}, indent=2))
@@ -573,7 +675,14 @@ def _cli() -> int:
     args.work_dir.mkdir(parents=True, exist_ok=False)
     model.settings.cross_sections = str(args.cross_sections)
     model.export_to_xml(directory=str(args.work_dir))
-    statepoint = Path(model.run(cwd=str(args.work_dir)))
+    if aim_plan is None:
+        statepoint = Path(model.run(cwd=str(args.work_dir)))
+        variance_reduction = {"method": "analog source directions", "enabled": False,
+                              "variance_reduction_claim": "none"}
+    else:
+        with patched_aim_environment(aim_plan):
+            statepoint = Path(model.run(cwd=str(args.work_dir), openmc_exec=str(aim_executable)))
+        variance_reduction = {**aim_plan, "enabled": True, "solver_library": aim_identity}
     with openmc.StatePoint(statepoint) as sp:
         tally = sp.get_tally(name="tiara_bc501a_flux")
         results = score_from_tally(tally, parsed)
@@ -589,6 +698,7 @@ def _cli() -> int:
                                           "openmc_python_sha256": sha256(binary),
                                           "translation": "direct MCNP-to-OpenMC subset for the pinned TIARA BC cards; no MCNP comparison run exists",
                                           "point_checks": locations, "nuclear_data_preflight": xs, "statement": AGREEMENT_NOTES,
+                                          "variance_reduction": variance_reduction,
                                           "histories": args.particles * args.batches, "seed": args.seed}})
     record_path = args.work_dir / f"{args.case}.run.json"
     record_path.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

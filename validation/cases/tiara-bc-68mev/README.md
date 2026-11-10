@@ -64,3 +64,32 @@ Run `build` with the project's pinned OpenMC 0.15.3 Python environment. The
 `run` subcommand also requires a cross-section XML path and
 `--i-have-the-cpu`; it checks source-energy coverage before transport. Build
 and run outputs belong in a local work directory and are not committed.
+
+The first analog pilot should be time bounded, use a fresh directory, retain
+intermediate statepoints, and leave the default physical isotropic source
+unchanged. Example for the iron case (one million histories, seed 1701, 15
+minute wall-clock cap):
+
+```sh
+timeout --signal=INT --kill-after=60s 900s env OMP_NUM_THREADS=4 \
+  /home/connoravila/micromamba/envs/openmc0153dd/bin/python \
+  validation/cases/tiara-bc-68mev/run_case.py run \
+  --case tiara-bc-fe-68-40 \
+  --cross-sections /home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/cross_sections.xml \
+  --work-dir /tmp/tiara-fe-analog-1m-seed1701 \
+  --particles 10000 --batches 100 --statepoint-every 5 --seed 1701 \
+  --i-have-the-cpu
+```
+
+The optional `--aim-aperture-beta BETA` mode is separate from the analog
+control. It requires an AIM-patched OpenMC CLI and its exact linked
+`libopenmc.so`, supplied with `--aim-openmc-exec` and `--aim-library`; the
+runner checks the patch markers and ELF linkage before starting. It aims a
+fraction `beta` at an inscribed square on the BC501A front face and retains a
+positive `(1-beta)` isotropic component. OpenMC applies the exact mixture
+likelihood ratio to source particle weight; the physical SP2 distribution,
+FM14 scale, 52 response bins, and cell-volume flux estimator stay unchanged.
+The run record includes the aperture geometry, beta, patch/library digest,
+weight correction and an explicit `variance_reduction_claim` that remains
+unestablished until an analog comparison measures uncertainty and figure of
+merit. This mode does not use MCNP's SB2 card as an OpenMC source law.

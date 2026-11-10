@@ -65,6 +65,24 @@ class TiaraSourceAndTally(unittest.TestCase):
         self.assertAlmostEqual(parsed["mu_weights"][1], (1.0 - 0.99990531) / 2.0, places=7)
 
     @unittest.skipUnless(UPSTREAM.is_dir(), "pinned local IAEA/JADE checkout not present")
+    def test_optional_aim_mode_is_a_positive_isotropic_mixture_over_the_detector_face(self):
+        for case, x_front in (("Tiara-BC_fe-68-40-00", 441.0),
+                              ("Tiara-BC_cc-68-100-00", 501.0)):
+            with self.subTest(case=case):
+                plan = RUNNER.aperture_bias_plan(deck(case), 0.1)
+                target = plan["target"]
+                self.assertEqual(target["center_cm"], [x_front, 0.0, 0.0])
+                radius = math.hypot(target["u_cm"][1], target["v_cm"][2])
+                self.assertAlmostEqual(radius, 6.35)
+                self.assertIn("q=(1-beta)*p_iso + beta*p_rectangle", plan["physical_source"])
+                self.assertEqual(plan["beta"], 0.1)
+                self.assertIn("not established", plan["variance_reduction_claim"])
+                self.assertEqual(plan["environment"]["OPENMC_APERTURE_ONE_SIDED"], "1")
+
+        with self.assertRaises(ValueError):
+            RUNNER.aperture_bias_plan(deck("Tiara-BC_fe-68-40-00"), 1.0)
+
+    @unittest.skipUnless(UPSTREAM.is_dir(), "pinned local IAEA/JADE checkout not present")
     def test_each_published_nonblank_spectrum_point_is_retained_on_the_deck_energy_grid(self):
         from validation.manifest import load_manifest
         for case_id, data in BUILDER.CASES.items():
