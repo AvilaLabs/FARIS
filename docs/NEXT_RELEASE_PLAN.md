@@ -23,6 +23,11 @@ outcome is checked separately and does not establish physical validation. The
 that geometry/source execution evidence does not qualify the composite physical
 coverage. The separate [NUC-050 performance receipt](../references/rm-m-v3-nuc050-control-20261110.json)
 records the completed four-pair comparison and its confidence assumptions.
+The [R3 neutron-energy control](../references/r3-neutron-energy-control-20261110.json)
+completes one million histories on the 177-group full-geometry activation mesh
+with zero recorded losses. It measures below-data-edge MT102 contributions only;
+activation, depletion, photon transport and shutdown dose were not run. The
+neutron-only control does not change the recorded Met count.
 Code already includes CAD import/check/transport, native design windows,
 activation, replacement groups and remote-handling calculations. Research
 results count toward product completion only when the required product path

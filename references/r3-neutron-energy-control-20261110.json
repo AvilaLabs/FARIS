@@ -1,0 +1,101 @@
+{
+  "schema": "faris-r3-neutron-energy-control-receipt/v1",
+  "status": "NEUTRON_STAGE_COMPLETE",
+  "interpretation": "NOT_EVALUATED",
+  "purpose": "Record the completed v2 prospective 0-1e-5 eV flux/MT102 diagnostic and preserve its limits.",
+  "run": {
+    "path": "runs/continuation/r3-thermal-neutron-20261110-v2/result",
+    "histories": 1000000,
+    "batches": 50,
+    "particles_per_batch": 20000,
+    "threads": 4,
+    "seed": 830043501,
+    "elapsed_transport_seconds": 265.6089112599984,
+    "lost_particles": 0,
+    "lost_particle_check": "PASS",
+    "activation_basis": "VITAMIN-J-175-plus-0-to-50MeV",
+    "activation_groups": 177,
+    "activation_mesh_cell_cm": 100.0,
+    "activation_mesh_cells": 1568,
+    "sampled_material_domains": 3616,
+    "transport_geometry_vacuum_sphere_cm": 1000.0,
+    "auxiliary_material_volume_sampling_sphere_cm": 1167.707825203131,
+    "auxiliary_world_scope": "Mesh.material_volumes geometric sampling only; neutron/photon transport model geometry remained unchanged"
+  },
+  "inputs": {
+    "h5m_sha256": "25d125f609293bbbce37482984eb9144de851d53c23b42a227d00ad762ce979d",
+    "cross_sections_xml": "runs/continuation/r3-ce-review-20261109-v2/cross_sections.method-control.xml",
+    "cross_sections_xml_sha256": "d5f82bba9f91aa5c2a643134a9a2a8462ef081b316feea0149fb6073336dd08f",
+    "conditional_data_status": "method-control composite; processing/evaluation lineage remains unqualified",
+    "openmc_version": "0.15.3",
+    "python_imported_c_api_library": {
+      "path": "/home/connoravila/micromamba/envs/openmc0153dd/lib/python3.13/site-packages/openmc/lib/libopenmc.so",
+      "sha256": "ba09ae9d19c4c789d8230abe62984de00d2326723b306c440506f099c2e46216",
+      "identity_scope": "Python-imported OpenMC 0.15.3 C API shared library at the recorded path and hash; this does not claim binding to the native executable-linked library used in the separate UX cases"
+    }
+  },
+  "artifacts": {
+    "run_record": {
+      "path": "runs/continuation/r3-thermal-neutron-20261110-v2/result/r2s_record.json",
+      "sha256": "31f9342549c05c631187c2e2932fcacdd2a11c6f4aeda8920b83febd654a70ee"
+    },
+    "raw_diagnostic": {
+      "path": "runs/continuation/r3-thermal-neutron-20261110-v2/result/neutron_transport/below-data-edge-diagnostic.json",
+      "sha256": "2096e6989c9da5a61a8a583f87d39a997baa8d87a0797ea4209bbf9e56bbe4c1"
+    },
+    "bounded_protocol": {
+      "path": "runs/continuation/r3-thermal-neutron-20261110-v2/result/neutron_transport/bounded-protocol-plan.json",
+      "sha256": "dfd5dc7b6ef866aafb2fcb6966d59364518a3c0bc9100e4e94c281608a998280",
+      "protocol_sha256": "5f65002eae792b9d223a400c689885507de8a897f21224868c1c9fbc9f38ae71"
+    },
+    "statepoint": {
+      "path": "runs/continuation/r3-thermal-neutron-20261110-v2/result/neutron_transport/statepoint.50.h5",
+      "sha256": "0021426f8fa9a5f902dcc92b9450c74f855adc5f607890a383f4b2d285b0d28d"
+    },
+    "solver_model_xml_sha256": "471f435eefcb5c14ffaf24c5a22ee396ba451c301bc9253166a557c73a27445b",
+    "activation_domain_sha256": "646f009b6857e08407e17dacc3c57fcb3b286dff404ae4f880dcbec744730d5e"
+  },
+  "observed_below_data_edge_mt102_fractions": {
+    "interval_eV": [
+      0.0,
+      1e-05
+    ],
+    "statistic": "paired same-history batch fraction of below-edge MT102 response versus the sum of the two tallied bins",
+    "examples": [
+      {
+        "material": "flibe",
+        "nuclide": "Be9",
+        "fraction": 4.532638323282014e-06,
+        "paired_batch_delta_method_se": 5.190139165452626e-07,
+        "raw_status": "AVAILABLE"
+      },
+      {
+        "material": "structure",
+        "nuclide": "Fe56",
+        "fraction": 3.602866866420178e-06,
+        "paired_batch_delta_method_se": 3.6017121147756457e-06,
+        "raw_status": "AVAILABLE"
+      }
+    ],
+    "other_zero_observation_bins": {
+      "comparisons_with_zero_below_edge_observations": 20,
+      "comparisons_total": 38,
+      "derived_policy": "Keep observed fraction 0, set standard_error null, status UNRESOLVED_ZERO_OBSERVED_LOW_BIN, and state that no observed events do not bound the unobserved tail.",
+      "raw_artifact_mutated": false
+    }
+  },
+  "derived_postprocessing_note": {
+    "status": "Derived summary interpretation only; raw v2 diagnostic remains byte-identical.",
+    "run_implementation_sha256": "be01cbd1715dbdc3c3afc1e34c6d9f0bcac3aa42c19baa8bf42a79385d282f31",
+    "postprocessing_implementation": "integrations/openmc/risk_tests/r3_r2s.py::_paired_energy_fraction",
+    "postprocessing_implementation_sha256": "feddae49a2c88bf7c5473deb13a3a268ef2652e7f9de4c279148b562af161c2c",
+    "reason": "A zero delta-method SE from an entirely empty tally bin is not statistical evidence that the contribution is zero."
+  },
+  "limits": {
+    "activation_microxs": "NOT_RUN",
+    "depletion": "NOT_RUN",
+    "photon_transport": "NOT_RUN",
+    "shutdown_dose": "NOT_RUN",
+    "conclusion": "This small below-first-data-edge capture fraction is descriptive for the measured MT102 tallies only. It does not bound all activation channels, daughter production, activation inventories, or dose; it does not establish thermal completeness, energy convergence, spatial convergence, or a physical pass verdict."
+  }
+}

@@ -144,13 +144,29 @@ def _canonical_sha256(value: dict) -> str:
 
 def _paired_energy_fraction(low_batches: list[float], high_batches: list[float]) -> dict:
     if len(low_batches) < 2 or len(low_batches) != len(high_batches):
-        return {"fraction": None, "standard_error": None, "status": "UNAVAILABLE"}
+        return {"fraction": None, "standard_error": None, "status": "UNAVAILABLE",
+                "reason": "paired batch arrays are missing or have mismatched lengths"}
     low = [float(x) for x in low_batches]
     high = [float(x) for x in high_batches]
-    den = math.fsum(low) + math.fsum(high)
-    if not math.isfinite(den) or den <= 0.0 or any(not math.isfinite(x) or x < 0.0 for x in low + high):
-        return {"fraction": None, "standard_error": None, "status": "UNAVAILABLE"}
-    fraction = math.fsum(low) / den
+    if any(not math.isfinite(x) or x < 0.0 for x in low + high):
+        return {"fraction": None, "standard_error": None, "status": "UNAVAILABLE",
+                "reason": "paired batch scores contain non-finite or negative values"}
+    low_total, high_total = math.fsum(low), math.fsum(high)
+    den = low_total + high_total
+    if not math.isfinite(den) or den <= 0.0:
+        return {"fraction": None, "standard_error": None, "status": "UNAVAILABLE",
+                "reason": "no positive tallied score in either energy bin"}
+    if low_total == 0.0:
+        return {"fraction": 0.0, "standard_error": None,
+                "status": "UNRESOLVED_ZERO_OBSERVED_LOW_BIN",
+                "reason": "zero observed score below the data edge does not bound an unobserved low-energy tail",
+                "uncertainty_scope": "uncertainty unavailable for an empty energy bin"}
+    if high_total == 0.0:
+        return {"fraction": 1.0, "standard_error": None,
+                "status": "UNRESOLVED_ZERO_OBSERVED_HIGH_BIN",
+                "reason": "zero observed score at or above the data edge leaves the ratio denominator's high-energy contribution unresolved",
+                "uncertainty_scope": "uncertainty unavailable for an empty energy bin"}
+    fraction = low_total / den
     residual = [a - fraction * (a + b) for a, b in zip(low, high)]
     mean_total = den / len(low)
     mean_residual = math.fsum(residual) / len(residual)

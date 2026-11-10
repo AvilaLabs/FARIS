@@ -132,6 +132,8 @@ class BelowDataEdgeDiagnosticTests(unittest.TestCase):
         self.assertEqual(row["raw_batch_flux_increments_below_and_above"],
                          {"below": [2.0, 3.0], "above": [8.0, 11.0]})
         self.assertAlmostEqual(row["flux_below_vs_tallied_fraction"]["fraction"], 5.0 / 24.0)
+        self.assertEqual(row["flux_below_vs_tallied_fraction"]["status"], "AVAILABLE")
+        self.assertAlmostEqual(row["flux_below_vs_tallied_fraction"]["standard_error"], 1.0 / 144.0)
         capture = row["captures_mt102"][0]
         self.assertEqual(capture["raw_batch_increments_below_and_above"],
                          {"below": [3.0, 5.0], "above": [7.0, 15.0]})
@@ -139,6 +141,24 @@ class BelowDataEdgeDiagnosticTests(unittest.TestCase):
         second = row["captures_mt102"][1]
         self.assertEqual(second["raw_batch_increments_below_and_above"],
                          {"below": [4.0, 5.0], "above": [8.0, 15.0]})
+
+    @unittest.skipIf(R2S is None, "R2S helper requires NumPy and pinned OpenMC environment")
+    def test_empty_energy_bin_keeps_observed_fraction_but_marks_uncertainty_unresolved(self):
+        low_empty = R2S._paired_energy_fraction([0.0, 0.0, 0.0], [2.0, 3.0, 1.0])
+        self.assertEqual(low_empty["fraction"], 0.0)
+        self.assertIsNone(low_empty["standard_error"])
+        self.assertEqual(low_empty["status"], "UNRESOLVED_ZERO_OBSERVED_LOW_BIN")
+        self.assertIn("does not bound", low_empty["reason"])
+
+        high_empty = R2S._paired_energy_fraction([2.0, 0.0, 3.0], [0.0, 0.0, 0.0])
+        self.assertEqual(high_empty["fraction"], 1.0)
+        self.assertIsNone(high_empty["standard_error"])
+        self.assertEqual(high_empty["status"], "UNRESOLVED_ZERO_OBSERVED_HIGH_BIN")
+        self.assertIn("unresolved", high_empty["reason"])
+
+        no_events = R2S._paired_energy_fraction([0.0, 0.0], [0.0, 0.0])
+        self.assertIsNone(no_events["fraction"])
+        self.assertEqual(no_events["status"], "UNAVAILABLE")
 
     @unittest.skipIf(R2S is None, "R2S helper requires NumPy and pinned OpenMC environment")
     def test_invalid_negative_batch_increments_fail(self):
