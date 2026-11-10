@@ -930,8 +930,38 @@ mod tests {
     // Verifies: REL-004
     #[test]
     fn a_real_panic_on_the_ui_thread_goes_through_the_hook_and_leaves_a_record() {
+        const CHILD_CONFIG_ENV: &str = "FARIS_CRASH_REAL_PANIC_CHILD_CONFIG";
+        if let Some(config) = std::env::var_os(CHILD_CONFIG_ENV) {
+            assert_real_ui_panic_is_recorded(PathBuf::from(config));
+            return;
+        }
+
         let dir = tempfile::tempdir().unwrap();
-        let config = dir.path().to_path_buf();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("crash::tests::a_real_panic_on_the_ui_thread_goes_through_the_hook_and_leaves_a_record")
+            .env(CHILD_CONFIG_ENV, dir.path())
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                assert!(
+                    status.success(),
+                    "isolated real-panic test child failed: {status}"
+                );
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("isolated real-panic test child exceeded its 30 second limit");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    fn assert_real_ui_panic_is_recorded(config: PathBuf) {
         let path = recovery::file_for(&recovery::dir_in(&config), 31337);
         let file = recovery::RecoveryFile::new(crate::undo::EditState::placeholder(), None, 1.0);
         recovery::set_emergency(path.clone(), file.encode());
