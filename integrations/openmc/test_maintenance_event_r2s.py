@@ -12,6 +12,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+import warnings
 from unittest.mock import patch
 
 import maintenance_event_r2s as worker
@@ -127,6 +128,31 @@ class RequestBoundaryTests(unittest.TestCase):
                    "openmc_helper": str(helper)}
         with self.assertRaisesRegex(ValueError, "cover every nonvoid"):
             worker.prepare_checked_cad_model(request, self.root / "prepared")
+
+    def test_prepared_model_export_uses_openmc_0153_single_file_api(self):
+        try:
+            import openmc
+        except ImportError:
+            self.skipTest("OpenMC is unavailable")
+        if openmc.__version__ != "0.15.3":
+            self.skipTest("this regression binds the selected OpenMC 0.15.3 API")
+
+        openmc.reset_auto_ids()
+        material = openmc.Material(material_id=9001)
+        material.add_nuclide("Fe56", 1.0, "ao")
+        materials = openmc.Materials([material])
+        sphere = openmc.Sphere(surface_id=9001, r=1.0)
+        cell = openmc.Cell(cell_id=9001, fill=material, region=-sphere)
+        geometry = openmc.Geometry(openmc.Universe(universe_id=9001, cells=[cell]))
+        model = openmc.Model(geometry, materials, openmc.Settings())
+        model_xml = worker.export_model_xml(model, self.root / "prepared-model" / "model.xml")
+
+        self.assertEqual(model_xml, self.root / "prepared-model" / "model.xml")
+        self.assertTrue(model_xml.is_file())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", openmc.IDWarning)
+            reloaded = openmc.Model.from_model_xml(str(model_xml))
+        self.assertEqual(len(reloaded.geometry.get_all_cells()), 1)
 
     def test_activation_chain_coverage_tracks_reachable_products_only(self):
         xs = self.root / "coverage.xml"

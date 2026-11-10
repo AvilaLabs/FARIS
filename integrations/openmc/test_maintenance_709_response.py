@@ -22,6 +22,41 @@ def write_ref(path: Path, data: bytes) -> dict:
 
 
 class ResponseMathTests(unittest.TestCase):
+    def test_model_geometry_binding_accepts_openmc_0153_dagmc_universe_and_checks_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            geometry = root / "geometry" / "dose.h5m"
+            geometry.parent.mkdir()
+            geometry.write_bytes(b"checked h5m")
+            model = root / "model.xml"
+            model.write_text(
+                '<model><geometry><dagmc_universe id="1" filename="geometry/dose.h5m"/>'
+                '</geometry></model>', encoding="utf-8")
+            worker.validate_model_geometry_binding(model, geometry.resolve())
+
+            model.write_text(
+                '<model><geometry><dagmc_universe id="1" filename="geometry/other.h5m"/>'
+                '</geometry></model>', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash-verified DAGMC geometry"):
+                worker.validate_model_geometry_binding(model, geometry.resolve())
+
+            model.write_text(
+                '<model><geometry><dagmc_universe id="1" filename="geometry/dose.h5m"/>'
+                '<dagmc_universe id="2" filename="geometry/dose.h5m"/></geometry></model>',
+                encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash-verified DAGMC geometry"):
+                worker.validate_model_geometry_binding(model, geometry.resolve())
+
+    def test_model_geometry_binding_retains_legacy_dagmc_filename_support(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            geometry = root / "dose.h5m"
+            geometry.write_bytes(b"checked h5m")
+            model = root / "model.xml"
+            model.write_text('<model><geometry><dagmc><filename>dose.h5m</filename>'
+                             '</dagmc></geometry></model>', encoding="utf-8")
+            worker.validate_model_geometry_binding(model, geometry.resolve())
+
     def test_material_volume_rows_are_element_major_and_component_filtered(self):
         volumes = type("MeshMaterialVolumes", (), {
             "_materials": np.array([[7, 8, -1], [8, 7, -1]], dtype=np.int32),

@@ -60,6 +60,15 @@ def positive_int(value, label, maximum):
     return value
 
 
+def export_model_xml(model, model_xml: Path) -> Path:
+    """Export a single-file model XML at an explicit path using OpenMC 0.15.3's API."""
+    model_xml.parent.mkdir(parents=True, exist_ok=True)
+    model.export_to_model_xml(str(model_xml))
+    if not model_xml.is_file():
+        raise RuntimeError("OpenMC model export did not create the requested model.xml")
+    return model_xml
+
+
 def prepare_checked_cad_model(request: dict, out: Path) -> dict:
     """Build dose geometry from checked numeric design data, never from study plugins."""
     required = {"schema", "h5m", "h5m_sha256", "cross_sections", "solids", "materials",
@@ -122,14 +131,13 @@ def prepare_checked_cad_model(request: dict, out: Path) -> dict:
     model.settings.statepoint = {"batches": []}
     model.settings.sourcepoint = {"write": False}
     model_dir = out / "model"
-    model.export_to_xml(directory=str(model_dir))
+    model_xml = export_model_xml(model, model_dir / "model.xml")
     by_component = {}
     for solid in sorted(nonvoid, key=lambda x: x["solid_id"]):
         by_component.setdefault(mapping[solid["solid_id"]], []).append(mats[tags_by_solid[solid["solid_id"]]].id)
     component_map = out / "component-material-map.json"
     component_map.write_text(json.dumps({"schema": "faris-cad-component-material-map/v0.1",
         "geometry_sha256": sha256(geometry), "materials": by_component}, sort_keys=True, separators=(",", ":")))
-    model_xml = model_dir / "model.xml"
     return {"schema": "faris-maintenance-dose-cad-preparation-receipt/v0.1",
             "source_basis": "checked Design plasma tokamak source normalized to unit neutron strength",
             "original_h5m_sha256": sha256(h5m), "derived_h5m_sha256": sha256(geometry),
@@ -579,8 +587,8 @@ def run_common_history_d1s(openmc, request: dict, model_path: Path, out: Path, r
 
     run_dir = out / "d1s_common_history"
     run_dir.mkdir(parents=True, exist_ok=True)
-    model.export_to_model_xml(str(run_dir))
     model_xml = run_dir / "model.xml"
+    export_model_xml(model, model_xml)
     model_hash_before = sha256(model_xml)
     dll_path = Path(openmc.lib.core._dll._name).resolve()
     dll_hash_before = sha256(dll_path)
@@ -878,8 +886,9 @@ def main() -> int:
             photon.settings.seed = s["seed"] + 1 + point_index
             photon_dir = out / "photon_transport" / f"cooling_{point_index}"
             photon_dir.mkdir(parents=True, exist_ok=True)
-            photon.export_to_model_xml(str(photon_dir))
-            photon_result = run_live_scalar(openmc, photon_dir / "model.xml", tally.id,
+            photon_model_xml = photon_dir / "model.xml"
+            export_model_xml(photon, photon_model_xml)
+            photon_result = run_live_scalar(openmc, photon_model_xml, tally.id,
                 s["photon_particles"], s["photon_batches"], s["threads"], s["run_budget_s"])
             raw_mean = photon_result["mean"]
             raw_se = photon_result["standard_error"]

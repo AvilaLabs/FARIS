@@ -442,10 +442,7 @@ def _checked_model_paths(request: dict) -> tuple[Path, Path, Path, dict]:
     geometry_path = checked_ref(request["geometry"], "DAGMC H5M")
     xs_path = checked_ref(request["cross_sections"], "neutron cross-sections XML")
     component_map_path = checked_ref(request["component_material_map"], "component material map")
-    root = ET.parse(model_path).getroot()
-    geometry_nodes = root.findall(".//dagmc/filename")
-    if len(geometry_nodes) != 1 or (model_path.parent / (geometry_nodes[0].text or "")).resolve() != geometry_path:
-        raise ValueError("model XML must reference exactly the hash-verified DAGMC geometry")
+    validate_model_geometry_binding(model_path, geometry_path)
     component_map = json.loads(component_map_path.read_bytes())
     if not isinstance(component_map, dict) or set(component_map) != {"schema", "geometry_sha256", "materials"} or \
             component_map.get("schema") != "faris-cad-component-material-map/v0.1" or \
@@ -463,6 +460,31 @@ def _checked_model_paths(request: dict) -> tuple[Path, Path, Path, dict]:
                 raise ValueError("component material IDs must be positive integers unique across CAD components")
             seen_material_ids.add(material_id)
     return model_path, geometry_path, xs_path, component_map
+
+
+def validate_model_geometry_binding(model_xml: Path, geometry_path: Path) -> None:
+    """Require the model's sole DAGMC reference to resolve to the verified H5M."""
+    root = ET.parse(model_xml).getroot()
+    dagmc_nodes = root.findall(".//dagmc_universe") + root.findall(".//dagmc")
+    if len(dagmc_nodes) != 1:
+        raise ValueError("model XML must reference exactly the hash-verified DAGMC geometry")
+    node = dagmc_nodes[0]
+    if node.tag == "dagmc_universe":
+        reference = node.get("filename")
+    else:
+        filenames = node.findall("filename")
+        reference = filenames[0].text if len(filenames) == 1 else None
+    if not isinstance(reference, str) or not reference.strip():
+        raise ValueError("model XML must reference exactly the hash-verified DAGMC geometry")
+    referenced_path = Path(reference)
+    if not referenced_path.is_absolute():
+        referenced_path = Path(model_xml).parent / referenced_path
+    try:
+        resolved_reference = referenced_path.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("model XML must reference exactly the hash-verified DAGMC geometry") from exc
+    if resolved_reference != Path(geometry_path).resolve(strict=True):
+        raise ValueError("model XML must reference exactly the hash-verified DAGMC geometry")
 
 
 def _library_identity(openmc) -> dict:
@@ -657,10 +679,10 @@ def run_neutron_stage(request: dict, out: Path, openmc=None, request_sha256: str
         raise RuntimeError("OpenMC did not export the neutron response model")
     if source_kernel_identity(solver_model)["kernel_sha256"] != source_identity["kernel_sha256"]:
         raise ValueError("exported solver model changed the checked unit-strength source kernel")
-    solver_root = ET.parse(solver_model).getroot()
-    solver_geometry = solver_root.findall(".//dagmc/filename")
-    if len(solver_geometry) != 1 or (solver_model.parent / (solver_geometry[0].text or "")).resolve() != geometry_path:
-        raise ValueError("exported solver model no longer references the checked H5M")
+    try:
+        validate_model_geometry_binding(solver_model, geometry_path)
+    except ValueError as exc:
+        raise ValueError("exported solver model no longer references the checked H5M") from exc
     run = run_live_tally(openmc, solver_model, tally.id,
                          request["sampling"]["neutron_particles"], request["sampling"]["neutron_batches"],
                          request["sampling"]["threads"], request["sampling"]["run_budget_s"])
