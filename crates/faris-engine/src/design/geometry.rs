@@ -980,6 +980,9 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     }
 
     let mut converted: Option<ConvertOutcome> = None;
+    // Keep the GEO-032 result for the selected converter candidate. The helper is bounded but
+    // expensive, and its cache identity includes the facet hash and requested chord.
+    let mut selected_deviation: Option<ToolResult<DeviationOutcome>> = None;
     let was_default = design.cad.faceting_tolerance_m.is_none();
     let maximum_attempts = if was_default {
         DEFAULT_CHORD_ATTEMPTS
@@ -1121,21 +1124,70 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                     let bound = binding::bind(design, &stats, diagonal);
                     let (_, gate_findings) =
                         binding::volume_gate(&bound.rows, attempt_chord_m, !was_default);
-                    let strict_pass = bound.findings.is_empty() && gate_findings.is_empty();
+                    let volume_pass = bound.findings.is_empty() && gate_findings.is_empty();
                     let volume_only_binding = !bound.findings.is_empty()
                         && bound.findings.iter().all(|finding| {
                             finding.why.contains("centroid matches solid")
                                 && finding.why.contains("faceted volume")
                         });
-                    let can_refine = was_default
+                    let can_refine_volume = was_default
                         && ((!gate_findings.is_empty() && bound.findings.is_empty())
                             || volume_only_binding);
+                    let mut candidate_deviation = None;
+                    let deviation_exceeded = if volume_pass {
+                        let map: Vec<(u32, usize)> = bound
+                            .volume_solid
+                            .as_ref()
+                            .into_iter()
+                            .flatten()
+                            .enumerate()
+                            .map(|(volume, &solid)| {
+                                (volume as u32 + 1, design.solids[solid].step_index)
+                            })
+                            .collect();
+                        let deviation_dir = attempt_dir.join("deviation");
+                        let result = backends.deviation(&DeviationRequest {
+                            step,
+                            shape_unit_m,
+                            tolerance_m: attempt_chord_m,
+                            facets_bin: &out.facets_bin,
+                            map: &map,
+                            directory: &deviation_dir,
+                            workers: options.threads.clamp(1, 4),
+                            occt_points: options.deviation_points,
+                            bound_queries: options.deviation_bound_queries,
+                            bound_depth: options.deviation_bound_depth,
+                            shape_cache,
+                        })?;
+                        let exceeds = match &result {
+                            ToolResult::Done(deviation) => deviation.rows.iter().any(|row| {
+                                row.global_bound_status == "certified"
+                                    && row
+                                        .global_upper_bound_m
+                                        .is_some_and(|bound| bound > attempt_chord_m)
+                            }),
+                            _ => false,
+                        };
+                        candidate_deviation = Some(result);
+                        exceeds
+                    } else {
+                        false
+                    };
+                    let strict_pass = volume_pass && !deviation_exceeded;
+                    let can_refine =
+                        can_refine_volume || (was_default && volume_pass && deviation_exceeded);
                     let status = if strict_pass {
                         "VOLUME_AND_BINDING_GATES_PASSED"
+                    } else if deviation_exceeded && !was_default {
+                        "DEVIATION_GATE_FAILED"
                     } else if can_refine && attempt_index + 1 < maximum_attempts {
                         "REFINEMENT_REQUIRED"
                     } else if can_refine {
-                        "VOLUME_GATE_EXHAUSTED"
+                        if deviation_exceeded {
+                            "DEVIATION_GATE_EXHAUSTED"
+                        } else {
+                            "VOLUME_GATE_EXHAUSTED"
+                        }
                     } else if !bound.findings.is_empty() {
                         "BINDING_FAILED"
                     } else {
@@ -1168,8 +1220,19 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                             binding_rows: bound.rows,
                             binding_findings: reasons.clone(),
                             largest_relative_difference: Some(largest),
-                            reason: (!reasons.is_empty()).then(|| reasons.join("; ")),
+                            reason: (!reasons.is_empty()).then(|| reasons.join("; ")).or_else(
+                                || {
+                                    deviation_exceeded.then(|| {
+                                    "certified whole-facet deviation exceeds requested chord".into()
+                                })
+                                },
+                            ),
                         });
+                    if candidate_deviation.is_some()
+                        && (strict_pass || attempt_index + 1 == maximum_attempts || !can_refine)
+                    {
+                        selected_deviation = candidate_deviation;
+                    }
                     converted = Some(out);
                     chord_m = attempt_chord_m;
                     if strict_pass || !can_refine || attempt_index + 1 == maximum_attempts {
@@ -1362,6 +1425,9 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         (true, Some("VOLUME_AND_BINDING_GATES_PASSED")) => "VOLUME_AND_BINDING_GATES_PASSED",
         (true, Some("VOLUME_GATE_FAILED" | "VOLUME_GATE_EXHAUSTED")) => {
             "RETAINED_VOLUME_GATE_FAILURE"
+        }
+        (true, Some("DEVIATION_GATE_EXHAUSTED" | "DEVIATION_GATE_FAILED")) => {
+            "RETAINED_DEVIATION_GATE_FAILURE"
         }
         (true, Some("BINDING_FAILED")) => "RETAINED_BINDING_FAILURE",
         (true, Some("MODEL_INVALID")) => "RETAINED_INVALID_MODEL",
@@ -1632,19 +1698,23 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         .collect();
     let deviation_dir = work.join("deviation");
     let mut sliver_note: Option<String> = None;
-    match backends.deviation(&DeviationRequest {
-        step,
-        shape_unit_m,
-        tolerance_m: chord_m,
-        facets_bin: &converted.facets_bin,
-        map: &map,
-        directory: &deviation_dir,
-        workers: options.threads.clamp(1, 4),
-        occt_points: options.deviation_points,
-        bound_queries: options.deviation_bound_queries,
-        bound_depth: options.deviation_bound_depth,
-        shape_cache,
-    })? {
+    let deviation_result = match selected_deviation.take() {
+        Some(result) => result,
+        None => backends.deviation(&DeviationRequest {
+            step,
+            shape_unit_m,
+            tolerance_m: chord_m,
+            facets_bin: &converted.facets_bin,
+            map: &map,
+            directory: &deviation_dir,
+            workers: options.threads.clamp(1, 4),
+            occt_points: options.deviation_points,
+            bound_queries: options.deviation_bound_queries,
+            bound_depth: options.deviation_bound_depth,
+            shape_cache,
+        })?,
+    };
+    match deviation_result {
         ToolResult::Done(out) => {
             let mut solids = Vec::new();
             let mut unresolved_bounds = 0usize;

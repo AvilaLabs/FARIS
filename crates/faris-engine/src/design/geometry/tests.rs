@@ -25,6 +25,8 @@ struct Geo {
     convert_failure_after: Option<usize>,
     convert_unavailable_after: Option<usize>,
     deviation: Option<Vec<DeviationRow>>,
+    deviation_upper_bound_m: Option<f64>,
+    deviation_pass_after_first_refinement: bool,
     stochastic_volume_exceeded: bool,
     stochastic_volume_unavailable: bool,
     sites: Vec<[f64; 3]>,
@@ -182,11 +184,27 @@ impl Backends for Geo {
         self.bump(3);
         self.deviation_chords.borrow_mut().push(request.tolerance_m);
         Ok(match &self.deviation {
-            Some(rows) => ToolResult::Done(DeviationOutcome {
-                rows: rows.clone(),
-                seconds: 0.1,
-                method: "test".into(),
-            }),
+            Some(rows) => {
+                let mut rows = rows.clone();
+                if let Some(ratio) = self.deviation_upper_bound_m {
+                    let ratio = if self.deviation_pass_after_first_refinement
+                        && request.tolerance_m < DEFAULT_CHORD_M
+                    {
+                        0.75
+                    } else {
+                        ratio
+                    };
+                    for row in &mut rows {
+                        row.global_upper_bound_m = Some(request.tolerance_m * ratio);
+                        row.global_bound_status = "certified".into();
+                    }
+                }
+                ToolResult::Done(DeviationOutcome {
+                    rows,
+                    seconds: 0.1,
+                    method: "test".into(),
+                })
+            }
             None => ToolResult::Unavailable {
                 why: "no CAD interpreter".into(),
                 next_step: "Pass --cad-python.".into(),
@@ -348,6 +366,8 @@ fn geo() -> Geo {
                 at_m: Some([0.0, 0.0, 2.0]),
             },
         ]),
+        deviation_upper_bound_m: None,
+        deviation_pass_after_first_refinement: false,
         stochastic_volume_exceeded: false,
         stochastic_volume_unavailable: false,
         sites,
@@ -647,6 +667,81 @@ fn default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_ch
         backend.stochastic_volume_h5m_sha256.borrow()[0],
         conversion.h5m_sha256
     );
+}
+
+#[test]
+fn default_chord_refines_on_certified_whole_facet_deviation_and_reuses_selected_result() {
+    let backend = geo();
+    // The fixture reports an over-tolerance bound at the default, then a passing bound after halving.
+    let backend = Geo {
+        deviation_upper_bound_m: Some(1.5),
+        deviation_pass_after_first_refinement: true,
+        ..backend
+    };
+    let report = run_with(&design(Vec::new()), &backend);
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert_eq!(adaptive.attempt_records.len(), 2);
+    assert_eq!(adaptive.attempt_records[0].status, "REFINEMENT_REQUIRED");
+    assert_eq!(
+        adaptive.attempt_records[1].status,
+        "VOLUME_AND_BINDING_GATES_PASSED"
+    );
+    assert_eq!(adaptive.selected_chord_m, Some(DEFAULT_CHORD_M * 0.5));
+    assert_eq!(
+        backend.deviation_chords.borrow().as_slice(),
+        &[DEFAULT_CHORD_M, DEFAULT_CHORD_M * 0.5]
+    );
+    assert!(
+        report
+            .geometry
+            .deviation
+            .as_ref()
+            .unwrap()
+            .solids
+            .iter()
+            .all(|s| !s.above_tolerance)
+    );
+}
+
+#[test]
+fn explicit_tolerance_does_not_retry_certified_whole_facet_deviation_failure() {
+    let backend = Geo {
+        deviation_upper_bound_m: Some(1.5),
+        ..geo()
+    };
+    let mut d = design(Vec::new());
+    d.cad.faceting_tolerance_m = Some(DEFAULT_CHORD_M);
+    let report = run_with(&d, &backend);
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert!(!adaptive.was_default);
+    assert_eq!(adaptive.attempt_records.len(), 1);
+    assert_eq!(adaptive.attempt_records[0].status, "DEVIATION_GATE_FAILED");
+    assert_eq!(backend.conversion_chords.borrow().len(), 1);
+    assert_eq!(statuses(&report), [(6, Pass), (7, Pass), (8, Fail)]);
+}
+
+#[test]
+fn default_deviation_refinement_exhaustion_remains_a_failure_with_receipts() {
+    let backend = Geo {
+        deviation_upper_bound_m: Some(2.0),
+        ..geo()
+    };
+    let report = run_with(&design(Vec::new()), &backend);
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert!(adaptive.exhausted);
+    assert_eq!(adaptive.attempt_records.len(), DEFAULT_CHORD_ATTEMPTS);
+    assert!(
+        adaptive
+            .attempt_records
+            .iter()
+            .all(|a| a.status == "REFINEMENT_REQUIRED" || a.status == "DEVIATION_GATE_EXHAUSTED")
+    );
+    assert_eq!(
+        adaptive.attempt_records.last().unwrap().status,
+        "DEVIATION_GATE_EXHAUSTED"
+    );
+    assert_eq!(adaptive.candidate_status, "RETAINED_DEVIATION_GATE_FAILURE");
+    assert_eq!(statuses(&report), [(6, Pass), (7, Pass), (8, Fail)]);
 }
 
 #[test]
