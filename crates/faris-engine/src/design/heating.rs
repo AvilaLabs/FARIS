@@ -1409,91 +1409,11 @@ fn design_heating_impl(
                 .into(),
         ));
     }
-    let mut solids = Vec::new();
-    for worker_solid in worker.solids {
-        let peak = worker_solid.peak.expect("checked above");
-        let peak_voxel = worker_solid
-            .voxel_scores
-            .iter()
-            .find(|voxel| voxel.is_peak)
-            .expect("checked above");
-        let peak_total = peak_voxel.components.get("total").expect("checked above");
-        if !close_enough(peak.mean, peak_total.mean_ev_per_source)
-            || !close_enough(
-                peak.standard_error.unwrap_or(0.0),
-                peak_total.standard_error_ev_per_source,
-            )
-            || !close_enough(peak.volume_cm3, peak_voxel.volume_cm3)
-            || peak
-                .r_cm
-                .iter()
-                .zip(peak_voxel.r_cm)
-                .chain(peak.z_cm.iter().zip(peak_voxel.z_cm))
-                .any(|(left, right)| !close_enough(*left, right))
-            || peak.components.iter().any(|(name, score)| {
-                peak_voxel.components.get(name).is_none_or(|voxel_score| {
-                    !close_enough(score.mean_ev_per_source, voxel_score.mean_ev_per_source)
-                        || !close_enough(
-                            score.standard_error_ev_per_source,
-                            voxel_score.standard_error_ev_per_source,
-                        )
-                })
-            })
-        {
-            return Err(DesignError::Tool(
-                "the worker's selected peak does not match its returned voxel scores".into(),
-            ));
-        }
-        let estimate = normalize_heating_ev_per_source(
-            peak.mean,
-            peak.standard_error,
-            source_rate,
-            peak.volume_cm3 / 1.0e6,
-            peak.volume_estimator.sampling_relative_error,
-        )?;
-        let volume_estimator = peak.volume_estimator.clone();
-        let voxels = worker_solid
-            .voxel_scores
-            .into_iter()
-            .map(|voxel| VoxelHeating {
-                r_m: voxel.r_cm.map(|v| v / 100.0),
-                z_m: voxel.z_cm.map(|v| v / 100.0),
-                volume_m3: voxel.volume_cm3 / 1.0e6,
-                component_scores: worker_scores(voxel.components),
-                closure_residual: worker_score(voxel.closure_residual),
-                is_peak: voxel.is_peak,
-            })
-            .collect();
-        solids.push(SolidHeating {
-            solid_id: worker_solid.solid_id,
-            neutron: worker_score(worker_solid.neutron),
-            photon: worker_score(worker_solid.photon),
-            electron: worker_score(worker_solid.electron),
-            positron: worker_score(worker_solid.positron),
-            total: worker_score(worker_solid.total),
-            closure_residual: worker_score(worker_solid.closure_residual),
-            volume_estimator,
-            peak: Some(HeatingPeak {
-                energy_ev_per_source: estimate.energy_ev_per_source,
-                sampling_se_ev_per_source: estimate.sampling_se_ev_per_source,
-                volume_m3: estimate.volume_m3,
-                r_m: peak.r_cm.map(|v| v / 100.0),
-                z_m: peak.z_cm.map(|v| v / 100.0),
-                pieces_ranked: peak.pieces_ranked,
-                volume_estimator: peak.volume_estimator,
-                closure_residual: worker_score(peak.closure_residual),
-                power_density_kw_m3: estimate.power_density_kw_m3,
-                sampling_se_kw_m3: estimate.sampling_se_kw_m3,
-                volume_sampling_relative_error: estimate.volume_sampling_relative_error,
-                component_scores: peak
-                    .components
-                    .into_iter()
-                    .map(|(name, score)| (name, worker_score(score)))
-                    .collect(),
-            }),
-            voxels,
-        });
-    }
+    let solids = worker
+        .solids
+        .into_iter()
+        .map(|solid| worker_solid_to_heating(solid, source_rate))
+        .collect::<Result<Vec<_>, _>>()?;
     report.status = worker
         .status
         .clone()
@@ -1538,6 +1458,96 @@ fn design_heating_impl(
     report.notices.push("The voxel volume estimator uses ray sampling. This adapter records ray count but does not provide its volume standard error; that geometric uncertainty is not included in the Monte Carlo heating error.".into());
     write_report(&run_dir, &report)?;
     Ok(report)
+}
+
+/// Convert one validated worker solid into its report form, preserving the worker voxel volume
+/// as the averaging volume for both the peak density and its Monte Carlo standard error.
+fn worker_solid_to_heating(
+    worker_solid: WorkerSolid,
+    source_rate: f64,
+) -> Result<SolidHeating, DesignError> {
+    let peak = worker_solid.peak.expect("checked above");
+    let peak_voxel = worker_solid
+        .voxel_scores
+        .iter()
+        .find(|voxel| voxel.is_peak)
+        .expect("checked above");
+    let peak_total = peak_voxel.components.get("total").expect("checked above");
+    if !close_enough(peak.mean, peak_total.mean_ev_per_source)
+        || !close_enough(
+            peak.standard_error.unwrap_or(0.0),
+            peak_total.standard_error_ev_per_source,
+        )
+        || !close_enough(peak.volume_cm3, peak_voxel.volume_cm3)
+        || peak
+            .r_cm
+            .iter()
+            .zip(peak_voxel.r_cm)
+            .chain(peak.z_cm.iter().zip(peak_voxel.z_cm))
+            .any(|(left, right)| !close_enough(*left, right))
+        || peak.components.iter().any(|(name, score)| {
+            peak_voxel.components.get(name).is_none_or(|voxel_score| {
+                !close_enough(score.mean_ev_per_source, voxel_score.mean_ev_per_source)
+                    || !close_enough(
+                        score.standard_error_ev_per_source,
+                        voxel_score.standard_error_ev_per_source,
+                    )
+            })
+        })
+    {
+        return Err(DesignError::Tool(
+            "the worker's selected peak does not match its returned voxel scores".into(),
+        ));
+    }
+    let estimate = normalize_heating_ev_per_source(
+        peak.mean,
+        peak.standard_error,
+        source_rate,
+        peak.volume_cm3 / 1.0e6,
+        peak.volume_estimator.sampling_relative_error,
+    )?;
+    let volume_estimator = peak.volume_estimator.clone();
+    let voxels = worker_solid
+        .voxel_scores
+        .into_iter()
+        .map(|voxel| VoxelHeating {
+            r_m: voxel.r_cm.map(|v| v / 100.0),
+            z_m: voxel.z_cm.map(|v| v / 100.0),
+            volume_m3: voxel.volume_cm3 / 1.0e6,
+            component_scores: worker_scores(voxel.components),
+            closure_residual: worker_score(voxel.closure_residual),
+            is_peak: voxel.is_peak,
+        })
+        .collect();
+    Ok(SolidHeating {
+        solid_id: worker_solid.solid_id,
+        neutron: worker_score(worker_solid.neutron),
+        photon: worker_score(worker_solid.photon),
+        electron: worker_score(worker_solid.electron),
+        positron: worker_score(worker_solid.positron),
+        total: worker_score(worker_solid.total),
+        closure_residual: worker_score(worker_solid.closure_residual),
+        volume_estimator,
+        peak: Some(HeatingPeak {
+            energy_ev_per_source: estimate.energy_ev_per_source,
+            sampling_se_ev_per_source: estimate.sampling_se_ev_per_source,
+            volume_m3: estimate.volume_m3,
+            r_m: peak.r_cm.map(|v| v / 100.0),
+            z_m: peak.z_cm.map(|v| v / 100.0),
+            pieces_ranked: peak.pieces_ranked,
+            volume_estimator: peak.volume_estimator,
+            closure_residual: worker_score(peak.closure_residual),
+            power_density_kw_m3: estimate.power_density_kw_m3,
+            sampling_se_kw_m3: estimate.sampling_se_kw_m3,
+            volume_sampling_relative_error: estimate.volume_sampling_relative_error,
+            component_scores: peak
+                .components
+                .into_iter()
+                .map(|(name, score)| (name, worker_score(score)))
+                .collect(),
+        }),
+        voxels,
+    })
 }
 
 /// Bind a completed whole-model heat report to one previously validated CAD history-rate
@@ -3542,6 +3552,90 @@ mod tests {
                 < 1e-12
         );
         assert_eq!(report.solids[0].voxels[0].volume_m3, 0.01);
+
+        // Two worker voxel responses exercise the same conversion used by design_heating_impl.
+        let worker_solid = |volume_cm3: f64| {
+            let score = |mean, se| WorkerScore {
+                mean_ev_per_source: mean,
+                standard_error_ev_per_source: se,
+                within_3se: Some(true),
+                roundoff_tolerance_ev_per_source: Some(1e-12),
+            };
+            let components: BTreeMap<String, WorkerScore> = [
+                ("neutron".into(), score(1000.0, 100.0)),
+                ("photon".into(), score(0.0, 0.0)),
+                ("electron".into(), score(0.0, 0.0)),
+                ("positron".into(), score(0.0, 0.0)),
+                ("total".into(), score(1000.0, 100.0)),
+            ]
+            .into_iter()
+            .collect();
+            let estimator = VolumeEstimator {
+                method: "fixture voxel volume".into(),
+                rays: 1000,
+                sampling_relative_error: None,
+                sampling_uncertainty_reported: false,
+            };
+            let voxel = WorkerVoxel {
+                r_cm: [100.0, 105.0],
+                z_cm: [-5.0, 0.0],
+                volume_cm3,
+                components: components.clone(),
+                closure_residual: score(0.0, 0.0),
+                is_peak: true,
+            };
+            WorkerSolid {
+                solid_id: "tf-winding-01".into(),
+                neutron: score(1000.0, 100.0),
+                photon: score(0.0, 0.0),
+                electron: score(0.0, 0.0),
+                positron: score(0.0, 0.0),
+                total: score(1000.0, 100.0),
+                closure_residual: score(0.0, 0.0),
+                peak: Some(WorkerPeak {
+                    mean: 1000.0,
+                    standard_error: Some(100.0),
+                    volume_cm3,
+                    r_cm: voxel.r_cm,
+                    z_cm: voxel.z_cm,
+                    pieces_ranked: 1,
+                    volume_estimator: estimator,
+                    closure_residual: score(0.0, 0.0),
+                    components,
+                }),
+                voxel_scores: vec![voxel],
+            }
+        };
+        let mut paired_report = report.clone();
+        paired_report.solids = [10_000.0, 20_000.0]
+            .into_iter()
+            .map(|volume| worker_solid_to_heating(worker_solid(volume), 1.0e18).unwrap())
+            .collect();
+        let peaks: Vec<_> = paired_report
+            .solids
+            .iter()
+            .map(|solid| solid.peak.as_ref().unwrap())
+            .collect();
+        assert_eq!(peaks[0].volume_m3, 0.01);
+        assert_eq!(peaks[1].volume_m3, 0.02);
+        assert!((peaks[0].power_density_kw_m3 - 16.021_766_34).abs() < 1e-12);
+        assert!((peaks[1].power_density_kw_m3 - 8.010_883_17).abs() < 1e-12);
+        assert!((peaks[0].sampling_se_kw_m3.unwrap() - 1.602_176_634).abs() < 1e-12);
+        assert!((peaks[1].sampling_se_kw_m3.unwrap() - 0.801_088_317).abs() < 1e-12);
+        assert_eq!(
+            paired_report.solids[0].voxels[0].volume_m3,
+            peaks[0].volume_m3
+        );
+        assert_eq!(
+            paired_report.solids[1].voxels[0].volume_m3,
+            peaks[1].volume_m3
+        );
+        let paired_text = render_design_heating_text(&paired_report);
+        assert!(paired_text.contains("1.602177e1 kW/m³"));
+        assert!(paired_text.contains("8.010883e0 kW/m³"));
+        assert!(paired_text.contains("sampled voxel volume: 1.000000e-2 m³"));
+        assert!(paired_text.contains("sampled voxel volume: 2.000000e-2 m³"));
+
         let rendered = render_design_heating_text(&report);
         assert!(rendered.contains("Design: case"));
         assert!(rendered.contains("Input path: design.json"));
