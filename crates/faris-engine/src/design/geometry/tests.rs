@@ -891,6 +891,22 @@ fn unresolved_global_deviation_bound_does_not_accept_a_sampled_run_or_allow_waiv
     assert_eq!(statuses(&waived).len(), 4);
 }
 
+// Verifies: GEO-032 report wording
+#[test]
+fn report_does_not_present_sample_maximum_as_a_certified_bound_when_all_bounds_are_unresolved() {
+    let mut b = geo();
+    for row in b.deviation.as_mut().unwrap() {
+        row.global_bound_status = "unresolved".into();
+        row.global_upper_bound_m = None;
+    }
+    let report = run_with(&design(Vec::new()), &b);
+    let readable = super::super::render_text(&report);
+    assert!(readable.contains("no overall global upper bound certified"), "{readable}");
+    assert!(readable.contains("largest diagnostic sampled distance"), "{readable}");
+    assert!(readable.contains("(not a global bound)"), "{readable}");
+    assert!(!readable.contains("largest certified upper bound"), "{readable}");
+}
+
 // Verifies: GEO-032
 #[test]
 fn a_capped_deviation_says_it_measured_a_stride() {

@@ -1530,22 +1530,53 @@ fn render_geometry(g: &GeometryRecords) -> String {
         }
     }
     if let Some(d) = &g.deviation {
-        let worst = d.solids.iter().max_by(|a, b| {
-            a.global_upper_bound_m
-                .unwrap_or(a.max_distance_m)
-                .total_cmp(&b.global_upper_bound_m.unwrap_or(b.max_distance_m))
+        let certified = d
+            .solids
+            .iter()
+            .filter(|s| s.global_bound_status == "certified" && s.global_upper_bound_m.is_some())
+            .max_by(|a, b| {
+                a.global_upper_bound_m
+                    .unwrap()
+                    .total_cmp(&b.global_upper_bound_m.unwrap())
+            });
+        let sampled = d.solids.iter().max_by(|a, b| {
+            a.max_distance_m.total_cmp(&b.max_distance_m)
         });
+        let certified_count = d
+            .solids
+            .iter()
+            .filter(|s| s.global_bound_status == "certified" && s.global_upper_bound_m.is_some())
+            .count();
+        let unresolved_count = d.solids.len().saturating_sub(certified_count);
+        let summary = if let Some(w) = certified {
+            let scope = if unresolved_count == 0 {
+                "overall"
+            } else {
+                "among certified solids only; no overall global bound"
+            };
+            format!(
+                "largest certified global upper bound {:.3e} m in {} ({scope}; {certified_count}/{} solids certified, {unresolved_count} unresolved); tolerance {:.3e} m",
+                w.global_upper_bound_m.unwrap(),
+                w.solid_id,
+                d.solids.len(),
+                d.chord_tolerance_m
+            )
+        } else {
+            format!(
+                "no overall global upper bound certified; {} of {} solid(s) unresolved; largest diagnostic sampled distance {:.3e} m in {} (not a global bound); tolerance {:.3e} m",
+                unresolved_count,
+                d.solids.len(),
+                sampled.map_or(0.0, |s| s.max_distance_m),
+                sampled.map_or("unknown", |s| s.solid_id.as_str()),
+                d.chord_tolerance_m
+            )
+        };
         out.push_str(&format!(
             "\nFaceting deviation (GEO-032, {:.1} s): {}\n  {} solid(s); {}\n",
             d.seconds,
             d.statement,
             d.solids.len(),
-            worst.map_or(String::new(), |w| format!(
-                "largest certified upper bound {:.3e} m in {} against the tolerance {:.3e} m",
-                w.global_upper_bound_m.unwrap_or(w.max_distance_m),
-                w.solid_id,
-                d.chord_tolerance_m
-            ))
+            summary
         ));
         for s in &d.solids {
             out.push_str(&format!(
