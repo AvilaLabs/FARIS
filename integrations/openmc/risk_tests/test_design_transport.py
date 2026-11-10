@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 from types import ModuleType, SimpleNamespace
@@ -249,6 +250,38 @@ class WindowHelpersTest(unittest.TestCase):
         request["solids"][1]["classification"] = None
         with self.assertRaisesRegex(ValueError, "explicit winding-pack"):
             DT.validate_heating_request(request)
+
+    def test_heating_preflight_imports_openmc_lib_in_fresh_interpreter(self):
+        python = os.environ.get("FARIS_OPENMC_PYTHON", sys.executable)
+        script = '''
+import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+try:
+    import openmc
+except ModuleNotFoundError as exc:
+    if exc.name == "openmc":
+        raise SystemExit(77)
+    raise
+import design_transport as worker
+root = pathlib.Path(sys.argv[2])
+(root / "model.h5m").write_bytes(b"geometry")
+(root / "cross_sections.xml").write_text("<cross_sections />")
+def stop_after_import(_request):
+    assert hasattr(openmc, "lib"), "phase preflight did not initialize openmc.lib"
+    raise ValueError("regression sentinel")
+worker.validate_heating_request = stop_after_import
+record = worker.phase_heating_preflight({"h5m": str(root / "model.h5m"),
+                                         "cross_sections": str(root / "cross_sections.xml")}, root)
+assert record["status"] == "NOT_EVALUATED", record
+assert record["why"] == "regression sentinel", record
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run([python, "-c", script,
+                                     str(Path(DT.__file__).resolve().parent), tmp],
+                                    check=False, capture_output=True, text=True, timeout=10)
+            if result.returncode == 77:
+                self.skipTest("selected Python does not have OpenMC installed")
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_window_grid_reproduces_the_research_mesh_on_the_reference_model(self):
         lower, upper, dimension = DT.window_grid([-645.0, -645.0, -381.0], [645.0, 645.0, 381.0])
@@ -684,7 +717,10 @@ class PeakTest(unittest.TestCase):
                 "sampling": {"particles_per_batch": 1000, "min_batches": 30, "max_batches": 30,
                              "max_seconds": 60.0, "seed": 1, "threads": 1, "target_relative_error": 0.05},
             }
-            fake_modules = {"openmc": OpenMC("openmc"), "h5py": types.ModuleType("h5py")}
+            fake_openmc = OpenMC("openmc")
+            fake_openmc.__path__ = []
+            fake_modules = {"openmc": fake_openmc, "openmc.lib": ModuleType("openmc.lib"),
+                            "h5py": types.ModuleType("h5py")}
             with patch.dict("sys.modules", fake_modules):
                 record = DT.phase_heating_preflight(request, root)
             self.assertEqual(record["status"], "NOT_EVALUATED")
@@ -726,7 +762,10 @@ class PeakTest(unittest.TestCase):
             h5m.write_bytes(b"geometry")
             cross_sections.write_bytes(b"data")
             request["h5m"], request["cross_sections"] = str(h5m), str(cross_sections)
-            with patch.dict("sys.modules", {"openmc": OpenMC("openmc"), "h5py": ModuleType("h5py")}), \
+            fake_openmc = OpenMC("openmc")
+            fake_openmc.__path__ = []
+            with patch.dict("sys.modules", {"openmc": fake_openmc, "openmc.lib": ModuleType("openmc.lib"),
+                                            "h5py": ModuleType("h5py")}), \
                  patch.object(DT, "heating_runtime_identity", return_value={}), \
                  patch.object(DT, "heating_data_identity", side_effect=AssertionError("data audit ran too early")):
                 record = DT.phase_heating_preflight(request, work)

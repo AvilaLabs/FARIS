@@ -1779,6 +1779,7 @@ def phase_heating_preflight(request: dict, work: Path) -> dict:
     """Return a structured NOT_EVALUATED report for missing coupled data before volume rays run."""
     import h5py
     import openmc
+    import openmc.lib
 
     target = work / "solver" / "heating-preflight.json"
     target.parent.mkdir(parents=True, exist_ok=True)
