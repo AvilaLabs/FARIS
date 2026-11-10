@@ -18,19 +18,24 @@ assert SPEC.loader
 SPEC.loader.exec_module(MODULE)
 
 
-def table_bytes(zero_row: int | None = None) -> bytes:
+def expected_edges() -> list[float]:
+    return MODULE.radial_upper_edges_cm(830.0, 1084.2, 1, 78)
+
+
+def table_bytes(zero_row: int | None = None,
+                coordinates: list[float] | None = None) -> bytes:
     rows = ["Cor A,Value,Error"]
+    coordinates = expected_edges() if coordinates is None else coordinates
     for index in range(MODULE.N_ROWS):
-        coordinate = 830.0 + (1084.2 - 830.0) * index / 78
-        if index == 78:
-            coordinate = 1084.2
+        coordinate = coordinates[index]
         value, error = ("0", "0") if index == zero_row else (str(index + 1), "0.1")
         rows.append(f"{coordinate:.10g},{value},{error}")
     return ("\n".join(rows) + "\n").encode()
 
 
 def tables() -> dict[str, list[dict]]:
-    return {name: MODULE.parse_table(table_bytes(4 if name == "neutron_flux" else None), name)
+    edges = expected_edges()
+    return {name: MODULE.parse_table(table_bytes(4 if name == "neutron_flux" else None), name, edges)
             for name in MODULE.RESPONSES}
 
 
@@ -63,6 +68,12 @@ class JadeTbmIntake(unittest.TestCase):
             selected = [d for d in candidate["detectors"] if d["response_class"] == response]
             self.assertEqual([d["candidate_reference"]["mesh_index"] for d in selected], list(range(79)))
             self.assertTrue(all(d["reference"] is None and d["blocked"] for d in selected))
+            self.assertEqual(selected[0]["mesh_bin"], {
+                "index": 0, "radial_lower_cm": 0.0, "radial_upper_cm": 830.0,
+                "Cor_A_semantics": "upper radial edge",
+            })
+            self.assertEqual(selected[1]["mesh_bin"]["radial_lower_cm"], 830.0)
+            self.assertEqual(selected[-1]["mesh_bin"]["radial_upper_cm"], 1084.2)
         zero = next(d for d in candidate["detectors"] if d["id"] == "neutron_flux:mesh-004")
         self.assertEqual(zero["candidate_reference"]["value"], 0)
         self.assertEqual(zero["candidate_reference"]["precision_status"], "unknown_zero_score")
@@ -78,6 +89,35 @@ class JadeTbmIntake(unittest.TestCase):
         parsed["photon_flux"][10]["cor_a_cm"] += 0.01
         with self.assertRaisesRegex(ValueError, "coordinates do not exactly match"):
             MODULE.manifest_from_rows("HCPB_TBM_1D", parsed, "2026-11-09")
+
+    def test_exact_grid_accepts_print_rounding_and_rejects_centers_reordering_or_missing_bin(self):
+        edges = expected_edges()
+        rounded = edges.copy()
+        rounded[20] += 0.004
+        parsed = MODULE.parse_table(table_bytes(coordinates=rounded), "rounded grid", edges)
+        self.assertEqual(parsed[20]["radial_interval_lower_cm"], edges[19])
+        self.assertEqual(parsed[20]["radial_interval_upper_cm"], edges[20])
+
+        centers = edges.copy()
+        centers[20] = (edges[19] + edges[20]) / 2
+        with self.assertRaisesRegex(ValueError, "does not match expected radial upper edge"):
+            MODULE.parse_table(table_bytes(coordinates=centers), "center coordinates", edges)
+
+        reordered = edges.copy()
+        reordered[20], reordered[21] = reordered[21], reordered[20]
+        with self.assertRaises(ValueError):
+            MODULE.parse_table(table_bytes(coordinates=reordered), "reordered coordinates", edges)
+
+        missing = table_bytes().decode().splitlines()
+        del missing[21]
+        with self.assertRaisesRegex(ValueError, "expected exactly 79 response rows"):
+            MODULE.parse_table(("\n".join(missing) + "\n").encode(), "missing bin", edges)
+
+    def test_input_grid_uses_79_upper_edges_with_first_bin_from_axis_origin(self):
+        edges = expected_edges()
+        self.assertEqual(len(edges), 79)
+        self.assertEqual(edges[0], 830.0)
+        self.assertEqual(edges[-1], 1084.2)
 
     def test_metadata_and_csv_are_bound_to_exact_pinned_sha256_not_git_blob_ids(self):
         for case, spec in MODULE.CASE_SPECS.items():

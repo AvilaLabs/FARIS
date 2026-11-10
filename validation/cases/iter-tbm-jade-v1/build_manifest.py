@@ -180,7 +180,8 @@ def parse_metadata(data: bytes, case: str) -> dict:
     return metadata
 
 
-def parse_table(data: bytes, label: str) -> list[dict]:
+def parse_table(data: bytes, label: str,
+                expected_upper_edges_cm: list[float] | None = None) -> list[dict]:
     """Parse JADE Cor A,Value,Error rows; retain zero-score precision as unknown."""
     try:
         text = data.decode("utf-8-sig")
@@ -192,6 +193,8 @@ def parse_table(data: bytes, label: str) -> list[dict]:
         raise ValueError(f"{label}: invalid UTF-8 CSV: {exc}") from exc
     if len(rows) != N_ROWS:
         raise ValueError(f"{label}: expected exactly {N_ROWS} response rows, got {len(rows)}")
+    if expected_upper_edges_cm is not None and len(expected_upper_edges_cm) != N_ROWS:
+        raise ValueError(f"{label}: expected grid must contain exactly {N_ROWS} upper edges")
     out = []
     seen = set()
     for line_number, row in enumerate(rows, start=2):
@@ -205,6 +208,13 @@ def parse_table(data: bytes, label: str) -> list[dict]:
             raise ValueError(f"{label}:{line_number}: non-finite data")
         if coordinate < 0 or coordinate in seen:
             raise ValueError(f"{label}:{line_number}: Cor A coordinate must be unique and non-negative")
+        if expected_upper_edges_cm is not None:
+            expected = expected_upper_edges_cm[line_number - 2]
+            if abs(coordinate - expected) > 0.0050000001:
+                raise ValueError(
+                    f"{label}:{line_number}: Cor A {coordinate:g} cm does not match expected radial upper edge "
+                    f"{expected:g} cm within 0.005 cm"
+                )
         if value < 0 or relative_se < 0:
             raise ValueError(f"{label}:{line_number}: value and relative error must be non-negative")
         if value == 0 and relative_se != 0:
@@ -218,13 +228,21 @@ def parse_table(data: bytes, label: str) -> list[dict]:
             if not math.isfinite(absolute_se):
                 raise ValueError(f"{label}:{line_number}: derived standard error is non-finite")
             precision = "published_relative_standard_error"
-        out.append({
+        parsed = {
             "cor_a_cm": coordinate,
             "value": value,
             "relative_standard_error": relative_se if precision != "unknown_zero_score" else None,
             "standard_error": absolute_se,
             "precision_status": precision,
-        })
+        }
+        if expected_upper_edges_cm is not None:
+            index = line_number - 2
+            parsed["mesh_index"] = index
+            parsed["radial_interval_lower_cm"] = (
+                0.0 if index == 0 else expected_upper_edges_cm[index - 1]
+            )
+            parsed["radial_interval_upper_cm"] = expected_upper_edges_cm[index]
+        out.append(parsed)
     if out[0]["cor_a_cm"] != 830.0 or out[-1]["cor_a_cm"] != 1084.2:
         raise ValueError(f"{label}: Cor A must span the pinned 830.0 to 1084.2 cm range")
     if any(b["cor_a_cm"] <= a["cor_a_cm"] for a, b in zip(out, out[1:])):
@@ -256,15 +274,41 @@ def parse_mcnp_mesh(deck: bytes, case: str) -> dict:
         body = mesh.group("body")
         if not re.search(r"\bGEOM\s*=\s*cyl\b", body, re.I):
             raise ValueError(f"FMESH{tally} is not cylindrical")
-        if not re.search(r"\bIMESH\s*=\s*830(?:\.0?)?\s*,\s*1084\.2\s+IINTS\s*=\s*1\s*,\s*78\b", body, re.I):
+        radial = re.search(
+            r"\bIMESH\s*=\s*(?P<first>830(?:\.0?)?)\s*,\s*(?P<last>1084\.2)\s+"
+            r"IINTS\s*=\s*(?P<first_bins>1)\s*,\s*(?P<last_bins>78)\b",
+            body,
+            re.I,
+        )
+        if not radial:
             raise ValueError(f"FMESH{tally} does not use the pinned 830.0..1084.2 cm / 78-interval mesh")
         meshes[response] = tally
+    first = float(radial.group("first"))
+    last = float(radial.group("last"))
+    first_bins = int(radial.group("first_bins"))
+    last_bins = int(radial.group("last_bins"))
+    upper_edges = radial_upper_edges_cm(first, last, first_bins, last_bins)
+    if len(upper_edges) != N_ROWS:
+        raise ValueError(f"pinned MCNP radial grid produces {len(upper_edges)} bins, expected {N_ROWS}")
     return {"source_law": "MCNP SDEF erg=d1, SP1 -6 Muir velocity Gaussian DT at 10 keV; unit source weight; cell 51",
-            "mesh": "cylindrical radial mesh; MCNP IINTS 1,78 defines one 0..830 cm bin and 78 bins from 830..1084.2 cm (79 total); JADE Cor A row-to-bin mapping remains unverified",
+            "mesh": "cylindrical radial mesh; MCNP IINTS 1,78 defines one 0..830 cm bin and 78 bins from 830..1084.2 cm (79 total); expected Cor A labels are radial upper edges",
             "mesh_bin_count": 79,
             "mesh_intervals": [{"lower_cm": 0.0, "upper_cm": 830.0, "bins": 1},
                                {"lower_cm": 830.0, "upper_cm": 1084.2, "bins": 78}],
+            "cor_a_upper_edges_cm": upper_edges,
             "tallies": meshes}
+
+
+def radial_upper_edges_cm(first: float, last: float,
+                          first_bins: int, last_bins: int) -> list[float]:
+    """Build MCNP's printed radial upper-edge labels for the pinned two-region grid."""
+    if (not math.isfinite(first) or not math.isfinite(last) or first <= 0 or last <= first
+            or first_bins < 1 or last_bins < 1):
+        raise ValueError("invalid radial mesh bounds or interval counts")
+    edges = [round(first * i / first_bins, 2) for i in range(1, first_bins + 1)]
+    edges.extend(round(first + (last - first) * i / last_bins, 2)
+                 for i in range(1, last_bins + 1))
+    return edges
 
 
 def verify_upstream_inputs(root: Path, case: str) -> dict:
@@ -340,6 +384,12 @@ def manifest_from_rows(case: str, tables: dict[str, list[dict]], retrieved: str,
     for name, rows in tables.items():
         if [r["cor_a_cm"] for r in rows] != coordinates:
             raise ValueError(f"{name} Cor A coordinates do not exactly match neutron flux")
+        if "radial_interval_lower_cm" in rows[0]:
+            for index, row in enumerate(rows):
+                if row.get("mesh_index") != index:
+                    raise ValueError(f"{name} row {index} has a nonsequential mesh index")
+                if row.get("radial_interval_upper_cm") != row["cor_a_cm"]:
+                    raise ValueError(f"{name} row {index} Cor A is not its radial upper edge")
 
     spec = CASE_SPECS[case]
     idprefix = "hcpb" if case.startswith("HCPB") else "wcll"
@@ -350,14 +400,15 @@ def manifest_from_rows(case: str, tables: dict[str, list[dict]], retrieved: str,
                 "id": f"{response}:mesh-{index:03d}",
                 "response_class": response,
                 "reference": None,
-                "reference_missing_why": "JADE table is a pinned candidate only; the exact producer input, xsdir/processed-data receipt, and 79-row mesh-to-OpenMC response mapping are not qualified.",
-                "reference_missing_next_step": "Recover producer deck/xsdir/library/run receipts, verify all 79 mesh locations and units against the OpenMC adapter, and resolve every input nuclide without cross-library fallback.",
+                "reference_missing_why": "JADE table is a pinned candidate only; the exact producer run/data receipt and output-unit identity are absent. Its 79 Cor A labels match the pinned input's expected radial upper edges, but the producing F4Enix version is not recorded.",
+                "reference_missing_next_step": "Recover the producer deck/xsdir/library/run and JADE/F4Enix processing receipts, resolve all units, and compare the qualified radial bins against the OpenMC adapter before permitting C/E scoring.",
                 "blocked": {
                     "why": "reference eligibility is NOT_EVALUATED because producer input/evaluation identity and mesh-bin semantics are incomplete",
                     "next_step": "Complete the producer receipt and response mapping review before permitting C/E scoring.",
                 },
                 "controlling_variable": {
-                    "name": "JADE Cor A mesh coordinate; bin-center/edge meaning not established",
+                    "name": ("Cor A upper radial bin edge" if "radial_interval_upper_cm" in row
+                             else "JADE Cor A mesh coordinate; row-to-bin mapping not established"),
                     "value": row["cor_a_cm"],
                     "unit": "cm",
                 },
@@ -369,7 +420,20 @@ def manifest_from_rows(case: str, tables: dict[str, list[dict]], retrieved: str,
                     "precision_status": row["precision_status"],
                     "source_field": "JADE CSV Value and Error; Error is MCNP estimated relative standard error (one sigma)",
                     "mesh_index": index,
+                    **({
+                        "radial_interval_lower_cm": row["radial_interval_lower_cm"],
+                        "radial_interval_upper_cm": row["radial_interval_upper_cm"],
+                        "coordinate_semantics": "Cor A upper radial bin edge (F4Enix 1D mesh convention)",
+                    } if "radial_interval_lower_cm" in row else {}),
                 },
+                **({
+                    "mesh_bin": {
+                        "index": row["mesh_index"],
+                        "radial_lower_cm": row["radial_interval_lower_cm"],
+                        "radial_upper_cm": row["radial_interval_upper_cm"],
+                        "Cor_A_semantics": "upper radial edge",
+                    }
+                } if "radial_interval_lower_cm" in row else {}),
             })
     file_records = []
     for response, (digest, size) in spec["csv"].items():
@@ -408,12 +472,12 @@ def manifest_from_rows(case: str, tables: dict[str, list[dict]], retrieved: str,
             "quantity": "five separate total response profiles from the published 1D TBM cylindrical mesh",
             "units": "units as listed in response_classes; no conversion is applied",
             "source_normalisation": "JADE/MCNP reports tallies per source neutron; deck source weight is 1. Exact produced-run input and source receipt remain absent.",
-            "location": "The pinned MCNP deck defines 79 radial bins: one from 0..830 cm and 78 from 830..1084.2 cm. The JADE output contains 79 Cor A rows ranging 830.0..1084.2 cm, but row-to-bin coordinate/volume semantics remain unverified.",
+            "location": "The pinned MCNP deck defines 79 radial bins: one from 0..830 cm and 78 from 830..1084.2 cm. When all 79 CSV coordinates match the expected MCNP grid, Cor A is the upper radial bin edge under the F4Enix 1D converter implementation; the exact producer F4Enix version and run linkage are not receipted.",
             "reaction_or_particle": "separate neutron, photon, and tritium response classes; neutron and photon heating remain distinct",
             "energy_integration": "total response as defined by the source deck; no energy-binned table is supplied",
             "basis": "JADE computational benchmark TBM documentation and the pinned upstream MCNP input cards; output-to-input and output-unit identity still require a producer receipt.",
-            "why": "The source deck's FC comments label mesh flux #/cm^3/source, while MCNP mesh flux is conventionally volume-averaged fluence in #/cm^2/source. JADE's pinned parser delegates meshtal conversion to F4Enix, but its exact version and the per-case raw-processing configuration are not in the receipt; the CSV unit/normalization and Cor A row mapping therefore remain unresolved.",
-            "next_step": "Recover the exact producing mctal/meshtal, per-case JADE raw-processing configuration, and F4Enix version; then confirm units and all 79 Cor A row meanings against the pinned input and OpenMC adapter.",
+            "why": "The source deck's FC comments label mesh flux #/cm^3/source, while MCNP mesh flux is conventionally volume-averaged fluence in #/cm^2/source. The JADE parser delegates mesh conversion to F4Enix; checked compatible versions emit Cor A as the upper radial boundary, matching all 79 candidate CSV coordinates. The exact producer F4Enix version, input/run link, and raw-processing config are missing, so output units and run identity remain unresolved.",
+            "next_step": "Recover the exact producing mctal/meshtal, per-case JADE raw-processing configuration, F4Enix version, and data identity; resolve units and bind the candidate outputs to the pinned inputs before scoring.",
         },
         "uncertainty": {
             "components": [{"name": "published MCNP Monte Carlo relative standard error", "kind": "statistical", "source_field": "CSV Error"}],
@@ -484,6 +548,7 @@ def build_external_manifest(case: str, data_dir: Path, upstream_root: Path,
               spec["metadata_sha256"], spec["metadata_bytes"], metadata_file)
     metadata = parse_metadata(metadata_file.read_bytes(), case)
     input_receipt = verify_upstream_inputs(upstream_root, case)
+    expected_upper_edges = input_receipt["files"]["mcnp_deck"]["checks"]["cor_a_upper_edges_cm"]
     tables = {}
     for response, (digest, size) in spec["csv"].items():
         path = data_dir / f"{case} {RESPONSES[response]['file_label']}.csv"
@@ -492,9 +557,18 @@ def build_external_manifest(case: str, data_dir: Path, upstream_root: Path,
             fetch(url, digest, size, path)
         data = path.read_bytes()
         verify_bytes(data, digest, size, f"JADE {case} {response} CSV")
-        tables[response] = parse_table(data, response)
+        tables[response] = parse_table(data, response, expected_upper_edges)
     manifest = manifest_from_rows(case, tables, retrieved, input_receipt)
     manifest["producer_metadata"] = metadata
+    manifest["mesh_coordinate_evidence"] = {
+        "candidate_csv_coordinates_match_input_upper_edges": True,
+        "coordinate_tolerance_cm": 0.005,
+        "cor_a_semantics": "upper radial bin edge, as emitted by the F4Enix 1D mesh converter implementations checked in this intake",
+        "row_mapping": "row 0 scores 0..830 cm; row i in 1..78 scores from the previous upper edge to its Cor A upper edge",
+        "exact_producer_f4enix_version": None,
+        "exact_producer_processing_configuration": None,
+        "eligibility": "geometry mapping evidence only; run linkage, unit, and producer data identity remain unqualified",
+    }
     return check_manifest(manifest)
 
 
