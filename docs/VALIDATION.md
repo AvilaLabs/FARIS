@@ -37,6 +37,45 @@ The report also carries the methods, the V&V matrix, the covered ranges, the kno
 `library_sha256`, `code_version` and `adapter_sha256`. Without run records every case
 is reported NOT_EVALUATED.
 
+The legacy `--identity FILE` applies one explicit current identity to every run
+record. For a run set produced by different adapters or transport/activation
+libraries, use the mutually exclusive `--identity-map FILE` option:
+
+```sh
+python3 -m validation report --out DIR --runs RUNS_DIR --identity-map current-identities.json
+```
+
+The file is typed and case-keyed. Its case IDs must exactly match the run records
+selected from `RUNS_DIR`; each must name a known manifest case, and duplicate JSON
+keys are rejected. Supply current values from the current library, code version
+and adapter configuration. The report never copies a run record's identity as its
+current identity.
+The hash strings in the example are placeholders; obtain each current hash from
+the selected runtime and adapter files, rather than copying it from a sealed run.
+
+```json
+{
+  "schema": "faris.validation-current-identities/1.0.0",
+  "cases": {
+    "oktavian-al": {
+      "library_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "code_version": "openmc-0.15.3",
+      "adapter_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "fns-decayheat-fe-1996-5min": {
+      "library_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "code_version": "actinv-core 1.4.0",
+      "adapter_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  }
+}
+```
+
+The generated JSON records both a canonical hash of the resolved mapping and the
+SHA-256 of the exact identity-map file bytes. A changed current adapter or library
+marks only that case's rows `STALE`; other cases remain independently scored, with
+no combined C/E distributions across libraries or code versions.
+
 ## Evidence classes (VAL-001)
 
 Every manifest, every report row, every matrix row and every item of verification evidence in the model matrix
