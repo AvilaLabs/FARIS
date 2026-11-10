@@ -19,7 +19,7 @@ use std::{
 };
 
 /// Text that starts a process, hands a program to the job runner, or loads code.
-const TOKENS: [&str; 17] = [
+const TOKENS: [&str; 18] = [
     "Command::new",
     "CommandExt",
     "libloading",
@@ -33,6 +33,7 @@ const TOKENS: [&str; 17] = [
     "opener::",
     "fork(",
     "run_job(",
+    "run_job_with_prepared_cache(",
     "run_job_with_lines(",
     "launch_python(",
     "launch_python_with_lines(",
@@ -50,7 +51,8 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     // job program itself and assigns it to a job object.
     ("faris-engine/src/jobs.rs", "Command::new", 3, "FS", "program is an absolute tool path (S); arguments F or S"),
     ("faris-engine/src/jobs.rs", "CommandExt", 1, "-", "process_group for the Unix spawns above"),
-    ("faris-engine/src/jobs.rs", "run_job(", 1, "-", "definition"),
+    ("faris-engine/src/jobs.rs", "run_job(", 2, "-", "definition and browser-target forwarding call"),
+    ("faris-engine/src/jobs.rs", "run_job_with_prepared_cache(", 2, "-", "native definition and browser-target stub"),
     ("faris-engine/src/jobs.rs", "run_job_with_lines(", 3, "-", "definition, forwarding call, stub for targets without processes"),
     // Callers of the job runner.
     ("faris-engine/src/core_evidence.rs", "run_job(", 1, "FS", "Core executable S; arguments F plus package paths S"),
@@ -58,12 +60,15 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     ("faris-engine/src/reactor.rs", "run_job(", 1, "FS", "Python S; worker script embedded F; paths S"),
     ("faris-engine/src/reactor/windows.rs", "run_job(", 1, "FS", "window Python S (--window-python or the Tools setting); helper script embedded F; paths S"),
     ("faris-engine/src/maintenance/actinv.rs", "run_job(", 1, "FS", "Python and ACTINV S; component ids from file text go in as one --component=ID token"),
+    ("faris-engine/src/maintenance/actinv.rs", "run_job_with_prepared_cache(", 1, "FS", "selected Python or ACTINV tool path S; arguments are built from fixed flags and controlled scratch paths; source-derived component IDs are one --component=ID token"),
+    ("faris-engine/src/maintenance/spatial_dose_worker.rs", "run_job(", 1, "S", "Python interpreter and worker script are explicit tool settings; request and output arguments are generated scratch paths; native ACTINV uses the separately selected executable, canonicalized and checked against the prepared manifest by path and SHA-256 before execution"),
     ("faris-engine/src/impurity_sensitivity.rs", "run_job(", 1, "FS", "ACTINV S; arguments F (inspect decay) plus the decay file from the data settings S and nuclide names from the result file, each refused unless it is a plain nuclide name (is_nuclide_token), so none can be an option"),
-    ("faris-engine/src/activation.rs", "run_job(", 1, "FS", "ACTINV S (--actinv); arguments F (run) plus problem and result paths in a scratch folder named by a hash; zone ids from file text never reach an argument"),
+    ("faris-engine/src/activation.rs", "run_job_with_prepared_cache(", 1, "FS", "current selected ACTINV executable S; arguments F (run) plus problem and result paths in a scratch folder named by a hash; selected executable path and SHA-256 must match the prepared manifest before use"),
     ("faris-engine/src/design.rs", "run_job_with_lines(", 1, "-", "the Python launcher"),
     ("faris-engine/src/design.rs", "launch_python(", 2, "-", "definition and forwarding call"),
     ("faris-engine/src/design.rs", "launch_python_with_lines(", 2, "-", "definition and forwarding call"),
-    ("faris-engine/src/design/external.rs", "launch_python(", 5, "FS", "interpreter S; helper scripts embedded F; STEP path made absolute"),
+    ("faris-engine/src/design/external.rs", "launch_python(", 6, "FS", "interpreter S; helper scripts embedded F; STEP path made absolute"),
+    ("faris-engine/src/design/heating.rs", "launch_python_with_lines(", 1, "FS", "configured Python interpreter S; embedded helper script F; bounded job with cancellation"),
     ("faris-engine/src/design/transport.rs", "launch_python_with_lines(", 1, "FS", "interpreter S; script embedded F; model path validated by converted_model"),
     ("faris-cli/src/adapters.rs", "run_job(", 1, "FS", "faris adapters list: program is a fixed tool name (openmc, actinv, avila-core) found on PATH; the only argument is `--version`; five-second bound"),
     ("faris-cli/src/control.rs", "run_job(", 2, "FS", "Python S; script embedded F (Linux and other targets)"),
@@ -97,8 +102,7 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// The text of the file without comment lines and without an inline test module
-/// (a `#[cfg(test)]` or `#[cfg(all(test, ...))]` attribute directly above `mod`).
+/// The text of the file without comment lines and without inline test modules.
 fn shipped_lines(text: &str) -> Vec<&str> {
     let lines: Vec<&str> = text.lines().collect();
     let mut keep = Vec::new();
@@ -111,10 +115,32 @@ fn shipped_lines(text: &str) -> Vec<&str> {
                 .map(|l| l.trim_start())
                 .find(|l| !l.starts_with("#["))
                 .unwrap_or("");
-            let inline_module = (next.starts_with("mod ") || next.starts_with("pub(crate) mod "))
-                && next.trim_end().ends_with('{');
+            let inline_module = next.starts_with("mod ") || next.starts_with("pub(crate) mod ");
             if inline_module {
-                break;
+                // Skip only this test module. Production code can legally follow it
+                // in the same source file (as it does in spatial_dose_worker.rs).
+                index += 1;
+                while index < lines.len() && lines[index].trim_start().starts_with("#[") {
+                    index += 1;
+                }
+                let mut depth = 0isize;
+                let mut opened = false;
+                while index < lines.len() {
+                    let line = lines[index];
+                    for ch in line.chars() {
+                        if ch == '{' {
+                            depth += 1;
+                            opened = true;
+                        } else if ch == '}' && opened {
+                            depth -= 1;
+                        }
+                    }
+                    index += 1;
+                    if opened && depth <= 0 {
+                        break;
+                    }
+                }
+                continue;
             }
         }
         if !trimmed.starts_with("//") {
@@ -233,14 +259,27 @@ fn the_workspace_depends_on_no_dynamic_loader_or_opener_crate() {
 #[test]
 fn the_scanner_sees_a_new_spawn_in_a_synthetic_file() {
     let lines = shipped_lines(
-        "fn a() {\n    // Command::new(\"x\");\n    std::process::Command::new(\"y\");\n}\n#[cfg(test)]\nmod tests {\n    Command::new(\"z\");\n}\n",
+        "fn a() {\n    // Command::new(\"x\");\n    std::process::Command::new(\"y\");\n}\n#[cfg(test)]\nmod tests {\n    Command::new(\"z\");\n}\nfn production_after_tests() {\n    run_job(&spec, cancel);\n    run_job_with_prepared_cache(&spec, cancel, &cache);\n}\n",
     );
-    let hits: usize = lines
+    let command_hits: usize = lines
         .iter()
         .map(|l| l.matches("Command::new").count())
         .sum();
+    let job_hits: usize = lines.iter().map(|l| l.matches("run_job(").count()).sum();
+    let prepared_cache_hits: usize = lines
+        .iter()
+        .map(|l| l.matches("run_job_with_prepared_cache(").count())
+        .sum();
     assert_eq!(
-        hits, 1,
-        "one shipped call, none in comments or the test module"
+        command_hits, 1,
+        "one shipped call, none in comments or tests"
+    );
+    assert_eq!(
+        job_hits, 1,
+        "a shipped call after the test module is retained"
+    );
+    assert_eq!(
+        prepared_cache_hits, 1,
+        "new runner calls after test modules are retained"
     );
 }

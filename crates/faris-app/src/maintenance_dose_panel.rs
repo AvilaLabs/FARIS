@@ -826,8 +826,12 @@ fn required_actinv_executable(path: Option<&Path>) -> Result<PathBuf, String> {
             path.display()
         ));
     }
-    path.canonicalize()
-        .map_err(|error| format!("Cannot resolve ACTINV executable {}: {error}", path.display()))
+    path.canonicalize().map_err(|error| {
+        format!(
+            "Cannot resolve ACTINV executable {}: {error}",
+            path.display()
+        )
+    })
 }
 
 fn verify_cad_prepare_binding(
