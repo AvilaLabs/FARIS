@@ -1390,24 +1390,48 @@ mod tests {
     fn cancellation_kills_a_windows_grandchild_started_immediately() {
         use std::process::Command;
 
+        fn describe_worker(result: std::thread::Result<Result<JobResult, JobError>>) -> String {
+            match result {
+                Ok(Ok(result)) => format!(
+                    "status={:?}, exit_code={:?}, stdout={:?}, stderr={:?}",
+                    result.execution_status, result.exit_code, result.stdout, result.stderr
+                ),
+                Ok(Err(error)) => format!("runner error: {error:?}"),
+                Err(payload) => format!(
+                    "worker panic: {}",
+                    payload
+                        .downcast_ref::<String>()
+                        .map(String::as_str)
+                        .or_else(|| payload.downcast_ref::<&str>().copied())
+                        .unwrap_or("non-string panic")
+                ),
+            }
+        }
+
         let dir = tempfile::tempdir().unwrap();
         let pid_file = dir.path().join("grandchild.pid");
         let powershell =
             PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
         let pid_file_literal = pid_file.to_string_lossy().replace('\'', "''");
         let script = format!(
-            "$child = Start-Process -FilePath \"$env:SystemRoot\\System32\\ping.exe\" -ArgumentList @('-n','30','127.0.0.1') -PassThru; Set-Content -LiteralPath '{}' -Value $child.Id; Wait-Process -Id $child.Id",
+            "$child = Start-Process -FilePath \"$env:SystemRoot\\System32\\ping.exe\" -ArgumentList @('-n','30','127.0.0.1') -PassThru; Set-Content -Encoding Ascii -NoNewline -LiteralPath '{}' -Value $child.Id; Wait-Process -Id $child.Id",
             pid_file_literal
         );
         let spec = JobSpec {
             program: powershell.clone(),
             arguments: vec!["-NoProfile".into(), "-Command".into(), script.into()],
             working_directory: dir.path().to_owned(),
-            environment: vec![(
-                OsString::from("SystemRoot"),
-                std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
-            )],
-            timeout: Duration::from_secs(10),
+            environment: vec![
+                (
+                    OsString::from("SystemRoot"),
+                    std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
+                ),
+                (OsString::from("TEMP"), dir.path().as_os_str().to_owned()),
+                (OsString::from("TMP"), dir.path().as_os_str().to_owned()),
+            ],
+            // Fixture startup is setup time, not the cancellation bound below. Parallel Windows
+            // unit-test load can take longer to initialize multiple PowerShell hosts.
+            timeout: Duration::from_secs(30),
             capture_limit_bytes: 1024,
             artifact_roots: vec![],
             resource_limits: ResourceLimits::default(),
@@ -1415,21 +1439,44 @@ mod tests {
         };
         let cancellation = Cancellation::default();
         let remote = cancellation.clone();
-        let worker = thread::spawn(move || run_job(&spec, &remote).unwrap());
+        let worker = thread::spawn(move || run_job(&spec, &remote));
 
-        let start_deadline = Instant::now() + Duration::from_secs(5);
+        let start_deadline = Instant::now() + Duration::from_secs(20);
         let pid: u32 = loop {
-            if let Ok(contents) = std::fs::read_to_string(&pid_file)
-                && let Ok(pid) = contents.trim().parse()
-            {
-                break pid;
+            match std::fs::read_to_string(&pid_file) {
+                Ok(contents) => {
+                    if let Ok(pid) = contents.trim().parse() {
+                        break pid;
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    cancellation.cancel();
+                    let worker_result = describe_worker(worker.join());
+                    panic!(
+                        "could not read grandchild PID file {pid_file:?}: {error}; worker: {worker_result}"
+                    );
+                }
             }
-            assert!(Instant::now() < start_deadline, "grandchild did not start");
+            if worker.is_finished() {
+                let worker_result = describe_worker(worker.join());
+                panic!(
+                    "PowerShell worker exited before writing the grandchild PID file {pid_file:?}: {worker_result}"
+                );
+            }
+            if Instant::now() >= start_deadline {
+                cancellation.cancel();
+                let worker_result = describe_worker(worker.join());
+                panic!(
+                    "grandchild did not start within twenty seconds; PID file {pid_file:?} contains {:?}; worker: {worker_result}",
+                    std::fs::read(&pid_file)
+                );
+            }
             thread::sleep(Duration::from_millis(10));
         };
         let cancelled_at = Instant::now();
         cancellation.cancel();
-        let result = worker.join().unwrap();
+        let result = worker.join().unwrap().unwrap();
         assert!(
             cancelled_at.elapsed() <= Duration::from_secs(2),
             "job cancellation exceeded two seconds"

@@ -29,6 +29,7 @@ use faris_engine::{
     history_uncertainty::{
         CONTRASTS, SCOPE_DETAIL, SCOPE_LINE, comparison_lines, not_evaluated_text, progress_text,
     },
+    output_uncertainty::OutputUncertainty,
 };
 use faris_model::validation::Quantity;
 
@@ -358,6 +359,13 @@ fn history_uncertainty_section(ui: &mut egui::Ui, history: &HistoryPanel, ids: &
                 );
                 continue;
             }
+            (Status::Cancelled(why), _) | (_, Status::Cancelled(why)) => {
+                ui.colored_label(
+                    Kind::Partial.color(),
+                    format!("No sampling interval: {why}"),
+                );
+                continue;
+            }
             (Status::Ready(a), Status::Ready(b)) => (a, b),
             (x, y) => {
                 let running = [x, y].into_iter().find_map(|s| match s {
@@ -460,7 +468,7 @@ fn paired_bars(
     ui: &mut egui::Ui,
     title: &str,
     unit: &str,
-    rows: &[(bool, bool, Option<f64>)],
+    rows: &[(bool, bool, Option<f64>, Option<OutputUncertainty>)],
     decimals: usize,
 ) {
     ui.strong(title);
@@ -480,7 +488,7 @@ fn paired_bars(
     let bar_left = rect.left() + label_w;
     let bar_w = (rect.width() - label_w - 78.0).max(40.0);
     let mut y = rect.top() + 2.0;
-    for (index, (port, breeder, value)) in rows.iter().enumerate() {
+    for (index, (port, breeder, value, _)) in rows.iter().enumerate() {
         if index > 0 && index % 2 == 0 {
             y += gap;
         }
@@ -527,6 +535,34 @@ fn paired_bars(
         ],
         egui::Stroke::new(1.0, crate::theme::palette().chart_axis),
     );
+    ui.add_space(4.0);
+    ui.small("Uncertainty by arrangement");
+    for (port, breeder, value, state) in rows {
+        let Some(value) = value else { continue };
+        let state_text = state.as_ref().map_or_else(
+            || {
+                OutputUncertainty::none(
+                    "this recorded chart value has no stored uncertainty state",
+                    "reload the current record or rerun the history to record its uncertainty",
+                )
+                .text(1)
+            },
+            |state| match state {
+                OutputUncertainty::Interval { .. } => format!(
+                    "{} {unit}",
+                    crate::quantity_text::output_uncertainty(state, 1)
+                ),
+                OutputUncertainty::NoInterval { .. } => {
+                    crate::quantity_text::output_uncertainty(state, 1)
+                }
+            },
+        );
+        ui.small(format!(
+            "{} · {} {unit}: {state_text}",
+            arrangement_label(*port, *breeder),
+            format_args!("{value:.decimals$}")
+        ));
+    }
 }
 
 pub fn compare_view(
@@ -653,18 +689,43 @@ pub fn compare_view(
             history_uncertainty_section(ui, history, &record_ids(port, control));
             ui.add_space(12.0);
             let order = [(true, false), (false, false), (true, true), (false, true)];
-            let pick = |f: &dyn Fn(&Cell) -> Option<f64>| -> Vec<(bool, bool, Option<f64>)> {
-                order
-                    .iter()
-                    .map(|(is_port, breeder)| {
-                        let cell = &cells[usize::from(!*is_port)][usize::from(*breeder)];
-                        (*is_port, *breeder, if cell.recorded { f(cell) } else { None })
-                    })
-                    .collect()
-            };
+            let pick =
+                |value: &dyn Fn(&Cell) -> Option<f64>, field: &str| -> Vec<(
+                    bool,
+                    bool,
+                    Option<f64>,
+                    Option<OutputUncertainty>,
+                )> {
+                    order
+                        .iter()
+                        .map(|(is_port, breeder)| {
+                            let cell = &cells[usize::from(!*is_port)][usize::from(*breeder)];
+                            (
+                                *is_port,
+                                *breeder,
+                                if cell.recorded { value(cell) } else { None },
+                                cell.recorded
+                                    .then(|| cell.uncertainty.get(field).cloned())
+                                    .flatten(),
+                            )
+                        })
+                        .collect()
+                };
             ui.columns(2, |columns| {
-                paired_bars(&mut columns[0], "Lifetime net electricity", "TWh", &pick(&|c| c.net_twh), 2);
-                paired_bars(&mut columns[1], "Magnet swaps over the horizon", "swaps", &pick(&|c| c.swaps.map(|n| n as f64)), 0);
+                paired_bars(
+                    &mut columns[0],
+                    "Lifetime net electricity",
+                    "TWh",
+                    &pick(&|c| c.net_twh, "net_twh"),
+                    2,
+                );
+                paired_bars(
+                    &mut columns[1],
+                    "Magnet swaps over the horizon",
+                    "swaps",
+                    &pick(&|c| c.swaps.map(|n| n as f64), "swaps"),
+                    0,
+                );
             });
             ui.small("Bars start at zero. Net electricity differs by a few percent between arrangements; the swap count is the large effect. Both are conditional on authored assumptions.");
             ui.add_space(8.0);
@@ -707,6 +768,66 @@ mod tests {
             "{missing}"
         );
         assert!(!closed.contains("1 σ"));
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_comparison_bars_attribute_interval_and_missing_uncertainty_per_series() {
+        let rows = [
+            (
+                true,
+                false,
+                Some(12.3),
+                Some(OutputUncertainty::interval(
+                    10.0,
+                    Some(14.0),
+                    "2 sigma of transport-driven history sampling",
+                )),
+            ),
+            (
+                false,
+                true,
+                Some(8.0),
+                Some(OutputUncertainty::none(
+                    "the saved history has no transport standard error",
+                    "rerun transport with batch statistics recorded",
+                )),
+            ),
+        ];
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            paired_bars(ui, "Lifetime net electricity", "TWh", &rows, 1);
+        });
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.drop_without_applying_deltas();
+        assert!(rendered.contains("12.3 TWh"), "{rendered}");
+        assert!(
+            rendered.contains("10.0 to 14.0 (2 sigma of transport-driven history sampling) TWh"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains(
+                "8.0 TWh: no interval, because the saved history has no transport standard error"
+            ),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("next step: rerun transport with batch statistics recorded"),
+            "{rendered}"
+        );
     }
 
     // Verifies: UNC-009

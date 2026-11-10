@@ -27,7 +27,7 @@ use faris_engine::{
 use faris_model::history::OperatingHistoryAssumptions;
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -74,6 +74,9 @@ pub enum Status {
     Ready(Arc<HistoryEnsemble>),
     /// The calculation itself failed; the text says why.
     Failed(String),
+    /// Sampling was explicitly cancelled; nominal history remains available,
+    /// but no transport-sampling interval is presented.
+    Cancelled(String),
 }
 
 /// One arrangement's ensemble to calculate, with the exact inputs.
@@ -107,12 +110,16 @@ struct Job {
     counter: Arc<Counter>,
     /// The arrangements this job calculates, in order.
     order: Vec<(String, EnsembleKey)>,
+    /// A user cancellation remains pending until the worker has sent its last
+    /// result and the receiver has drained it.
+    user_cancelled: bool,
 }
 
 pub struct Uncertainty {
     samples: u32,
     cache: EnsembleCache,
     failures: BTreeMap<EnsembleKey, String>,
+    cancelled: BTreeSet<EnsembleKey>,
     /// Arrangements whose inputs could not be keyed, with the reason.
     unkeyed: BTreeMap<String, String>,
     plan: Vec<Planned>,
@@ -156,6 +163,7 @@ impl Uncertainty {
             samples: SAMPLE_CHOICES[0],
             cache: EnsembleCache::default(),
             failures: BTreeMap::new(),
+            cancelled: BTreeSet::new(),
             unkeyed: BTreeMap::new(),
             plan: Vec::new(),
             plan_signature: None,
@@ -214,6 +222,87 @@ impl Uncertainty {
         self.plan_changed = None;
     }
 
+    /// Cancel all unfinished ensembles for the current plan. Completed cache
+    /// entries remain ready; cancelled keys stay cancelled until explicitly retried.
+    pub fn cancel_pending(&mut self) -> usize {
+        // Results may have been sent since the last frame collected them.
+        // Accept those before deciding which keys are actually unfinished.
+        self.collect();
+        let pending: Vec<_> = self
+            .plan
+            .iter()
+            .filter(|planned| {
+                !self.cache.contains(&planned.key)
+                    && !self.failures.contains_key(&planned.key)
+                    && !self.cancelled.contains(&planned.key)
+            })
+            .map(|planned| planned.key.clone())
+            .collect();
+        if pending.is_empty() {
+            return 0;
+        }
+        if let Some(job) = &mut self.job {
+            job.user_cancelled = true;
+            job.cancellation.cancel();
+        } else {
+            self.cancelled.extend(pending.iter().cloned());
+        }
+        // Keep this plan and signature: sync() must not schedule these keys again.
+        self.plan_changed = None;
+        pending.len()
+    }
+
+    /// Whether a running or debounced ensemble plan has work the user can cancel.
+    pub fn can_cancel(&self) -> bool {
+        (self.job.as_ref().is_some_and(|job| !job.user_cancelled)
+            || (self.job.is_none() && self.plan_changed.is_some()))
+            && self.plan.iter().any(|planned| {
+                !self.cache.contains(&planned.key)
+                    && !self.failures.contains_key(&planned.key)
+                    && !self.cancelled.contains(&planned.key)
+            })
+    }
+
+    /// Whether the current plan has cancelled keys that can be retried.
+    pub fn can_retry_cancelled(&self) -> bool {
+        self.job.is_none()
+            && !self.retiring.iter().any(|handle| !handle.is_finished())
+            && self.plan.iter().any(|planned| {
+                self.cancelled.contains(&planned.key) && !self.cache.contains(&planned.key)
+            })
+    }
+
+    /// Explicitly retry cancelled keys after the cooperative worker has exited.
+    /// Previously completed cache entries are left untouched.
+    pub fn retry_cancelled(&mut self) -> usize {
+        self.retiring.retain(|handle| !handle.is_finished());
+        if self.job.is_some() || self.retiring.iter().any(|handle| !handle.is_finished()) {
+            return 0;
+        }
+        let retry: Vec<_> = self
+            .plan
+            .iter()
+            .filter(|planned| {
+                self.cancelled.contains(&planned.key) && !self.cache.contains(&planned.key)
+            })
+            .map(|planned| planned.key.clone())
+            .collect();
+        if retry.is_empty() {
+            return 0;
+        }
+        for key in &retry {
+            self.cancelled.remove(key);
+        }
+        self.plan_changed = Some(Instant::now());
+        retry.len()
+    }
+
+    /// True while a cooperatively cancelled worker is still winding down.
+    pub fn cancellation_pending(&self) -> bool {
+        self.job.as_ref().is_some_and(|job| job.user_cancelled)
+            || self.retiring.iter().any(|handle| !handle.is_finished())
+    }
+
     fn cancel_job(&mut self) {
         if let Some(mut job) = self.job.take() {
             job.cancellation.cancel();
@@ -268,6 +357,11 @@ impl Uncertainty {
         }
         if let Some(why) = self.failures.get(&planned.key) {
             return Status::Failed(why.clone());
+        }
+        if self.cancelled.contains(&planned.key) {
+            return Status::Cancelled(
+                "Cancelled at user request; nominal history is retained and no sampling interval is available.".into(),
+            );
         }
         let Some(job) = &self.job else {
             return Status::Waiting;
@@ -403,7 +497,11 @@ impl Uncertainty {
         let todo: Vec<Planned> = self
             .plan
             .iter()
-            .filter(|p| !self.cache.contains(&p.key) && !self.failures.contains_key(&p.key))
+            .filter(|p| {
+                !self.cache.contains(&p.key)
+                    && !self.failures.contains_key(&p.key)
+                    && !self.cancelled.contains(&p.key)
+            })
             .cloned()
             .collect();
         if todo.is_empty() {
@@ -469,6 +567,7 @@ impl Uncertainty {
                     receiver,
                     counter,
                     order,
+                    user_cancelled: false,
                 });
             }
             Err(error) => {
@@ -536,8 +635,20 @@ impl Uncertainty {
             changed = true;
         }
         if ended && let Some(mut job) = self.job.take() {
+            let user_cancelled = job.user_cancelled;
             if let Some(handle) = job.handle.take() {
                 let _ = handle.join();
+            }
+            if user_cancelled {
+                for planned in &self.plan {
+                    if !self.cache.contains(&planned.key)
+                        && !self.failures.contains_key(&planned.key)
+                    {
+                        self.cancelled.insert(planned.key.clone());
+                    }
+                }
+                // No automatic restart: the unchanged plan stays settled.
+                self.plan_changed = None;
             }
             changed = true;
         }

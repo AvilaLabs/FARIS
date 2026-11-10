@@ -1718,6 +1718,8 @@ impl FarisApp {
             Some("This study has no operating assumptions, so there are no histories to export.")
         } else if self.history.is_pending() || self.history.is_stale() {
             Some("The operating histories are still calculating; export when the timeline settles.")
+        } else if self.history.uncertainty_cancellation_pending() {
+            Some("A cancelled transport-sampling worker is stopping; export when it has exited.")
         } else if self.history.uncertainty_pending() {
             Some("The uncertainty ranges are still being calculated; export when they finish.")
         } else if self.sweep.as_ref().is_some_and(|s| s.is_pending()) {

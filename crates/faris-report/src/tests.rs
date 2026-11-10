@@ -307,7 +307,7 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
     let mut lines = csv.lines();
     assert_eq!(
         lines.next().unwrap(),
-        "arrangement,calendar_year,state,magnet_fluence_n_m2,magnet_limit_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps,fluence_validation,tritium_inventory_validation,net_electric_power_validation"
+        "arrangement,calendar_year,state,magnet_fluence_n_m2,magnet_limit_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps,calendar_year_uncertainty,magnet_fluence_n_m2_uncertainty,magnet_limit_fluence_n_m2_uncertainty,blanket_fluence_n_m2_uncertainty,usable_tritium_kg_uncertainty,net_electricity_twh_uncertainty,magnet_swaps_uncertainty,fluence_validation,tritium_inventory_validation,net_electric_power_validation"
     );
     let source = input();
     let expected: usize = source
@@ -342,6 +342,17 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
         cells[7].parse::<f64>().unwrap(),
         last.cumulative_net_electricity_mwh.unwrap() / 1.0e6
     );
+    assert_eq!(
+        port_rows
+            .last()
+            .unwrap()
+            .matches("no interval, because")
+            .count(),
+        7,
+        "each numeric snapshot column has its own uncertainty state"
+    );
+    assert!(port_rows.last().unwrap().contains("next step:"));
+    assert!(port_rows.last().unwrap().contains("single history"));
     assert!(
         body.iter()
             .any(|l| l.split(',').nth(2) == Some("magnet_replacement"))
@@ -456,7 +467,10 @@ fn every_number_the_export_states_has_an_interval_or_a_reason() {
         let history = table(&outcome.folder, "data/histories.csv");
         for column in history.lines().next().unwrap().split(',').skip(1) {
             // Validation columns are states, not numbers.
-            if column != "state" && !column.ends_with("_validation") {
+            if column != "state"
+                && !column.ends_with("_validation")
+                && !column.ends_with("_uncertainty")
+            {
                 assert!(
                     has("histories.csv", column),
                     "{} {column}",
@@ -1549,6 +1563,21 @@ fn the_pdf_marks_calculated_numbers_and_prints_the_legend() {
     assert!(flat.contains("NV not validated"), "{flat}");
     assert!(flat.contains("VR validated within range"));
     assert!(flat.contains("CC code-to-code only"));
+    assert!(flat.contains("[U1]"), "{flat}");
+    assert!(flat.contains("[U2]"), "{flat}");
+    assert!(flat.contains("U1 Net-electricity point values ("), "{flat}");
+    assert!(
+        flat.contains("deterministic function of the authored inputs"),
+        "{flat}"
+    );
+    assert!(
+        flat.contains("U2 Net-electricity differences: no interval, because"),
+        "{flat}"
+    );
+    assert!(
+        flat.contains("next step: run the history ensemble"),
+        "{flat}"
+    );
     let start = flat.find("Shifting ").expect("allocation takeaway");
     let allocation_markers = flat[start..]
         .find(". [NV: TBR] [NV: fluence]")

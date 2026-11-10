@@ -1,0 +1,79 @@
+{
+  "schema": "faris-actinv-remaining36-control/v1",
+  "date": "2026-11-10",
+  "scope": "S3 ACTINV gap diagnostics for the existing 18 first-wall and 18 TF-coil requests. This is not activation-data closure, source qualification, or whole-plant dose qualification.",
+  "execution": {
+    "status": "completed",
+    "faris_binary": "runs/continuation/native-target-v33/debug/faris",
+    "faris_binary_sha256": "ec2d10241cb30099e045587201e904fa26ba76113ab5d466d4fa3f110821bb44",
+    "actinv_sha256": "91ecd4c3e04d36c67780a36fecbf336e174517fba77db0ae1a03ac0a6b9e9687",
+    "event_batches": "runs/continuation/tiny-cad-dose-control-20261110-v6/dose-run-work.flux-only.retry6/2806ad4ff7c652da33ea31634b6e6cd3ba57cbc5f3492d22a617e31f10c7edc4/neutron/actinv_event_batches.json",
+    "event_batches_sha256": "a7652257a1b5a8bdb7cacfb50580918ac201cb91823fea8e2210c07792992d91",
+    "requests_unchanged": true,
+    "charged_product_tracking": {
+      "value": false,
+      "reason": "The retained request JSONs have no explicit light-charged-product field; the adapter default was preserved."
+    },
+    "zones": 36,
+    "raw_ledgers": 36,
+    "raw_ledger_bytes": 267860150,
+    "typed_completeness": {
+      "LOWER_BOUND": 36
+    },
+    "query_errors": 0
+  },
+  "data_pins": {
+    "activation_library": {
+      "path": "/home/connoravila/Documents/actinv/actinv-data/v1.1.0/activation/tendl-2025-neutron-709g.npz",
+      "sha256": "ec4c72bf598dc8ad3d533d9cfafdcf493e2d1f949a3e4db6251495659b68cc44"
+    },
+    "library_index_sha256": "8bd19b4001c246758e739cd0067a0087e1ce5c2157438dae97bd52e1d3beb3fb",
+    "decay_primary_sha256": "6f04cf009086c179021f243a58dadc2d5bb078de5ba39c4fe46ccad77d228ddb",
+    "decay_fallback_sha256": "850b8b7f85f8d88b6ad826c4cd341aaaffabd525c8ecf3c588a0ad437bf5d123"
+  },
+  "retained_outputs": {
+    "directory": "runs/continuation/actinv-gap-resolution-v1/wcu-remaining36-v2",
+    "run_prepared_sha256": "a586598defae72a68b561a24a4243c92b3d8dc00fd8cb7e14f9419db9aa522be",
+    "execution_marker_sha256": "f6c066c93a00e189a06400f61255e0b7db2eff644676188fe9c17bfabd998391",
+    "zone_gap_receipt": "runs/continuation/actinv-gap-resolution-v1/wcu-remaining36-v2/zone-gap-closure.json",
+    "zone_gap_receipt_sha256": "3314353a953b79320d95b4163a47782e1f54d661716b4802996c77ba911ff359",
+    "first_wall_result_sha256": "f2c0523be6136f705511313af7c844e5564890b9757cf6a24ef13e1c32f54f0c",
+    "tf_coil_result_sha256": "d6ef965dca5458566c77b50b13db4017f159c8e3c0d1549903d17831f67eb2b0",
+    "raw_ledgers_are_ignored_run_artifacts": true
+  },
+  "gap_summary": {
+    "first_wall": {
+      "zones": 18,
+      "gap_records": 144,
+      "per_zone_categories": {
+        "products_no_evaluated_decay_data": "168 or 169 rate-ledger products; not zone atom populations",
+        "fission_no_yields_to_leakage": 67,
+        "targets_absent_from_decay_library": 187,
+        "isomer_state_absent_from_decay_library_used_ground": 35,
+        "decay_daughters_missing": 2,
+        "spontaneous_fission_branches_to_leakage": 129,
+        "library_target_limitations": 75,
+        "leakage_atoms_per_g": "one zone-specific leakage record"
+      },
+      "zone_specific_leakage_atoms_per_g_range": [
+        3.516557501201145,
+        8.009773191204774
+      ]
+    },
+    "tf_coil": {
+      "zones": 18,
+      "gap_records": 108,
+      "per_zone_categories": {
+        "products_no_evaluated_decay_data": "168 or 169 rate-ledger products; not zone atom populations",
+        "targets_absent_from_decay_library": 187,
+        "isomer_state_absent_from_decay_library_used_ground": 35,
+        "decay_daughters_missing": 2,
+        "spontaneous_fission_branches_to_leakage": 129,
+        "library_target_limitations": 13
+      },
+      "zone_specific_leakage": "zero for all 18 zones"
+    }
+  },
+  "interpretation": "All 36 requests completed and all 36 zones remain LOWER_BOUND. Library/chain-wide product, target, isomer, daughter and spontaneous-fission notices are retained; they do not prove those nuclides are populated or reachable in a zone. The nonzero first-wall leakage amounts are zone-specific and remain a lower-bound cause. No data-gap closure is claimed.",
+  "v1_attempt": "The first bounded attempt stopped before ACTINV queries because the inherited user prepared cache exceeded its configured limits. V2 used a separate empty ACTINV_CACHE_DIR for each batch without changing the cache limits, requests or nuclear data."
+}

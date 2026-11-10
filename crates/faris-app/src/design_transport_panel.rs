@@ -1017,6 +1017,88 @@ mod tests {
         frame(&mut panel);
     }
 
+    // Verifies: MAG-004
+    #[test]
+    fn rendered_numeric_margin_shows_a_bad_two_sigma_edge_and_next_step() {
+        let ctx = egui::Context::default();
+        let mut report = sample_report();
+        let assessment = &mut report.fluence_limits[0].assessment;
+        // The stored estimate is 1.5e22 with a 20% one-sigma error: its existing
+        // two-sigma interval is 0.9e22 to 2.1e22, crossing this authored limit.
+        // The fixture deliberately represents the engine's INCONCLUSIVE verdict.
+        assessment.limit_n_m2 = 1.8e22;
+        assessment.flux_relative_error = Some(0.20);
+        assessment.history_fluence_standard_error_n_m2 = Some(0.30e22);
+        assessment.history_fluence_low_n_m2 = Some(0.9e22);
+        assessment.history_fluence_high_n_m2 = Some(2.1e22);
+        assessment.full_power_years_to_limit_earliest = Some(0.7);
+        assessment.full_power_years_to_limit_latest = Some(1.8);
+        assessment.calendar_years_to_limit_earliest = Some(0.9);
+        assessment.calendar_years_to_limit_latest = Some(2.2);
+        assessment.status = LimitStatus::Inconclusive;
+        assessment.why = "The two-sigma fluence band crosses the authored limit.".into();
+        assessment.next_step = "Run more histories to narrow the fluence band.".into();
+        let shown = Shown {
+            view: result_view(&report),
+            report,
+            history_context: None,
+            opened_from: None,
+            saved: Err("fixture only".into()),
+        };
+
+        let text = drawn_text(&ctx, &shown);
+        assert!(text.contains("INCONCLUSIVE"), "{text}");
+        assert!(text.contains("2σ band 9.00e21 to 2.10e22 n/m²"), "{text}");
+        assert!(text.contains("2σ band 0.7 years to 1.8 years"), "{text}");
+        assert!(
+            text.contains("Why: The two-sigma fluence band crosses the authored limit."),
+            "{text}"
+        );
+        assert!(
+            text.contains("Next: Run more histories to narrow the fluence band."),
+            "{text}"
+        );
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn rendered_margin_with_legacy_missing_error_keeps_band_unavailable() {
+        let ctx = egui::Context::default();
+        let mut report = sample_report();
+        let assessment = &mut report.fluence_limits[0].assessment;
+        assessment.flux_relative_error = None;
+        assessment.history_fluence_standard_error_n_m2 = None;
+        assessment.history_fluence_low_n_m2 = None;
+        assessment.history_fluence_high_n_m2 = None;
+        assessment.full_power_years_to_limit_earliest = None;
+        assessment.full_power_years_to_limit_latest = None;
+        assessment.calendar_years_to_limit_earliest = None;
+        assessment.calendar_years_to_limit_latest = None;
+        assessment.status = LimitStatus::Inconclusive;
+        assessment.why = "The saved tally has no standard error.".into();
+        assessment.next_step = "Re-run with batch statistics recorded.".into();
+        let shown = Shown {
+            view: result_view(&report),
+            report,
+            history_context: None,
+            opened_from: None,
+            saved: Err("legacy fixture".into()),
+        };
+
+        let text = drawn_text(&ctx, &shown);
+        assert!(text.contains("INCONCLUSIVE"), "{text}");
+        assert!(text.contains("error unknown"), "{text}");
+        assert!(!text.contains("2σ band"), "{text}");
+        assert!(
+            text.contains("Why: The saved tally has no standard error."),
+            "{text}"
+        );
+        assert!(
+            text.contains("Next: Re-run with batch statistics recorded."),
+            "{text}"
+        );
+    }
+
     #[test]
     fn v04_saved_report_is_view_only_and_cannot_offer_a_cad_handoff() {
         let ctx = egui::Context::default();

@@ -96,6 +96,14 @@
     "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
   },
   {
+    "repository": "DoumanAsh/clipboard-win",
+    "commit": "ed27008ae5d1f10cfbb266de039f0fb35fd05a56",
+    "name": "LICENSE",
+    "url": "https://raw.githubusercontent.com/DoumanAsh/clipboard-win/ed27008ae5d1f10cfbb266de039f0fb35fd05a56/LICENSE",
+    "file": "DoumanAsh--clipboard-win--ed27008ae5d1f10cfbb266de039f0fb35fd05a56--LICENSE",
+    "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+  },
+  {
     "repository": "madsmtm/objc2",
     "commit": "4fc083f1c6d6784577e38b0ee8dbd344481e2fd2",
     "name": "LICENSE.txt",

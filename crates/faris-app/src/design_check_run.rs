@@ -493,7 +493,8 @@ pub fn validate_check(inputs: &Inputs) -> Result<CheckPlan, Vec<Problem>> {
 /// Where the check is, as the engine's progress callback reported it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Snapshot {
-    /// The newest stage line: stage, done, total.
+    /// The newest stage line: stage, done, total. A zero total means a known busy
+    /// operation with no measured counter, not zero work or a completed stage.
     pub stage: Option<(String, usize, usize)>,
     /// How many different stages have reported so far.
     pub stages_seen: usize,
@@ -508,6 +509,11 @@ impl Snapshot {
             self.stage_started = Some(crate::time::Instant::now());
         }
         self.stage = Some((stage.to_string(), done, total));
+    }
+
+    /// Report a named operation while it runs when there is no honest count to show.
+    pub fn busy(&mut self, stage: &str) {
+        self.apply(stage, 0, 0);
     }
 }
 
@@ -547,7 +553,7 @@ fn remaining_sentence(seconds: f64) -> String {
 }
 
 /// Said under every progress line, because no honest total can be given.
-pub const NO_ESTIMATE: &str = "No time estimate for the whole check: the stages differ in length and their number depends on the model, so only the stage in progress shows how far it is. Reading the STEP file, the conversion and the material audit run as separate programs and show no count while they work; the line stays where it is until they finish.";
+pub const NO_ESTIMATE: &str = "No whole-check time estimate: check stages vary with the model. Counted work and named busy operations are shown as they report; an ETA appears only for a counted stage after enough progress has been measured.";
 
 pub fn progress_view(snapshot: &Snapshot) -> ProgressView {
     progress_view_at(snapshot, crate::time::Instant::now())
@@ -563,12 +569,13 @@ pub fn progress_view_at(snapshot: &Snapshot, now: crate::time::Instant) -> Progr
             stage_remaining: None,
         },
         Some((stage, done, total)) => ProgressView {
-            line: format!("{stage}: {done} of {total}"),
+            line: if *total == 0 {
+                format!("{stage}: in progress; no count is available")
+            } else {
+                format!("{stage}: {done} of {total}")
+            },
             fraction: (*total > 0).then(|| (*done as f32 / *total as f32).clamp(0.0, 1.0)),
-            stages_seen: format!(
-                "{} counted stage(s) have reported so far.",
-                snapshot.stages_seen
-            ),
+            stages_seen: format!("{} distinct stage(s) have reported so far.", snapshot.stages_seen),
             stage_remaining: snapshot
                 .stage_started
                 .and_then(|started| {
@@ -664,7 +671,13 @@ impl CheckJob {
                 let mut options = plan.options;
                 options.cancellation = cancel;
                 options.progress = Some(Arc::new(move |stage: &str, done, total| {
-                    sink.update(|s| s.apply(stage, done, total));
+                    sink.update(|s| {
+                        if total == 0 {
+                            s.busy(stage);
+                        } else {
+                            s.apply(stage, done, total);
+                        }
+                    });
                 }));
                 let report = runner(&plan.design, &plan.tools, &options)?;
                 let saved = save_report(&plan.report_path, &report);
@@ -975,13 +988,16 @@ pub(crate) mod tests {
         let view = progress_view(&snapshot);
         assert_eq!(view.line, "sampling points: 500 of 1000");
         assert_eq!(view.fraction, Some(0.5));
-        assert!(view.stages_seen.starts_with("1 counted"));
-        snapshot.apply("random chords", 0, 0);
+        assert!(view.stages_seen.starts_with("1 distinct stage"));
+        snapshot.busy("random chords");
         let view = progress_view(&snapshot);
-        assert_eq!(view.line, "random chords: 0 of 0");
+        assert_eq!(
+            view.line,
+            "random chords: in progress; no count is available"
+        );
         assert_eq!(view.fraction, None, "no count, no bar");
-        assert!(view.stages_seen.starts_with("2 counted"));
-        assert!(NO_ESTIMATE.contains("No time estimate"));
+        assert!(view.stages_seen.starts_with("2 distinct stage"));
+        assert!(NO_ESTIMATE.contains("No whole-check time estimate"));
     }
 
     fn wait(job: &mut CheckJob) -> Option<CheckDone> {

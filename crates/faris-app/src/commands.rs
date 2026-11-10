@@ -125,6 +125,36 @@ fn export_unavailable(app: &FarisApp) -> Option<String> {
     app.export_blocked().map(str::to_owned)
 }
 
+fn no_cancellable_uncertainty(app: &FarisApp) -> Option<String> {
+    (!app.history.can_cancel_uncertainty())
+        .then(|| "No transport-sampling calculation can be cancelled right now.".into())
+}
+
+fn no_cancelled_uncertainty(app: &FarisApp) -> Option<String> {
+    (!app.history.can_retry_cancelled_uncertainty())
+        .then(|| "No cancelled transport-sampling calculation is ready to retry.".into())
+}
+
+fn cancel_uncertainty(app: &mut FarisApp, _ctx: &egui::Context) {
+    let count = app.history.cancel_uncertainty();
+    app.message = if count == 0 {
+        "No unfinished transport-sampling calculations were cancelled.".into()
+    } else {
+        format!(
+            "Cancelled unfinished transport sampling for {count} arrangement(s). Nominal histories and completed intervals are retained; cancelled arrangements have no sampling interval."
+        )
+    };
+}
+
+fn retry_cancelled_uncertainty(app: &mut FarisApp, _ctx: &egui::Context) {
+    let count = app.history.retry_cancelled_uncertainty();
+    app.message = if count == 0 {
+        "No cancelled transport-sampling calculations were restarted.".into()
+    } else {
+        format!("Restarted transport-sampling calculations for {count} arrangement(s).")
+    };
+}
+
 fn no_pair(app: &FarisApp) -> Option<String> {
     app.paired.is_none().then(|| {
         "The matched port or no-port scenario is not loaded. Start FARIS with --control-scenario or --control-bundle to switch."
@@ -339,6 +369,24 @@ pub static REGISTRY: &[Command] = &[
         |app, ctx| app.begin_export(ctx),
     )
     .blocked_by(export_unavailable),
+    command(
+        "uncertainty.cancel",
+        "Cancel transport sampling (keep nominal histories)",
+        &["cancel ranges", "skip uncertainty", "export nominal"],
+        None,
+        cancel_uncertainty,
+    )
+    .blocked_by(no_cancellable_uncertainty)
+    .mutating(),
+    command(
+        "uncertainty.retry_cancelled",
+        "Retry cancelled transport sampling",
+        &["resume uncertainty", "recalculate intervals"],
+        None,
+        retry_cancelled_uncertainty,
+    )
+    .blocked_by(no_cancelled_uncertainty)
+    .mutating(),
     command(
         "view.focus_viewport",
         "Focus the 3D viewport (arrows orbit, Shift+arrows pan, + and − zoom, 0 resets, Enter reads out)",
@@ -613,6 +661,16 @@ pub const PANEL_ACTIONS: &[(&str, &str, &str)] = &[
         "file.include_evidence",
     ),
     ("Top bar", "Export", "export.begin"),
+    (
+        "Operate step",
+        "Cancel transport sampling (keep nominal histories)",
+        "uncertainty.cancel",
+    ),
+    (
+        "Operate step",
+        "Retry cancelled transport sampling",
+        "uncertainty.retry_cancelled",
+    ),
     ("Top bar", "Interface size menu", "interface.larger"),
     ("Top bar", "Interface size menu", "interface.smaller"),
     ("Top bar", "Interface size menu", "interface.reset"),

@@ -370,6 +370,7 @@ fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
                 .map(|(a, b)| (a / JULIAN_YEAR_SECONDS, b / JULIAN_YEAR_SECONDS))
                 .collect(),
                 band: uncertainty::fluence_band(d),
+                uncertainty: h.snapshot_uncertainty.get("limit_fluence_n_m2").cloned(),
             })
         })
         .collect();

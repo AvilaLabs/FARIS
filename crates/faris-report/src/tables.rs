@@ -143,6 +143,9 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
         "net_electricity_twh".into(),
         "magnet_swaps".into(),
     ];
+    for (column, _) in HISTORIES_COLUMNS {
+        header.push(format!("{column}_uncertainty"));
+    }
     header.extend(validation_headers(&HISTORIES_QUANTITIES));
     let mut out = row(&header);
     for data in arrangements {
@@ -171,6 +174,11 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
                     .get("magnets")
                     .map_or_else(String::new, |n| n.to_string()),
             ];
+            cells.extend(
+                HISTORIES_COLUMNS
+                    .iter()
+                    .map(|(_, field)| snapshot_state_text(history, field)),
+            );
             cells.extend(validation_cells(&HISTORIES_QUANTITIES));
             out.push_str(&row(&cells));
         }
@@ -196,7 +204,12 @@ fn band_text(band: Option<BandVerdict>) -> &'static str {
     }
 }
 
-const NET_DIFFERENCE_REASON: &str = "it is a difference of two deterministic histories and the joint transport sampling error of the pair is not propagated (next step: run the history ensemble for both arrangements)";
+pub(crate) fn net_difference_uncertainty() -> OutputUncertainty {
+    OutputUncertainty::none(
+        "it is a difference of two deterministic histories and the joint transport sampling error of the pair is not propagated",
+        "run the history ensemble for both arrangements",
+    )
+}
 
 fn kind_or(value_present: bool, kind: StatusKind) -> String {
     if value_present {
@@ -406,7 +419,7 @@ pub fn differences_csv(study: &StudyComparison) -> String {
             band_text(c.swaps_band).into(),
             band_text(c.first_swap_band).into(),
             if c.net_twh.is_some() {
-                format!("no interval, because {}", NET_DIFFERENCE_REASON)
+                net_difference_uncertainty().text(2)
             } else {
                 String::new()
             },
@@ -1025,6 +1038,19 @@ const HISTORIES_COLUMNS: [(&str, &str); 7] = [
     ("net_electricity_twh", "cumulative_net_electricity_mwh"),
     ("magnet_swaps", "component_replacements"),
 ];
+
+fn snapshot_state_text(history: &faris_engine::history::HistoryResult, field: &str) -> String {
+    history.snapshot_uncertainty.get(field).map_or_else(
+        || {
+            OutputUncertainty::none(
+                "this saved history predates stored uncertainty states",
+                "rerun this history with the current FARIS version to record its uncertainty state",
+            )
+            .text(2)
+        },
+        |state| state.text(2),
+    )
+}
 
 /// The uncertainty state of every number the summary and the snapshots carry: an interval with
 /// its basis, or the reason there is none and what to do next.

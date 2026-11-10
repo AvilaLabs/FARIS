@@ -11,6 +11,7 @@ use crate::{
         nice_ticks, sci_markup, sci_width, tint,
     },
 };
+use faris_engine::output_uncertainty::OutputUncertainty;
 use faris_engine::{
     brief::{Arrangement, BREEDER_BLANKET_M, REFERENCE_BLANKET_M, StatusKind},
     sweep::{HistorySummary, TransportPoint},
@@ -104,6 +105,8 @@ pub struct TimelineSeries {
     pub points: Vec<[f64; 2]>,
     pub swap_spans_years: Vec<(f64, f64)>,
     pub band: Option<Band>,
+    /// The stored no-interval reason for this history's point fluence values.
+    pub uncertainty: Option<OutputUncertainty>,
 }
 
 /// A nominal curve with its band, for the tritium and electricity charts.
@@ -142,8 +145,10 @@ fn title_block(svg: &mut Svg, x: f32, title: &str, subtitles: &[&str]) -> f32 {
         svg.text(x, y, line, TextStyle::new(9.2, INK).bold());
     }
     for line in subtitles {
-        y += 9.6;
-        svg.text(x, y, line, TextStyle::new(6.4, MUTED));
+        for wrapped in wrap_lines(line, (svg.width() - x - 20.0).max(1.0), 6.4) {
+            y += 8.0;
+            svg.text(x, y, &wrapped, TextStyle::new(6.4, MUTED));
+        }
     }
     y
 }
@@ -232,15 +237,28 @@ pub fn timeline_chart(
         );
     }
     let mut svg = Svg::new(w, h);
-    let sub = title_block(
-        &mut svg,
-        4.0,
-        &title,
-        &[
-            "component-average neutron fluence in the magnet envelope, n/m² · a swap resets it · conditional on authored assumptions",
-            &format!("Fluence here is {}", faris_model::FLUENCE_PROXY_NOTE),
-        ],
-    );
+    let mut subtitles = vec![
+        "component-average neutron fluence in the magnet envelope, n/m² · a swap resets it · conditional on authored assumptions".to_owned(),
+        format!("Fluence here is {}", faris_model::FLUENCE_PROXY_NOTE),
+    ];
+    if let Some(unbanded) = series.iter().find(|s| s.band.is_none()) {
+        let state = unbanded.uncertainty.as_ref().map_or_else(
+            || {
+                OutputUncertainty::none(
+                    "this saved history predates stored uncertainty states",
+                    "rerun this history with the current FARIS version to record its uncertainty state",
+                )
+                .text(2)
+            },
+            |state| state.text(2),
+        );
+        subtitles.push(format!(
+            "{} point curve, no P5–P95 band: {state}. Other arrangements: see data/histories.csv.",
+            unbanded.arrangement.label()
+        ));
+    }
+    let subtitle_refs: Vec<_> = subtitles.iter().map(String::as_str).collect();
+    let sub = title_block(&mut svg, 4.0, &title, &subtitle_refs);
 
     // Legend, wrapped to the chart width.
     let mut entries: Vec<LegendEntry> = Vec::new();
@@ -838,19 +856,25 @@ pub fn sweep_history_chart(
         .filter_map(|(p, s)| s.as_ref().map(|s| (p, s)))
         .collect();
     let permanent = rows.iter().any(|(_, s)| !s.magnets_replaceable);
-    let mut f = sweep_frame(
-        title,
-        &[
-            if permanent {
-                "magnets permanent: no swaps modelled"
-            } else {
-                "bars: swaps in the horizon"
-            },
-            "line: net TWh (right axis) · conditional",
-        ],
-        points,
-        38.0,
-    );
+    let mut subtitles = vec![
+        if permanent {
+            "magnets permanent: no swaps modelled".to_owned()
+        } else {
+            "bars: swaps in the horizon".to_owned()
+        },
+        "line: net TWh (right axis) · conditional".to_owned(),
+    ];
+    if rows
+        .iter()
+        .any(|(_, summary)| summary.net_electricity_twh.is_some())
+    {
+        subtitles.push(
+            "Per-allocation swap and electricity intervals, reasons and next steps: data/sweep.csv."
+                .to_owned(),
+        );
+    }
+    let subtitle_refs: Vec<_> = subtitles.iter().map(String::as_str).collect();
+    let mut f = sweep_frame(title, &subtitle_refs, points, 38.0);
     let (pl, pt, pr, pb) = f.plot;
     let max_swaps = rows
         .iter()
@@ -1009,6 +1033,7 @@ mod tests {
                     .collect(),
                 swap_spans_years: vec![(7.0, 7.3), (14.0, 14.3)],
                 band: None,
+                uncertainty: Some(OutputUncertainty::deterministic()),
             })
             .collect();
         let chart = timeline_chart(
@@ -1024,6 +1049,8 @@ mod tests {
         assert!(chart.svg.contains("(literature)"));
         assert!(chart.svg.contains("REBCO limit"));
         assert!(chart.svg.contains("stroke-dasharray=\"5 3\""));
+        assert!(chart.svg.contains("no interval, because"));
+        assert!(chart.svg.contains("next step:"));
         for a in Arrangement::ORDER {
             assert!(chart.svg.contains(a.label()), "{}", a.label());
             assert!(chart.svg.contains(&crate::svg::hex(a.rgb())));
@@ -1040,6 +1067,7 @@ mod tests {
                 points: vec![[0.0, 0.0], [5.0, 1.0e22]],
                 swap_spans_years: vec![],
                 band: None,
+                uncertainty: Some(OutputUncertainty::deterministic()),
             }],
             Some(LimitLine {
                 value: 1.0e25,
@@ -1050,6 +1078,129 @@ mod tests {
         );
         assert!(chart.svg.contains("(authored limit)"));
         assert!(!chart.svg.contains("(literature)"));
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn timeline_scopes_visible_uncertainty_state_to_named_series() {
+        let [a, b, c, d] = Arrangement::ORDER;
+        let series = [
+            (a, "shared reason", "shared next step"),
+            (b, "shared reason", "shared next step"),
+            (c, "legacy reason", "legacy next step"),
+            (d, "interval not calculated", "calculate the ensemble"),
+        ]
+        .map(|(arrangement, reason, next)| TimelineSeries {
+            arrangement,
+            points: vec![[0.0, 0.0], [5.0, 1.0e22]],
+            swap_spans_years: vec![],
+            band: None,
+            uncertainty: Some(OutputUncertainty::none(reason, next)),
+        });
+        let chart = timeline_chart(&series, None, 30.0, TIMELINE_SIZE.1);
+        well_formed(&chart.svg);
+        let svg = &chart.svg;
+        assert!(
+            svg.contains("shared reason") && svg.contains("shared next step"),
+            "{svg}"
+        );
+        assert!(
+            !svg.contains("legacy reason"),
+            "only the named first unbanded series owns the visible state"
+        );
+        assert!(
+            !svg.contains("interval not calculated"),
+            "other arrangements are directed to their own CSV rows"
+        );
+        assert!(svg.contains("no interval, because"), "{svg}");
+        assert!(svg.contains("next step:"), "{svg}");
+        assert!(svg.contains("data/histories.csv"), "{svg}");
+        assert!(
+            svg.contains(a.label())
+                && svg.contains(b.label())
+                && svg.contains(c.label())
+                && svg.contains(d.label()),
+            "{svg}"
+        );
+        assert_eq!(svg.matches("point curve, no P5–P95 band:").count(), 1);
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn sweep_history_chart_keeps_plot_usable_with_many_uncertainty_states() {
+        let points = sweep();
+        let summaries: Vec<Option<HistorySummary>> = points
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let mut uncertainty = std::collections::BTreeMap::new();
+                uncertainty.insert(
+                    "magnet_replacements".into(),
+                    if i == 0 {
+                        OutputUncertainty::interval(3.0, Some(5.0), "two-sigma flux-driving band")
+                    } else {
+                        OutputUncertainty::none(
+                            format!("distinct missing flux standard error {i}"),
+                            "record batch statistics",
+                        )
+                    },
+                );
+                uncertainty.insert(
+                    "net_electricity_twh".into(),
+                    if i + 1 == points.len() {
+                        OutputUncertainty::none(
+                            "missing energy must not be displayed",
+                            "record an energy result",
+                        )
+                    } else {
+                        OutputUncertainty::none(
+                            format!("distinct single-history output {i}"),
+                            "run paired transport sampling",
+                        )
+                    },
+                );
+                Some(HistorySummary {
+                    magnets_replaceable: true,
+                    magnet_replacements: 4,
+                    first_magnet_replacement_years: Some(6.0),
+                    magnet_permanent_limit_years: None,
+                    net_electricity_twh: (i + 1 < points.len()).then_some(30.0 + i as f64),
+                    final_available_tritium_kg: 3.0,
+                    uncertainty,
+                })
+            })
+            .collect();
+        let chart = sweep_history_chart(&points, &summaries);
+        well_formed(&chart.svg);
+        assert!(chart.svg.contains("data/sweep.csv"), "{}", chart.svg);
+        assert!(chart.svg.contains("reasons"), "{}", chart.svg);
+        assert!(chart.svg.contains("next steps"), "{}", chart.svg);
+        assert!(
+            !chart.svg.contains("missing energy must not be displayed"),
+            "{}",
+            chart.svg
+        );
+        assert_eq!(chart.svg.matches("<circle").count(), points.len() - 1);
+        let ys: Vec<f32> = chart
+            .svg
+            .split("cy=\"")
+            .skip(1)
+            .filter_map(|tail| {
+                tail.split_once('\"')
+                    .and_then(|(value, _)| value.parse().ok())
+            })
+            .collect();
+        let lo = ys.iter().copied().reduce(f32::min).unwrap();
+        let hi = ys.iter().copied().reduce(f32::max).unwrap();
+        assert!(
+            lo >= 0.0 && hi < chart.height,
+            "markers must remain within the rendered SVG: {lo}..{hi} / {}",
+            chart.height
+        );
+        assert!(
+            hi - lo > 20.0,
+            "many distinct uncertainty states must leave a usable plot: {lo}..{hi}"
+        );
     }
 
     #[test]

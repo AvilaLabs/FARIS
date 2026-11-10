@@ -1,0 +1,77 @@
+{
+  "schema": "faris-perf041-memory-admission-observation/v1",
+  "date": "2026-11-10",
+  "status": "partial_observation_not_calibration",
+  "purpose": "Record one bounded OpenMC transport observation and a separate deterministic free-memory refusal check for PERF-041.",
+  "workload": {
+    "scenario_id": "arc-cold-coupled-control-001",
+    "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+    "input_sha256": "94d26e26ab541b6b4149ec64fb8397603612c24491594423dfebed94ea1877ab",
+    "planned_and_realized_histories": 30000,
+    "batches": 30,
+    "particles_per_batch": 1000,
+    "threads": 1,
+    "mesh_preset": "coarse",
+    "mesh_dimensions": [12, 8, 12],
+    "mesh_bins": 1152,
+    "ordinary_scalar_responses": 46,
+    "normalized_response_count": 1198,
+    "serialized_input_bytes": 297970,
+    "known_scalar_result_lower_bound_bytes": 9584,
+    "known_lower_bound_definition": "8 bytes times (mesh bins + ordinary scalar responses). This is a structural lower bound, not a peak-RSS estimate."
+  },
+  "execution": {
+    "execution_status": "SUCCEEDED",
+    "exit_code": 0,
+    "runner_elapsed_seconds": 88.070170689,
+    "job_elapsed_seconds": 80.087320911,
+    "host_mem_available_before_bytes": 25265913856,
+    "runner_sampled_process_group_peak_bytes": 542359552,
+    "runner_sampling_interval_ms": 50,
+    "cgroup_memory_peak_bytes": 574894080,
+    "cgroup_memory_max_bytes": 4294967296,
+    "cgroup_swap_max_bytes": 0,
+    "cpu_quota": "100% (one CPU)",
+    "resource_limits": {
+      "address_space_cap_bytes": 4294967296,
+      "single_file_bytes": 268435456,
+      "artifact_total_bytes": 536870912,
+      "artifact_file_count": 2048,
+      "timeout_seconds": 300,
+      "memory_reserve_bytes": 1073741824
+    },
+    "memory_check": "PASS: projected reservation 4.0 GiB, free 23.4 GiB, reserve 1.0 GiB; known workload lower bound 0.00 GiB (1152 mesh-bin scalars; 46 ordinary response scalars; 30 batches; 0 triangles; 297970 request/input bytes recorded for context but not counted as resident); solver/runtime overhead is unknown, hard cap 4.00 GiB",
+    "helpers_and_data_sha256": {
+      "faris_cli": "ec2d10241cb30099e045587201e904fa26ba76113ab5d466d4fa3f110821bb44",
+      "reactor_transport.py": "6b5b85a11fa1a308e7cde354ff9f26c86179755a807358863a857caf7d1b75d5",
+      "batch_statistics.py": "ccb944072e979b08c18f09eec13509ac78ef719042f402a6b625c02cf9e5e13c",
+      "python_executable": "254873b41e0fbfb6bb08ea3e9aee6e14b32cb1111cfc1c5e01dd41ef8f981f20",
+      "openmc_executable": "01493915fc795da2973d55d5fca680ccbfb067f4e415c0842b67e8589829d06f",
+      "cross_sections_xml": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "audit_json": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669"
+    }
+  },
+  "refusal_check": {
+    "solver_launched": false,
+    "cli_exit_code": 3,
+    "configured_cap_bytes": 268435456,
+    "configured_margin_bytes": 4398046511104,
+    "available_memory_bytes_before": 26320019456,
+    "reason": "not started: this job may use up to 0.2 GiB (its projected memory reservation), but only 24.2 GiB of memory is free and 4096.0 GiB is kept in reserve. Close other programs and run it again, or, if the job is known to be small, lower the cap with FARIS_MEMORY_CAP_MB.; known workload lower bound 0.00 GiB (1152 mesh-bin scalars; 46 ordinary response scalars; 30 batches; 0 triangles; 297970 request/input bytes recorded for context but not counted as resident); solver/runtime overhead is unknown, hard cap 0.25 GiB",
+    "display_rounding_note": "256 MiB is 0.25 GiB; the refusal's one-decimal cap formatter displayed 0.2 GiB.",
+    "interpretation": "The extreme reserve deterministically exercised refusal before solver launch; it is not a realistic free-memory threshold."
+  },
+  "evidence": {
+    "measurement": "../runs/continuation/memory-projection-calibration-v1/result-002/measurement.json",
+    "run_record": "../runs/continuation/memory-projection-calibration-v1/result-002/success/run.json",
+    "failed_preflight_preserved": "../runs/continuation/memory-projection-calibration-v1/result-001/measurement.json"
+  },
+  "limitations": [
+    "This is one 30000-history smoke run, not the default-size study peak measurement.",
+    "The known scalar-result lower bound is 9584 bytes while sampled job peak is 542359552 bytes; unknown solver and native-library working memory dominates and remains unmodeled.",
+    "The Linux process-group peak is sampled every 50 ms and can miss brief peaks; the cgroup high-water mark measures a broader scope and is recorded separately.",
+    "The refusal check used an intentionally extreme reserve and does not validate a realistic host-memory boundary.",
+    "A cgroup-constrained smoke run is not a stress test; no OOM or maximum-workload behavior was tested."
+  ]
+}

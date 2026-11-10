@@ -200,6 +200,15 @@ impl Plot {
             Plot::FullPower => format!("{x:.2} {symbol}"),
         }
     }
+
+    fn uncertainty_field(self) -> &'static str {
+        match self {
+            Plot::MagnetFluence => "limit_fluence_n_m2",
+            Plot::Electricity => "cumulative_net_electricity_mwh",
+            Plot::Tritium => "available_tritium_kg",
+            Plot::FullPower => "cumulative_full_power_seconds",
+        }
+    }
 }
 
 struct Preset {
@@ -276,6 +285,38 @@ fn plot_band(plot: Plot, ensemble: &HistoryEnsemble) -> Option<(&[f64], &SeriesB
     }
     let band = summary.series_bands.iter().find(|b| b.name == name)?;
     Some((&summary.time_grid_s, band, scale))
+}
+
+fn exact_band_uncertainty(
+    grid: &[f64],
+    band: &SeriesBand,
+    scale: f64,
+    time_s: f64,
+) -> Option<faris_engine::output_uncertainty::OutputUncertainty> {
+    let tolerance = time_s.abs().max(1.0) * f64::EPSILON * 8.0;
+    let index = grid
+        .iter()
+        .position(|time| (*time - time_s).abs() <= tolerance)?;
+    let lower = band.p5.get(index).copied().flatten()? * scale;
+    let upper = band.p95.get(index).copied().flatten()? * scale;
+    (lower.is_finite() && upper.is_finite() && lower <= upper).then(|| {
+        faris_engine::output_uncertainty::OutputUncertainty::interval(
+            lower,
+            Some(upper),
+            "P5–P95 transport sampling range at this exact history time; model and authored-input uncertainty are not included",
+        )
+    })
+}
+
+fn snapshot_point_uncertainty_text(
+    history: &HistoryResult,
+    field: &str,
+    ensemble_band: Option<faris_engine::output_uncertainty::OutputUncertainty>,
+) -> String {
+    ensemble_band.map_or_else(
+        || snapshot_uncertainty_text(history, field),
+        |state| crate::quantity_text::output_uncertainty(&state, 2),
+    )
 }
 
 pub fn key(scenario: &str, variant: &str) -> String {
@@ -1466,10 +1507,35 @@ impl HistoryPanel {
         let next = spans.iter().find(|(start, _)| *start > t);
         let next_text = match (in_progress, next) {
             (true, _) => "underway".to_string(),
-            (false, Some((start, _))) => format!(
-                "in {}",
-                crate::quantity_text::quantity("service_time", "yr", start - t, 1)
-            ),
+            (false, Some((start, _))) => {
+                let remaining = crate::quantity_text::quantity("service_time", "yr", start - t, 1);
+                let trip_uncertainty = history
+                    .events
+                    .iter()
+                    .find(|event| {
+                        event.kind == EventKind::ServiceLimitReached
+                            && event.component_id.as_deref() == Some("magnets")
+                            && event.time_s == *start
+                    })
+                    .and_then(|event| event.trip.as_ref())
+                    .map(|trip| {
+                        trip.time_uncertainty_s
+                            .scaled(1.0 / JULIAN_YEAR_SECONDS)
+                    })
+                    .unwrap_or_else(|| {
+                        faris_engine::output_uncertainty::OutputUncertainty::none(
+                            "the matching magnet service-limit event has no recorded time uncertainty",
+                            "rerun the history with event-time uncertainty recorded",
+                        )
+                    });
+                // The headline is a remaining duration; this band is an absolute event time.
+                // Say so explicitly rather than subtracting from or otherwise altering the
+                // engine's typed trip-time state.
+                format!(
+                    "in {remaining} · event-time band (calendar years from history start): {}",
+                    crate::quantity_text::output_uncertainty(&trip_uncertainty, 1)
+                )
+            }
             (false, None) => format!("none before {horizon_years:.0} y"),
         };
         ui.horizontal_wrapped(|ui| {
@@ -1524,9 +1590,23 @@ impl HistoryPanel {
                 "Next magnet swap",
                 &next_text,
                 Kind::Conditional,
-                "From the computed events of this history; none means the limit is not reached within the horizon.",
+                "The countdown is relative to this scrub time. Its attached event-time band is in calendar years from history start. If the band is unavailable, the reason and next step are shown.",
             );
         });
+        ui.small(format!(
+            "Point-value uncertainty — usable tritium: {}; net electricity: {}; magnet swaps: {}",
+            snapshot_point_uncertainty_text(
+                history,
+                "available_tritium_kg",
+                self.output_uncertainty_at(active, Plot::Tritium, snapshot.time_s)
+            ),
+            snapshot_point_uncertainty_text(
+                history,
+                "cumulative_net_electricity_mwh",
+                self.output_uncertainty_at(active, Plot::Electricity, snapshot.time_s)
+            ),
+            snapshot_uncertainty_text(history, "component_replacements")
+        ));
     }
 
     fn draw_plot(
@@ -1980,6 +2060,20 @@ impl HistoryPanel {
     }
 }
 
+fn snapshot_uncertainty_text(history: &HistoryResult, field: &str) -> String {
+    history
+        .snapshot_uncertainty
+        .get(field)
+        .map(|state| crate::quantity_text::output_uncertainty(state, 2))
+        .unwrap_or_else(|| {
+            faris_engine::output_uncertainty::OutputUncertainty::none(
+                "this saved history has no stored uncertainty state for the numeric field",
+                "rerun the history with this FARIS version to record its uncertainty state",
+            )
+            .text(2)
+        })
+}
+
 impl Drop for HistoryPanel {
     fn drop(&mut self) {
         if let Some(p) = &mut self.pending {
@@ -2317,6 +2411,206 @@ mod tests {
             .bound_transport
             .insert(id, rates.transport_artifact_sha256.clone());
         (panel, rates)
+    }
+
+    fn rendered_headline_with_next_magnet_trip(
+        state: faris_engine::output_uncertainty::OutputUncertainty,
+    ) -> Vec<String> {
+        fn collect(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+
+        let (mut panel, _) = ready_panel();
+        let history = panel.results.get_mut("scenario::variant").unwrap();
+        let start_s = 10.0 * JULIAN_YEAR_SECONDS;
+        let horizon_s = 20.0 * JULIAN_YEAR_SECONDS;
+        history.assumptions.horizon_s = horizon_s;
+        for period in &mut history.assumptions.operation {
+            period.end_s = horizon_s;
+        }
+        panel.assumptions.as_mut().unwrap().horizon_s = horizon_s;
+        for period in &mut panel.assumptions.as_mut().unwrap().operation {
+            period.end_s = horizon_s;
+        }
+        history.events.push(HistoryEvent {
+            time_s: start_s,
+            order: u32::MAX,
+            kind: EventKind::ServiceLimitReached,
+            component_id: Some("magnets".into()),
+            response_id: Some("magnet-limit".into()),
+            mass_kg: None,
+            note: "rendered uncertainty fixture".into(),
+            trip: Some(faris_engine::history::LimitTrip {
+                criterion: "magnet fluence".into(),
+                response_id: "magnet-limit".into(),
+                accumulated_value: 1.0,
+                limit: 1.0,
+                unit: "n/m²".into(),
+                time_uncertainty_s: state,
+            }),
+        });
+        panel
+            .cache
+            .entry("scenario::variant".into())
+            .or_default()
+            .magnet_spans = Some(vec![(start_s, start_s + 86_400.0)]);
+        let history = panel.results.get("scenario::variant").unwrap();
+        let year = history.snapshots[0].time_s / JULIAN_YEAR_SECONDS;
+        let horizon = history.assumptions.horizon_s / JULIAN_YEAR_SECONDS;
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            panel.headline(ui, "scenario::variant", year, horizon);
+        });
+        let mut rendered = Vec::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        rendered
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn next_magnet_swap_headline_shows_matching_numeric_calendar_year_band() {
+        let rendered = rendered_headline_with_next_magnet_trip(
+            faris_engine::output_uncertainty::OutputUncertainty::interval(
+                9.0 * JULIAN_YEAR_SECONDS,
+                Some(11.0 * JULIAN_YEAR_SECONDS),
+                "2 sigma of the flux that drives this limit, to first order",
+            ),
+        );
+        let metric = rendered
+            .iter()
+            .find(|line| line.contains("event-time band (calendar years from history start)"))
+            .expect("next-swap metric includes its matching trip's band");
+        assert!(metric.contains("in 10.0 yr"), "{metric}");
+        assert!(metric.contains("9.0 to 11.0"), "{metric}");
+        assert!(metric.contains("2 sigma of the flux"), "{metric}");
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn legacy_next_magnet_swap_without_error_shows_reason_and_next_step() {
+        let rendered = rendered_headline_with_next_magnet_trip(
+            faris_engine::output_uncertainty::OutputUncertainty::none(
+                "the saved event has no flux standard error",
+                "rerun with batch statistics recorded",
+            ),
+        );
+        let metric = rendered
+            .iter()
+            .find(|line| line.contains("event-time band (calendar years from history start)"))
+            .expect("next-swap metric shows its missing-band state");
+        assert!(metric.contains("in 10.0 yr"), "{metric}");
+        assert!(metric.contains("no interval"), "{metric}");
+        assert!(
+            metric.contains("saved event has no flux standard error"),
+            "{metric}"
+        );
+        assert!(
+            metric.contains("next step: rerun with batch statistics recorded"),
+            "{metric}"
+        );
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_history_headline_shows_uncertainty_reason_and_next_step() {
+        fn text_shapes(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        text_shapes(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let (panel, _) = ready_panel();
+        let history = panel.results.get("scenario::variant").unwrap();
+        let year = history.snapshots[0].time_s / JULIAN_YEAR_SECONDS;
+        let horizon = panel.assumptions.as_ref().unwrap().horizon_s / JULIAN_YEAR_SECONDS;
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            panel.headline(ui, "scenario::variant", year, horizon);
+        });
+        let mut rendered = Vec::new();
+        for clipped in &output.shapes {
+            text_shapes(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        let detail = rendered
+            .iter()
+            .find(|text| text.contains("Point-value uncertainty"))
+            .expect("uncertainty details rendered with the headline values");
+        assert!(detail.contains("no interval, because"), "{detail}");
+        assert!(detail.contains("next step:"), "{detail}");
+        assert!(detail.contains("usable tritium"), "{detail}");
+        assert!(detail.contains("net electricity"), "{detail}");
+        assert!(detail.contains("magnet swaps"), "{detail}");
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn headline_uses_only_exact_current_time_bands_and_keeps_swap_count_state() {
+        let (panel, _) = ready_panel();
+        let history = panel.results.get("scenario::variant").unwrap();
+        let time_s = history.snapshots[0].time_s;
+        let grid = [time_s, time_s + 10.0, time_s + 20.0];
+        let electricity = SeriesBand {
+            name: BAND_NET_ELECTRICITY.into(),
+            n: vec![12; 3],
+            p5: vec![Some(2.0e6), None, Some(4.0e6)],
+            p50: vec![Some(4.0e6), None, Some(6.0e6)],
+            p95: vec![Some(8.0e6), None, Some(10.0e6)],
+        };
+        let (net_name, net_scale) = Plot::Electricity.band().unwrap();
+        assert_eq!(net_name, BAND_NET_ELECTRICITY);
+        assert_eq!(net_scale, 1.0e-6, "band values and headline are both TWh");
+        let net_range = exact_band_uncertainty(&grid, &electricity, net_scale, time_s).unwrap();
+        let net_text = snapshot_point_uncertainty_text(
+            history,
+            "cumulative_net_electricity_mwh",
+            Some(net_range),
+        );
+        assert!(net_text.contains("P5–P95"), "{net_text}");
+        assert!(net_text.contains("2.00 to 8.00"), "{net_text}");
+
+        let tritium = SeriesBand {
+            name: BAND_TRITIUM.into(),
+            n: vec![12; 3],
+            p5: vec![Some(2.0), Some(3.0), Some(4.0)],
+            p50: vec![Some(3.0), Some(4.0), Some(5.0)],
+            p95: vec![Some(4.0), Some(5.0), Some(6.0)],
+        };
+        let (tritium_name, tritium_scale) = Plot::Tritium.band().unwrap();
+        assert_eq!(tritium_name, BAND_TRITIUM);
+        assert_eq!(tritium_scale, 1.0, "band values and headline are both kg");
+        let tritium_range = exact_band_uncertainty(&grid, &tritium, tritium_scale, time_s).unwrap();
+        let tritium_text =
+            snapshot_point_uncertainty_text(history, "available_tritium_kg", Some(tritium_range));
+        assert!(tritium_text.contains("P5–P95"), "{tritium_text}");
+        assert!(tritium_text.contains("2.00 to 4.00"), "{tritium_text}");
+
+        // Missing bands and off-grid times use the stored state; a nearby band
+        // is never substituted for the selected snapshot.
+        assert!(exact_band_uncertainty(&grid, &electricity, net_scale, time_s + 10.0).is_none());
+        assert!(exact_band_uncertainty(&grid, &electricity, net_scale, time_s + 19.0).is_none());
+        let fallback = snapshot_point_uncertainty_text(
+            history,
+            "cumulative_net_electricity_mwh",
+            exact_band_uncertainty(&grid, &electricity, net_scale, time_s + 10.0),
+        );
+        assert!(fallback.contains("no interval, because"), "{fallback}");
+        let swaps = snapshot_uncertainty_text(history, "component_replacements");
+        assert!(swaps.contains("count of replacements"), "{swaps}");
+        assert!(!swaps.contains("P5–P95"), "{swaps}");
     }
 
     #[test]

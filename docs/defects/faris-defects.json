@@ -854,6 +854,48 @@
       "fixed_in": "0bfcb5c",
       "disposition": "The worker receipt bound the root batch_statistics.py helper by hash, but the portable transport pack did not include it, so materializing a packed run failed with NoSuchFile. Packs now include and verify the exact helper bytes; a missing helper gives clear guidance to re-pack from the original run directory, and tampered bytes are refused. The regression covers exact-byte round-trip, missing-helper refusal and tamper refusal. Three fresh pack checks now verify with ten files including the bound helper and retain NOT_EVALUATED scientific qualification. This is a software packaging fix and makes no scientific result or gate claim.",
       "regression_test": "crates/faris-engine/src/reactor.rs::packed_run_carries_the_exact_bound_batch_statistics_helper"
+    },
+    {
+      "id": "FARIS-066",
+      "title": "CAD conversion cache reused products after helper bytes changed",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "a75f278",
+      "disclosed": "2026-11-10",
+      "disposition": "CAD conversion-cache reuse checked the STEP input, tags, tolerances and product hashes, but did not bind a cached conversion to the helper version and source bytes that produced it. After a helper change, an old H5M and facet set could therefore be reused silently for the same STEP input. Reuse now requires the current helper version and exact saved bytes for all three conversion helpers; legacy cache directories without those bytes are recomputed. The regression rejects changed helper bytes, missing helper files and a changed recorded helper version. This closes a stale-geometry cache path; no resulting solver output or physical result is claimed.",
+      "regression_test": "crates/faris-engine/src/design/external.rs::a_conversion_is_not_reused_when_its_helper_identity_changes_or_is_missing"
+    },
+    {
+      "id": "FARIS-067",
+      "title": "Windows cancellation could leave an early grandchild outside the job object",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "disclosed": "2026-11-10",
+      "disposition": "The Windows runner spawned the program before assigning it to the job object. If the program started a child during that interval, a grandchild could remain outside the job and survive cancellation. Commit 0656b48 uses process-wrap to create the child suspended, assign it to the job, then resume it; binding or resume failures terminate and reap the child. The Windows-only regression starts a grandchild immediately, cancels the job, and checks that the grandchild exits. The regression has not yet passed on a Windows runner, and this entry does not claim PERF-024 is met. No Windows runtime reproduction or orphaned production run is claimed.",
+      "regression_test": "crates/faris-engine/src/jobs.rs::cancellation_kills_a_windows_grandchild_started_immediately",
+      "fixed_in": "0656b48"
+    },
+    {
+      "id": "FARIS-068",
+      "title": "ITER volume checks mixed material-cell volumes with full geometry volumes",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "a75f278",
+      "disclosed": "2026-11-10",
+      "disposition": "The ITER_1D worker supplied volumes for the full input geometry, including non-material source-geometry cells, to a preflight that requires exactly the 97 material cells. The exact-set check could reject the benchmark before OpenMC started. The worker now derives a material-cell-only volume map for coverage and tally mapping, while retaining the full geometry volume audit and source-cell volume. Five ITER risk tests passed in a75f278, including the existing exact 97-material-cell volume contract test; this commit did not add a dedicated fixture with extra non-material entries in the full geometry volume map. The change corrects input scope and does not establish a benchmark comparison or physical result.",
+      "regression_test": "integrations/openmc/risk_tests/test_iter_1d_reference.py::test_input_preflight_requires_all_97_material_cells_and_analytic_volumes"
     }
   ]
 }

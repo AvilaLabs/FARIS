@@ -9,6 +9,7 @@
 
 use super::*;
 use faris_engine::history_ensemble::EnsembleComparison;
+use faris_engine::output_uncertainty::OutputUncertainty;
 use std::sync::Arc;
 
 impl HistoryPanel {
@@ -56,6 +57,19 @@ impl HistoryPanel {
     pub fn uncertainty_status(&self, scenario: &str, variant: &str) -> Option<Status> {
         self.settled()
             .then(|| self.uncertainty.status(&key(scenario, variant)))
+    }
+
+    /// Use a transport-sampling band only when it shares the exact history
+    /// snapshot time. Otherwise the caller uses the snapshot's stored state.
+    pub(super) fn output_uncertainty_at(
+        &self,
+        id: &str,
+        plot: Plot,
+        time_s: f64,
+    ) -> Option<OutputUncertainty> {
+        let ensemble = self.display_ensemble(id)?;
+        let (grid, band, scale) = plot_band(plot, &ensemble)?;
+        exact_band_uncertainty(grid, band, scale, time_s)
     }
 
     /// The finished ensemble of an arrangement when it was evaluated.
@@ -123,6 +137,7 @@ impl HistoryPanel {
                     EnsembleStatus::NotEvaluated { .. } => "not evaluated".into(),
                 },
                 Status::Failed(why) => format!("failed: {why}"),
+                Status::Cancelled(why) => format!("cancelled: {why}"),
             }
         };
         serde_json::json!({
@@ -146,19 +161,45 @@ impl HistoryPanel {
     /// export waits for the ranges rather than leaving them out.
     pub fn uncertainty_pending(&self) -> bool {
         self.settled()
-            && self.results.keys().any(|id| {
-                matches!(
-                    self.uncertainty.status(id),
-                    Status::NotPlanned | Status::Waiting | Status::Queued | Status::Running { .. }
-                )
-            })
+            && (self.uncertainty.cancellation_pending()
+                || self.results.keys().any(|id| {
+                    matches!(
+                        self.uncertainty.status(id),
+                        Status::NotPlanned
+                            | Status::Waiting
+                            | Status::Queued
+                            | Status::Running { .. }
+                    )
+                }))
+    }
+
+    pub fn can_cancel_uncertainty(&self) -> bool {
+        self.settled() && self.uncertainty.can_cancel()
+    }
+
+    pub fn uncertainty_cancellation_pending(&self) -> bool {
+        self.settled() && self.uncertainty.cancellation_pending()
+    }
+
+    pub fn cancel_uncertainty(&mut self) -> usize {
+        self.uncertainty.cancel_pending()
+    }
+
+    pub fn can_retry_cancelled_uncertainty(&self) -> bool {
+        self.settled() && self.uncertainty.can_retry_cancelled()
+    }
+
+    pub fn retry_cancelled_uncertainty(&mut self) -> usize {
+        self.uncertainty.retry_cancelled()
     }
 
     /// The ensemble of an arrangement as the export takes it.
     pub fn export_ensemble(&self, scenario: &str, variant: &str) -> faris_report::EnsembleInput {
         match self.uncertainty_status(scenario, variant) {
             Some(Status::Ready(ensemble)) => faris_report::EnsembleInput::Ready(ensemble),
-            Some(Status::Failed(why)) => faris_report::EnsembleInput::Failed(why),
+            Some(Status::Failed(why) | Status::Cancelled(why)) => {
+                faris_report::EnsembleInput::Failed(why)
+            }
             _ => faris_report::EnsembleInput::None,
         }
     }
@@ -238,6 +279,12 @@ impl HistoryPanel {
                     format!("Uncertainty could not be calculated: {why}"),
                 );
             }
+            Status::Cancelled(why) => {
+                ui.colored_label(
+                    Kind::Partial.color(),
+                    format!("No uncertainty interval: {why}"),
+                );
+            }
             Status::Ready(ensemble) => {
                 let Some(history) = self.results.get(&active) else {
                     return;
@@ -302,6 +349,9 @@ impl HistoryPanel {
             Status::Failed(why) => {
                 badge::badge(ui, Kind::Failed, "uncertainty failed", &why);
             }
+            Status::Cancelled(why) => {
+                badge::badge(ui, Kind::NotEvaluated, "sampling cancelled", &why);
+            }
             _ => {}
         }
     }
@@ -316,9 +366,27 @@ impl HistoryPanel {
         color: egui::Color32,
     ) {
         let Some(ensemble) = self.display_ensemble(id) else {
+            if let Some(history) = self.results.get(id) {
+                ui.colored_label(
+                    color,
+                    format!(
+                        "   {}",
+                        super::snapshot_uncertainty_text(history, plot.uncertainty_field())
+                    ),
+                );
+            }
             return;
         };
         let Some((grid, band, scale)) = plot_band(plot, &ensemble) else {
+            if let Some(history) = self.results.get(id) {
+                ui.colored_label(
+                    color,
+                    format!(
+                        "   {}",
+                        super::snapshot_uncertainty_text(history, plot.uncertainty_field())
+                    ),
+                );
+            }
             return;
         };
         let t = year * JULIAN_YEAR_SECONDS;

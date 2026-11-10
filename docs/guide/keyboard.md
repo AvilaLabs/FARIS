@@ -29,6 +29,8 @@ Each row is a palette entry. Where a key is shown it also works on its own, with
 | Save the study as… | Ctrl+Shift+S |
 | Store the Core evidence inside the saved file (toggle) | none, use the palette |
 | Export the brief, tables and charts… | none, use the palette |
+| Cancel transport sampling (keep nominal histories) | none, use the palette |
+| Retry cancelled transport sampling | none, use the palette |
 | About this browser version (browser version only) | none, use the palette |
 | Focus the 3D viewport (arrows orbit, Shift+arrows pan, + and − zoom, 0 resets, Enter reads out) | none, use the palette |
 | Reset the 3D view (frame scene) | none, use the palette |

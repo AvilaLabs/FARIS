@@ -1,0 +1,60 @@
+{
+  "schema": "faris-r3-d1s-execution-only/v1",
+  "date": "2026-11-10",
+  "status": "EXECUTION_RECORDED_SCIENTIFIC_QUALIFICATION_NOT_EVALUATED",
+  "campaign": {
+    "plan_sha256": "ae5ea69867bc47281140be03119846508da232a503ccee7787fbebbd8fe2bfdb",
+    "task_index": 1,
+    "task_kind": "d1s",
+    "replicate": 1,
+    "conditional_method_comparison": "NOT_COMPLETED"
+  },
+  "execution": {
+    "solver": "OpenMC",
+    "openmc_version": "0.15.3",
+    "threads": 4,
+    "seed": 830060001,
+    "batches_completed": 154,
+    "particles_per_batch": 5000,
+    "histories_realized": 770000,
+    "history_statement": "770,000 realized histories; this is not a 1,000,000-history result.",
+    "stop_reason": "time_budget",
+    "time_budget_seconds": 7000,
+    "solver_elapsed_seconds": 7015.603319715003,
+    "solver_status": 0,
+    "peak_rss_mib": 1155.17578125,
+    "lost_particle_assessment": {
+      "status": "PASS",
+      "lost_particles": 0,
+      "histories": 770000,
+      "fraction_limit": 1e-06,
+      "scope": "all particle species in this OpenMC C API run"
+    }
+  },
+  "data_readiness": {
+    "library_description": "FENDL-3.2 neutron (294 K) + ENDF/B-VII.1 photon overlay",
+    "library_sha256": "d5f82bba9f91aa5c2a643134a9a2a8462ef081b316feea0149fb6073336dd08f",
+    "audit_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "usable": false,
+    "matches_audit": false,
+    "nuclides_missing": [],
+    "interpretation": "The recorded library explicitly fails its usability/audit-match checks; physics suitability is not established."
+  },
+  "identities": {
+    "d1s_record_sha256": "e19f2f8032d943096417f729aa58c28a2e5245fbdc9a816449a3468196c68db8",
+    "solver_model_sha256": "3eeda880a91cb4ad4802eba1a29c55038ea6e6ca4ab2c7b2b0f73f5d2dbf7949",
+    "activation_chain_sha256": "d3b829467cfdda9c624aaeb5709825df378b908ecc63c3f984ade51f8d0444a0",
+    "openmc_c_api_library_sha256": "ba09ae9d19c4c789d8230abe62984de00d2326723b306c440506f099c2e46216"
+  },
+  "scope_and_limits": [
+    "This records execution and loss accounting only. No dose-result values are copied here.",
+    "It is not a qualified conditional-method result, physical validation, product-path acceptance, or requirement-status promotion.",
+    "D1S/R2S comparison was not completed. The following R2S task completed its neutron transport stage, then failed during activation cross-section collapse because collapsed group means were invalid; it did not produce a comparison result.",
+    "Nuclear-data and model uncertainty are outside the run's Monte Carlo loss check."
+  ],
+  "evidence": {
+    "record": "../runs/continuation/r3-method-control-replicates-20261110-v1/rep-01/d1s/d1s_record.json",
+    "run_log": "../runs/continuation/r3-method-control-replicates-20261110-v1/logs/001-d1s-rep01.log",
+    "campaign_state": "../runs/continuation/r3-method-control-replicates-20261110-v1/campaign-state.json"
+  }
+}

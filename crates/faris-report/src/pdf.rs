@@ -17,6 +17,7 @@ use faris_engine::{
     },
     history_ensemble::output_quantity,
     history_uncertainty::{SCOPE_DETAIL, SCOPE_LINE},
+    output_uncertainty::OutputUncertainty,
 };
 use faris_model::RESEARCH_SCREENING_STATEMENT;
 use faris_model::validation::{Quantity, ValidationState, note};
@@ -429,7 +430,15 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
     };
     let net = match s.net_twh {
         Some(v) => Cell {
-            text: format!("{v:.2}"),
+            text: if s
+                .uncertainty
+                .get("net_twh")
+                .is_some_and(|u| u.has_interval())
+            {
+                format!("{v:.2}")
+            } else {
+                format!("{v:.2} [U1]")
+            },
             kind: StatusKind::Conditional,
             label: if s
                 .uncertainty
@@ -464,6 +473,38 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         None => none("—"),
     };
     [swaps, first, net, breeding, flux]
+}
+
+fn net_point_uncertainty_notes(arrangements: &[&ArrangementData]) -> Vec<String> {
+    let mut notes: std::collections::BTreeMap<String, Vec<&str>> =
+        std::collections::BTreeMap::new();
+    for data in arrangements {
+        if data.summary.net_twh.is_none() {
+            continue;
+        }
+        let state = match data.summary.uncertainty.get("net_twh") {
+            Some(state) if state.has_interval() => continue,
+            Some(state) => state.text(2),
+            None => OutputUncertainty::none(
+                "the net-electricity value has no stored uncertainty state",
+                "rerun and export this arrangement with the current FARIS version to record its uncertainty state",
+            )
+            .text(2),
+        };
+        notes
+            .entry(state)
+            .or_default()
+            .push(data.input.arrangement.label());
+    }
+    notes
+        .into_iter()
+        .map(|(state, labels)| {
+            format!(
+                "U1 Net-electricity point values ({}): {state}.",
+                labels.join(", ")
+            )
+        })
+        .collect()
 }
 
 /// The first swap with its two-standard-error band, earliest (unfavourable) edge first.
@@ -526,7 +567,7 @@ fn delta_cells(c: &Contrast) -> [Option<(String, StatusKind, &'static str)>; 5] 
             .and_then(|v| banded(signed(v, 1, "y"), c.first_swap_band)),
         c.net_twh.map(|v| {
             (
-                signed(v, 2, "TWh"),
+                format!("{} [U2]", signed(v, 2, "TWh")),
                 StatusKind::Conditional,
                 "conditional · no interval",
             )
@@ -826,6 +867,28 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
             }
         }
         y += dh;
+    }
+    let mut uncertainty_notes = net_point_uncertainty_notes(c.arrangements);
+    if [
+        &c.study.allocation_with_port,
+        &c.study.allocation_no_port,
+        &c.study.port_reference,
+        &c.study.port_breeder,
+    ]
+    .iter()
+    .any(|contrast| contrast.net_twh.is_some())
+    {
+        uncertainty_notes.push(format!(
+            "U2 Net-electricity differences: {}.",
+            crate::tables::net_difference_uncertainty().text(2)
+        ));
+    }
+    for note in uncertainty_notes {
+        let lines = wrap_lines(&note, CONTENT_W, 6.5);
+        for line in &lines {
+            cv.body(MARGIN + 4.0, y + 7.0, line, 6.5, MUTED);
+            y += 8.0;
+        }
     }
     y += 8.0;
     let chart = (c.timeline)((BOTTOM - y).clamp(150.0, 250.0));
@@ -1378,5 +1441,70 @@ mod tests {
         assert!(cut.ends_with('…'));
         assert!(text_width(FontKind::Body, &cut, 6.0) <= 60.5);
         assert_eq!(fit_text("short", 60.0, 6.0), "short");
+    }
+
+    #[test]
+    fn net_point_uncertainty_notes_group_each_distinct_legacy_and_current_state() {
+        use crate::{ArrangementInput, uncertainty::EnsembleInput};
+        use faris_engine::brief::{Arrangement, ArrangementSummary};
+        use std::collections::BTreeMap;
+
+        let make = |arrangement: Arrangement, state: Option<OutputUncertainty>| {
+            let uncertainty = state
+                .map(|state| BTreeMap::from([("net_twh".to_owned(), state)]))
+                .unwrap_or_default();
+            ArrangementData {
+                input: ArrangementInput {
+                    arrangement,
+                    transport: None,
+                    sampling: None,
+                    history: None,
+                    ensemble: EnsembleInput::None,
+                },
+                summary: ArrangementSummary {
+                    recorded: true,
+                    net_twh: Some(1.0),
+                    uncertainty,
+                    ..Default::default()
+                },
+            }
+        };
+        let [a, b, c, d] = Arrangement::ORDER;
+        let shared = OutputUncertainty::none("same deterministic reason", "run one ensemble");
+        let first = make(a, Some(shared.clone()));
+        let second = make(b, Some(shared));
+        let third = make(
+            c,
+            Some(OutputUncertainty::none(
+                "a different reason",
+                "run the other ensemble",
+            )),
+        );
+        let evaluated = make(
+            d,
+            Some(OutputUncertainty::interval(
+                1.0,
+                Some(2.0),
+                "ensemble range",
+            )),
+        );
+        let mixed = net_point_uncertainty_notes(&[&first, &second, &third, &evaluated]);
+        assert_eq!(mixed.len(), 2, "{mixed:?}");
+        assert!(
+            mixed
+                .iter()
+                .all(|note| !note.contains("No port · breeder-heavy")),
+            "an interval-bearing value must not inherit a no-interval note: {mixed:?}"
+        );
+        let legacy = make(d, None);
+        let notes = net_point_uncertainty_notes(&[&first, &second, &third, &legacy]);
+        assert_eq!(notes.len(), 3, "{notes:?}");
+        let notes = notes.join(" ");
+        assert!(notes.contains("same deterministic reason"), "{notes}");
+        assert!(notes.contains("Port · reference"), "{notes}");
+        assert!(notes.contains("No port · reference"), "{notes}");
+        assert!(notes.contains("a different reason"), "{notes}");
+        assert!(notes.contains("no stored uncertainty state"), "{notes}");
+        assert!(notes.contains("rerun and export"), "{notes}");
     }
 }

@@ -228,3 +228,63 @@ fn tail_of(path: &Path) -> String {
     let lines: Vec<&str> = text.lines().collect();
     lines[lines.len().saturating_sub(8)..].join("\n")
 }
+
+// This client has a separate process-launch path from
+// faris-engine's shared job runner, so exercise its cancellation boundary too.
+#[cfg(all(test, target_os = "linux"))]
+mod cancellation_tests {
+    use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    // Verifies: PERF-024
+    #[test]
+    fn cancelling_a_native_worker_stops_and_reaps_its_process() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("worker.pid");
+        let script_path = dir.path().join("worker.sh");
+        let quoted_pid_file = pid_file.to_string_lossy().replace('\'', "'\\''");
+        std::fs::write(
+            &script_path,
+            format!("#!/bin/sh\nprintf '%s' \"$$\" > '{quoted_pid_file}'\nexec sleep 30\n"),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let worker_cancelled = cancelled.clone();
+        let worker = Worker::new(script_path);
+        let running = std::thread::spawn(move || {
+            worker.run_cancellable(Operation::Ping, Bounds::default(), &|| {
+                worker_cancelled.load(Ordering::Acquire)
+            })
+        });
+
+        let start_deadline = Instant::now() + Duration::from_secs(2);
+        let pid: u32 = loop {
+            if let Ok(contents) = fs::read_to_string(&pid_file)
+                && let Ok(pid) = contents.trim().parse()
+            {
+                break pid;
+            }
+            assert!(Instant::now() < start_deadline, "CAD worker did not start");
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        let proc_stat = PathBuf::from(format!("/proc/{pid}/stat"));
+        let cancelled_at = Instant::now();
+        cancelled.store(true, Ordering::Release);
+        assert!(matches!(
+            running.join().unwrap(),
+            Err(WorkerError::Cancelled)
+        ));
+        assert!(cancelled_at.elapsed() < Duration::from_secs(2));
+        assert!(
+            !proc_stat.exists(),
+            "CAD worker process {pid} remained after cancellation and wait"
+        );
+    }
+}

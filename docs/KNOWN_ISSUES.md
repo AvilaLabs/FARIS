@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 63 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 66 fixed before they reached a release.
 
 ## Open
 
@@ -45,6 +45,7 @@ These were found in development and never shipped.
 | FARIS-033 | S1 | ITER reference intake accepted changed benchmark inputs without checking registered identities | 59806a0 |
 | FARIS-036 | S1 | Combined history energy trusted edited heating-report numbers without rechecking raw worker evidence | 9264e17 |
 | FARIS-037 | S1 | FNS finite-detector flux omitted the spherical-volume normalization | 7cc5d87 |
+| FARIS-066 | S1 | CAD conversion cache reused products after helper bytes changed | a75f278 |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
@@ -94,4 +95,6 @@ These were found in development and never shipped.
 | FARIS-063 | S3 | Replay displayed normalized legacy transport values without exact loss accounting | f7a3cba |
 | FARIS-064 | S3 | R3 material-volume sampling refused a mesh extending beyond the transport sphere | 83f0b8a |
 | FARIS-065 | S3 | Portable transport packs omitted the batch-statistics helper bound by the worker receipt | 0bfcb5c |
+| FARIS-067 | S3 | Windows cancellation could leave an early grandchild outside the job object | 0656b48 |
+| FARIS-068 | S3 | ITER volume checks mixed material-cell volumes with full geometry volumes | a75f278 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

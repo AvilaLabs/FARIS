@@ -153,6 +153,173 @@ pub fn parse_meminfo_available(text: &str) -> Option<u64> {
     kib.checked_mul(1024)
 }
 
+#[cfg(target_os = "linux")]
+fn cgroup_v2_membership(text: &str) -> Result<std::path::PathBuf, String> {
+    let Some(path) = text.lines().find_map(|line| {
+        let mut fields = line.splitn(3, ':');
+        if fields.next()? == "0" && fields.next()?.is_empty() {
+            fields.next()
+        } else {
+            None
+        }
+    }) else {
+        return Err("unified cgroup v2 membership is unavailable; cgroup v1 memory limits are not supported, so available memory was not evaluated".into());
+    };
+    let path = std::path::PathBuf::from(path);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err("/proc/self/cgroup has an invalid unified cgroup path".into());
+    }
+    Ok(path)
+}
+
+#[cfg(target_os = "linux")]
+fn unescape_mountinfo_path(path: &str) -> Result<std::path::PathBuf, String> {
+    let mut decoded = Vec::with_capacity(path.len());
+    let bytes = path.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'\\' {
+            if i + 3 >= bytes.len()
+                || !bytes[i + 1..i + 4]
+                    .iter()
+                    .all(|b| (b'0'..=b'7').contains(b))
+            {
+                return Err("/proc/self/mountinfo has an invalid escaped path".into());
+            }
+            let octal = (u16::from(bytes[i + 1] - b'0')) * 64
+                + (u16::from(bytes[i + 2] - b'0')) * 8
+                + u16::from(bytes[i + 3] - b'0');
+            let octet = u8::try_from(octal)
+                .map_err(|_| "/proc/self/mountinfo has an out-of-range octal escape".to_string())?;
+            decoded.push(octet);
+            i += 4;
+        } else {
+            decoded.push(bytes[i]);
+            i += 1;
+        }
+    }
+    let decoded = String::from_utf8(decoded)
+        .map_err(|_| "/proc/self/mountinfo has a non-UTF-8 path".to_string())?;
+    let path = std::path::PathBuf::from(decoded);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        return Err("/proc/self/mountinfo has an invalid cgroup2 mount path".into());
+    }
+    Ok(path)
+}
+
+#[cfg(target_os = "linux")]
+fn cgroup_v2_mounts(text: &str) -> Result<Vec<(std::path::PathBuf, std::path::PathBuf)>, String> {
+    let mut mounts = Vec::new();
+    for line in text.lines() {
+        let Some((left, right)) = line.split_once(" - ") else {
+            continue;
+        };
+        let right_fields: Vec<_> = right.split_whitespace().collect();
+        if right_fields.first() != Some(&"cgroup2") {
+            continue;
+        }
+        let left_fields: Vec<_> = left.split_whitespace().collect();
+        if left_fields.len() < 5 {
+            return Err("/proc/self/mountinfo has a malformed cgroup2 mount".into());
+        }
+        mounts.push((
+            unescape_mountinfo_path(left_fields[3])?,
+            unescape_mountinfo_path(left_fields[4])?,
+        ));
+    }
+    if mounts.is_empty() {
+        return Err("no cgroup v2 mount is available; cgroup v1 memory limits are not supported, so available memory was not evaluated".into());
+    }
+    Ok(mounts)
+}
+
+#[cfg(target_os = "linux")]
+fn cgroup_v2_headroom(
+    host_available: u64,
+    cgroup_text: &str,
+    mountinfo_text: &str,
+    filesystem_root: &std::path::Path,
+) -> Result<u64, String> {
+    use std::path::PathBuf;
+
+    let membership = cgroup_v2_membership(cgroup_text)?;
+    let mounts = cgroup_v2_mounts(mountinfo_text)?;
+    // Mount and membership paths can be virtualized by cgroup namespaces. Pick the most
+    // specific visible mount root that contains the visible membership path. This walk only
+    // accounts for ancestors exposed by that mount; limits above a cgroup-namespace root are
+    // invisible here and cannot be included in this estimate.
+    let (mount_root, mountpoint) = mounts
+        .into_iter()
+        .filter(|(root, _)| membership.strip_prefix(root).is_ok())
+        .max_by_key(|(root, _)| root.components().count())
+        .ok_or_else(|| "the unified cgroup path is outside every cgroup v2 mount".to_string())?;
+    let relative = membership
+        .strip_prefix(&mount_root)
+        .map_err(|_| "cannot resolve the unified cgroup path against its mount".to_string())?;
+    let mountpoint_relative = mountpoint
+        .strip_prefix("/")
+        .map_err(|_| "the cgroup2 mount point is not absolute".to_string())?;
+    let mountpoint_on_fs: PathBuf = filesystem_root.join(mountpoint_relative);
+    let mut current = mountpoint_on_fs.join(relative);
+    let mut available = host_available;
+    loop {
+        if !current.is_dir() {
+            return Err(format!(
+                "the cgroup path {} is not available in its mounted hierarchy",
+                current.display()
+            ));
+        }
+        let max_path = current.join("memory.max");
+        match std::fs::read_to_string(&max_path) {
+            Ok(value) => {
+                let value = value.trim();
+                if value != "max" {
+                    let limit = value.parse::<u64>().map_err(|_| {
+                        format!(
+                            "{} does not contain `max` or a byte limit",
+                            max_path.display()
+                        )
+                    })?;
+                    let current_path = current.join("memory.current");
+                    let usage_text = std::fs::read_to_string(&current_path).map_err(|e| {
+                        format!(
+                            "cannot read {} for a finite cgroup limit: {e}",
+                            current_path.display()
+                        )
+                    })?;
+                    let usage = usage_text.trim().parse::<u64>().map_err(|_| {
+                        format!("{} does not contain a byte count", current_path.display())
+                    })?;
+                    available = available.min(limit.saturating_sub(usage));
+                }
+            }
+            // A controller not delegated to this cgroup has no local memory.max file.
+            // Keep walking: a higher ancestor can still impose a finite limit.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!("cannot read {}: {error}", max_path.display()));
+            }
+        }
+        if current == mountpoint_on_fs {
+            break;
+        }
+        current = current
+            .parent()
+            .filter(|parent| parent.starts_with(&mountpoint_on_fs))
+            .ok_or_else(|| "the unified cgroup path escaped its mounted hierarchy".to_string())?
+            .to_path_buf();
+    }
+    Ok(available)
+}
+
 /// Memory the system reports as available for new work, in bytes. Unit tests
 /// of this crate see an injected figure (a large one unless a test sets one)
 /// so that they do not depend on the machine they run on.
@@ -168,8 +335,13 @@ fn read_available_memory() -> Result<u64, String> {
     {
         let text = std::fs::read_to_string("/proc/meminfo")
             .map_err(|e| format!("cannot read /proc/meminfo: {e}"))?;
-        parse_meminfo_available(&text)
-            .ok_or_else(|| "/proc/meminfo has no MemAvailable line".to_string())
+        let host = parse_meminfo_available(&text)
+            .ok_or_else(|| "/proc/meminfo has no MemAvailable line".to_string())?;
+        let cgroup = std::fs::read_to_string("/proc/self/cgroup")
+            .map_err(|e| format!("cannot read /proc/self/cgroup: {e}"))?;
+        let mountinfo = std::fs::read_to_string("/proc/self/mountinfo")
+            .map_err(|e| format!("cannot read /proc/self/mountinfo: {e}"))?;
+        cgroup_v2_headroom(host, &cgroup, &mountinfo, std::path::Path::new("/"))
     }
     #[cfg(any(target_os = "macos", windows))]
     {
@@ -358,9 +530,21 @@ pub(crate) mod tests {
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn this_machines_free_memory_is_readable() {
-        let free = read_available_memory().unwrap();
-        // Every CI runner and laptop has more than 64 MiB free and less than 64 TiB.
-        assert!(free > 64 << 20 && free < 64 << 40, "{free}");
+        match read_available_memory() {
+            Ok(free) => {
+                // Every CI runner and laptop has more than 64 MiB free and less than 64 TiB.
+                assert!(free > 64 << 20 && free < 64 << 40, "{free}");
+            }
+            Err(error) => {
+                #[cfg(target_os = "linux")]
+                assert!(
+                    error.contains("cgroup v1 memory limits are not supported"),
+                    "{error}"
+                );
+                #[cfg(not(target_os = "linux"))]
+                panic!("{error}");
+            }
+        }
     }
 
     // Verifies: PERF-041
@@ -397,5 +581,77 @@ pub(crate) mod tests {
             peak.observe(Some((1, 5)));
             assert_eq!(peak.bytes(), Some(5));
         }
+    }
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cgroup_v2_headroom_honors_the_tightest_ancestor_and_host() {
+        let root = tempfile::tempdir().unwrap();
+        let mount = root.path().join("delegated cgroup");
+        let leaf = mount.join("slice/child");
+        std::fs::create_dir_all(&leaf).unwrap();
+        std::fs::write(mount.join("memory.max"), "max\n").unwrap();
+        std::fs::write(mount.join("slice/memory.max"), "800\n").unwrap();
+        std::fs::write(mount.join("slice/memory.current"), "500\n").unwrap();
+        std::fs::write(leaf.join("memory.max"), "600\n").unwrap();
+        std::fs::write(leaf.join("memory.current"), "400\n").unwrap();
+        let cgroup = "0::/slice/child\n";
+        let mountinfo = "29 23 0:26 / /delegated\\040cgroup rw - cgroup2 cgroup rw\n";
+        assert_eq!(
+            cgroup_v2_headroom(1000, cgroup, mountinfo, root.path()).unwrap(),
+            200
+        );
+        assert_eq!(
+            cgroup_v2_headroom(150, cgroup, mountinfo, root.path()).unwrap(),
+            150,
+            "host availability can be tighter than cgroup headroom"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cgroup_v2_keeps_walking_when_a_controller_is_not_delegated() {
+        let root = tempfile::tempdir().unwrap();
+        let mount = root.path().join("cg");
+        let leaf = mount.join("slice/child");
+        std::fs::create_dir_all(&leaf).unwrap();
+        std::fs::write(mount.join("slice/memory.max"), "800\n").unwrap();
+        std::fs::write(mount.join("slice/memory.current"), "500\n").unwrap();
+        let mountinfo = "29 23 0:26 / /cg rw - cgroup2 cgroup rw\n";
+        assert_eq!(
+            cgroup_v2_headroom(1000, "0::/slice/child", mountinfo, root.path()).unwrap(),
+            300,
+            "the parent limit still applies"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cgroup_v2_does_not_guess_when_a_finite_limit_has_no_usage_counter() {
+        let root = tempfile::tempdir().unwrap();
+        let leaf = root.path().join("cg/task");
+        std::fs::create_dir_all(&leaf).unwrap();
+        std::fs::write(leaf.join("memory.max"), "100\n").unwrap();
+        let error = cgroup_v2_headroom(
+            1000,
+            "0::/task",
+            "29 23 0:26 / /cg rw - cgroup2 cgroup rw\n",
+            root.path(),
+        )
+        .unwrap_err();
+        assert!(error.contains("memory.current"), "{error}");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cgroup_v1_is_reported_as_unsupported_instead_of_using_host_memory_as_a_fallback() {
+        let error = cgroup_v2_membership("5:memory:/docker/abc\n").unwrap_err();
+        assert!(error.contains("cgroup v1 memory limits are not supported"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn mountinfo_octal_escape_outside_one_byte_is_rejected_without_overflow() {
+        let error = unescape_mountinfo_path("/bad\\777").unwrap_err();
+        assert!(error.contains("out-of-range octal escape"), "{error}");
     }
 }

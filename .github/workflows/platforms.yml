@@ -53,6 +53,9 @@ jobs:
       - name: Set macOS deployment target
         if: matrix.deployment_target
         run: echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment_target }}" >> "$GITHUB_ENV"
+      - name: Windows job-object cancellation regression
+        if: runner.os == 'Windows'
+        run: cargo test --locked -p faris-engine cancellation_kills_a_windows_grandchild_started_immediately
       - name: Build the command line and the desktop app
         run: cargo build --locked -p faris-cli -p faris-app
       - name: Verify macOS host and binary minimum OS version

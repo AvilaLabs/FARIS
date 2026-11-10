@@ -1,0 +1,211 @@
+{
+  "schema_version": "faris-rel010-powerloss-control/v0.1",
+  "status": "PARTIAL",
+  "recorded_at": "2026-11-10",
+  "run_id": "faris-rel010-qemu-20261110-v1",
+  "scope": "One QEMU TCG guest campaign using the production atomic writer on ext4 over virtio-blk with dm-log-writes; QEMU was SIGKILLed at each named observer boundary, then log prefixes were replayed onto a pristine baseline image and mounted for recovery.",
+  "execution": {
+    "systemd_scope": "unit-faris-rel010-qemu-20261110-v1.scope",
+    "host_log_path": "checks/rel010-qemu-v1.log",
+    "repetitions_per_boundary": 1,
+    "boundaries_completed": 5,
+    "candidate_checker": {
+      "path": "runs/continuation/job-gate-review-v1/rel010-qemu-kit/candidate-checks.sh",
+      "bytes": 3393,
+      "sha256": "d023ea94845616d32aa4e341f300badf2ab6088b8cabe26c17bda4baa33a9c36"
+    },
+    "candidate_check_result": "PASS",
+    "candidate_check_command": "runs/continuation/job-gate-review-v1/rel010-qemu-kit/candidate-checks.sh <absolute-attempt-directory> 1",
+    "run_terminal": true,
+    "baseline_image": {
+      "path": "runs/continuation/rel010-qemu-attempt-v1/base.img",
+      "bytes": 268435456,
+      "sha256": "228587d7114d632f03805e2c0f0a33014f23bbe4cf156a7352c7d4aca8db27c5"
+    },
+    "campaign_driver": {
+      "path": "runs/continuation/job-gate-review-v1/rel010-qemu-kit/prepare-and-run.sh",
+      "bytes": 3682,
+      "sha256": "f91f7cdc77845e64feb0cdf9e43869d10ece3078b467de2c72160397822a86de"
+    },
+    "guest_runner": {
+      "path": "runs/continuation/job-gate-review-v1/rel010-qemu-kit/run-guest.sh",
+      "bytes": 4962,
+      "sha256": "af915725a83e7e44ec3c7a5e80d219bc4348102512e4d1533ac326fd6804b66b"
+    }
+  },
+  "guest": {
+    "kernel": {
+      "path": "runs/continuation/rel010-qemu-kit-v1/kernel/boot/vmlinuz-7.0.0-43-generic",
+      "bytes": 17349000,
+      "sha256": "646f7e41faa4b7c8899deee5f725c39eb46987977b5d0ab4340deb3463d9de86",
+      "release": "7.0.0-43-generic"
+    },
+    "initramfs": {
+      "path": "runs/continuation/rel010-qemu-kit-v1/initramfs.cpio.gz",
+      "bytes": 4619198,
+      "sha256": "51695e3398a32cc961f3d5ec33f7826848a9fa8018e5086293b1b64035b6a35a"
+    },
+    "writer_executable": {
+      "path": "runs/continuation/native-target-v33/debug/rel010-powercut-writer",
+      "bytes": 1467160,
+      "sha256": "a2d686b0655ce2cfffeccfd8a9a1f2687fd4a27bb8076de1f2c0756d7f498391"
+    },
+    "replay_log_executable": {
+      "path": "runs/continuation/rel010-qemu-kit-v1/tools/replay-log",
+      "bytes": 22344,
+      "sha256": "f400f3c13234c9127c9c86dd4954eea99e268b80c379aa1ba721fe888296cd8f"
+    },
+    "replay_log_source_commit": "7b70d8a6863c5de30933d42a7672d35d01d2dc6c",
+    "replay_log_license_status": "NOASSERTION; private local validation artifact only",
+    "qemu_configuration": {
+      "machine": "pc-q35-resolute",
+      "accelerator": "tcg",
+      "cpu": "max",
+      "vcpus": 1,
+      "memory_mib": 512,
+      "disk_cache": "writeback"
+    },
+    "filesystem": "ext4 with normal guest mount journal recovery",
+    "old_payload_checksum_fnv64": "08895d9ddfcd46a1",
+    "new_payload_checksum_fnv64": "693f6d9257be1c15",
+    "production_atomic_writer_source": {
+      "path": "crates/faris-engine/src/atomic_file.rs",
+      "bytes": 15971,
+      "sha256": "b6b6962a6647f7aa21355586c98baf09696af60ac3ed5536fe3eb91dbab33a94"
+    },
+    "guest_helper_source": {
+      "path": "runs/continuation/job-gate-review-v1/rel010-qemu-kit/src/main.rs",
+      "bytes": 3798,
+      "sha256": "6c34bcdc9ad66528c2fb865841711a95191748acb8bf3813acfb087f3256a73a"
+    }
+  },
+  "boundaries": [
+    {
+      "cut_after": "CreateTemporary",
+      "observed_writer_marker_order": [
+        "CreateTemporary"
+      ],
+      "expected_recovery_classes": [
+        "OLD"
+      ],
+      "observed_recovery_class": "OLD",
+      "observed_checksum": "08895d9ddfcd46a1",
+      "ext4_recovery_completed": true,
+      "guest_powered_down": true,
+      "replace_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-replace-CreateTemporary-1.log",
+        "bytes": 29987,
+        "sha256": "a13f117f151ab366aa5ca3fc96231bb3caef7fe9575e63c85edaccbf1808d555"
+      },
+      "recovery_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-recover-CreateTemporary-1.log",
+        "bytes": 30240,
+        "sha256": "e8e1516e836b696e0e3eba0d773205052013536f585cfb32a1ac89130436abe5"
+      }
+    },
+    {
+      "cut_after": "WriteData",
+      "observed_writer_marker_order": [
+        "CreateTemporary",
+        "WriteData"
+      ],
+      "expected_recovery_classes": [
+        "OLD"
+      ],
+      "observed_recovery_class": "OLD",
+      "observed_checksum": "08895d9ddfcd46a1",
+      "ext4_recovery_completed": true,
+      "guest_powered_down": true,
+      "replace_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-replace-WriteData-1.log",
+        "bytes": 29999,
+        "sha256": "2c0834d5bd974b9ffe0c04b425eff640bd73b43b30dde8d93692ab0f07de0e31"
+      },
+      "recovery_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-recover-WriteData-1.log",
+        "bytes": 30228,
+        "sha256": "e90810e265fe550e3730df423da5b524668e4a5c72ff99f5a13dbddb4ea20409"
+      }
+    },
+    {
+      "cut_after": "FsyncFile",
+      "observed_writer_marker_order": [
+        "CreateTemporary",
+        "WriteData",
+        "FsyncFile"
+      ],
+      "expected_recovery_classes": [
+        "OLD"
+      ],
+      "observed_recovery_class": "OLD",
+      "observed_checksum": "08895d9ddfcd46a1",
+      "ext4_recovery_completed": true,
+      "guest_powered_down": true,
+      "replace_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-replace-FsyncFile-1.log",
+        "bytes": 30029,
+        "sha256": "c4c0092f6eb9da692241e8242c3507104a5b929faa901bdda8a0919804b8e062"
+      },
+      "recovery_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-recover-FsyncFile-1.log",
+        "bytes": 30228,
+        "sha256": "4cb1c2c5ee90c38adfe393d325368a4a89a923b02f9e47b24f6cc9b51633a619"
+      }
+    },
+    {
+      "cut_after": "Rename",
+      "observed_writer_marker_order": [
+        "CreateTemporary",
+        "WriteData",
+        "FsyncFile",
+        "Rename"
+      ],
+      "expected_recovery_classes": [
+        "OLD",
+        "NEW"
+      ],
+      "observed_recovery_class": "OLD",
+      "observed_checksum": "08895d9ddfcd46a1",
+      "ext4_recovery_completed": true,
+      "guest_powered_down": true,
+      "replace_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-replace-Rename-1.log",
+        "bytes": 30047,
+        "sha256": "c2bead0bcbb24483ce8ae3491b0adbacb5b0b30c2159370305002a124274df7c"
+      },
+      "recovery_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-recover-Rename-1.log",
+        "bytes": 30222,
+        "sha256": "7d1e14600fef3592352b342e8a92275e58540c6a74c879cc50b9266181f6cd48"
+      }
+    },
+    {
+      "cut_after": "FsyncDirectory",
+      "observed_writer_marker_order": [
+        "CreateTemporary",
+        "WriteData",
+        "FsyncFile",
+        "Rename",
+        "FsyncDirectory"
+      ],
+      "expected_recovery_classes": [
+        "NEW"
+      ],
+      "observed_recovery_class": "NEW",
+      "observed_checksum": "693f6d9257be1c15",
+      "ext4_recovery_completed": true,
+      "guest_powered_down": true,
+      "replace_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-replace-FsyncDirectory-1.log",
+        "bytes": 30089,
+        "sha256": "763dbd32a05cb05567c1d3c87e8d09033bd24c9aeff04661610516e0ba683aeb"
+      },
+      "recovery_serial": {
+        "path": "runs/continuation/rel010-qemu-attempt-v1/serial-recover-FsyncDirectory-1.log",
+        "bytes": 30238,
+        "sha256": "bc9314dbf20ebac33fd2b35d07bba70a0ba0b813fa4a9f4e451d2899996ab3f4"
+      }
+    }
+  ],
+  "claim_limit": "These five fixed boundary controls demonstrate power-loss emulation on this one QEMU/kernel/ext4/virtio-blk setup. They are distinct from the existing local-filesystem SIGKILL campaigns (shared writer: 9,998 plus 2,000 additional trials on final code; study writer: 10,000 trials). Five fixed cuts do not satisfy 10,000 randomized power-loss trials or qualify other filesystems, devices, or writers. REL-010 remains Partial pending review and remaining scope."
+}

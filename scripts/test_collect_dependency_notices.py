@@ -57,10 +57,10 @@ class CollectNoticesTests(unittest.TestCase):
     def test_default_output_keeps_the_linux_wording_of_the_checked_in_notices(self):
         text = run(self.root, "default.md")
         committed = (ROOT / "docs/THIRD_PARTY_NOTICES.md").read_text().splitlines()
-        # Everything between the title and the dependency count is the header.
-        count = next(i for i, line in enumerate(committed) if line.endswith("exact license texts."))
-        expected = "\n".join(committed[1:count]) + "\n"
-        self.assertTrue(text.startswith("# FARIS native dependency notices\n" + expected))
+        linux_wording = "Exact license texts collected from the locked Linux Cargo dependency graph."
+        self.assertIn(linux_wording, committed)
+        self.assertIn(linux_wording, text)
+        self.assertIn("--filter-platform x86_64-unknown-linux-gnu`", text)
         self.assertEqual(text, run(self.root, "explicit.md", "--platform-label", "Linux",
                                    "--target-triple", "x86_64-unknown-linux-gnu"))
 

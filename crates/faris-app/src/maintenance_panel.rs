@@ -1442,7 +1442,7 @@ fn duration_tornado_chart(
                 } else {
                     format!("{value:+.2} {unit}")
                 },
-                egui::FontId::proportional(9.0),
+                egui::FontId::proportional(11.0),
                 weak,
             );
         }
@@ -1452,7 +1452,7 @@ fn duration_tornado_chart(
                 egui::pos2(plot_left - 7.0, y),
                 egui::Align2::RIGHT_CENTER,
                 format!("{:02} {}", row + 1, bar.component_id),
-                egui::FontId::proportional(10.0),
+                egui::FontId::proportional(11.0),
                 weak,
             );
             let deltas = if metric == 0 {
@@ -1500,7 +1500,7 @@ fn duration_tornado_chart(
                     egui::pos2((plot_left + plot_right) * 0.5, y),
                     egui::Align2::CENTER_CENTER,
                     "NOT_AVAILABLE",
-                    egui::FontId::proportional(10.0),
+                    egui::FontId::proportional(11.0),
                     Kind::NotEvaluated.color(),
                 );
             }

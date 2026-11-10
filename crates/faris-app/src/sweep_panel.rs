@@ -713,9 +713,9 @@ fn draw_chart(
                 .summaries
                 .is_some_and(|s| s.iter().flatten().any(|s| !s.magnets_replaceable))
             {
-                "bars: swaps (magnets permanent: none) \u{b7} red: limit year \u{b7} line: net TWh"
+                "bars: swaps (magnets permanent: none) \u{b7} red: limit year \u{b7} line: net TWh \u{b7} hover a point for each value's uncertainty state"
             } else {
-                "bars: swaps in horizon \u{b7} line: net TWh (right axis)"
+                "bars: swaps in horizon \u{b7} line: net TWh (right axis) \u{b7} hover a point for each value's uncertainty state"
             },
         ),
     };
@@ -1125,6 +1125,33 @@ fn validation_label(ui: &mut egui::Ui, quantity: Quantity) {
     ));
 }
 
+fn history_value_uncertainty(
+    summary: &HistorySummary,
+    field: &str,
+) -> faris_engine::output_uncertainty::OutputUncertainty {
+    summary.uncertainty.get(field).cloned().unwrap_or_else(|| {
+        faris_engine::output_uncertainty::OutputUncertainty::none(
+            format!("this saved history has no stored uncertainty state for {field}"),
+            "recalculate the history summary with the current FARIS version to record its uncertainty state",
+        )
+    })
+}
+
+fn uncertainty_with_unit(
+    state: &faris_engine::output_uncertainty::OutputUncertainty,
+    unit: &str,
+) -> String {
+    match state {
+        faris_engine::output_uncertainty::OutputUncertainty::Interval { .. } => format!(
+            "{} {unit}",
+            crate::quantity_text::output_uncertainty(state, 1)
+        ),
+        faris_engine::output_uncertainty::OutputUncertainty::NoInterval { .. } => {
+            crate::quantity_text::output_uncertainty(state, 1)
+        }
+    }
+}
+
 fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummary>, preset: &str) {
     ui.set_max_width(380.0);
     ui.strong(format!(
@@ -1165,29 +1192,36 @@ fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummar
                     .unwrap_or_default()
             ));
             ui.end_row();
-            for (label, field) in [
-                ("Swap-count uncertainty", "magnet_replacements"),
-                ("First-swap uncertainty", "first_magnet_replacement_years"),
+            for (label, field, unit) in [
+                ("Swap-count uncertainty", "magnet_replacements", "swaps"),
+                (
+                    "First-swap uncertainty",
+                    "first_magnet_replacement_years",
+                    "y",
+                ),
             ] {
-                if let Some(state) = s.uncertainty.get(field) {
-                    let validation = note(Quantity::Fluence);
-                    ui.weak(label);
-                    ui.weak(format!(
-                        "{} {} · {}",
-                        crate::quantity_text::output_uncertainty(state, 1),
-                        if field == "magnet_replacements" {
-                            "swaps"
-                        } else {
-                            "y"
-                        },
-                        validation.state.label()
-                    ))
-                    .on_hover_text(format!(
-                        "Scope: {}\nWhy: {}\nNext step: {}",
-                        validation.scope, validation.why, validation.next_step
-                    ));
-                    ui.end_row();
-                }
+                let state = history_value_uncertainty(s, field);
+                let validation = note(Quantity::Fluence);
+                ui.weak(label);
+                ui.weak(format!(
+                    "{} · {}",
+                    uncertainty_with_unit(&state, unit),
+                    validation.state.label()
+                ))
+                .on_hover_text(format!(
+                    "Scope: {}\nWhy: {}\nNext step: {}",
+                    validation.scope, validation.why, validation.next_step
+                ));
+                ui.end_row();
+            }
+            if let Some(year) = s.magnet_permanent_limit_years {
+                ui.weak("Permanent-limit time");
+                ui.monospace(format!("{year:.1} y"));
+                ui.end_row();
+                let state = history_value_uncertainty(s, "magnet_permanent_limit_years");
+                ui.weak("Permanent-limit uncertainty");
+                ui.weak(uncertainty_with_unit(&state, "y"));
+                ui.end_row();
             }
             ui.weak("Net electricity");
             ui.monospace(
@@ -1195,12 +1229,13 @@ fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummar
                     .map_or("unavailable".into(), |e| format!("{e:.2} TWh")),
             );
             ui.end_row();
-            if let Some(state) = s.uncertainty.get("net_electricity_twh") {
-                ui.weak("Net-electricity uncertainty");
+            {
+                let state = history_value_uncertainty(s, "net_electricity_twh");
                 let validation = note(Quantity::NetElectricPower);
+                ui.weak("Net-electricity uncertainty");
                 ui.weak(format!(
-                    "{} TWh · {}",
-                    crate::quantity_text::output_uncertainty(state, 1),
+                    "{} · {}",
+                    uncertainty_with_unit(&state, "TWh"),
                     validation.state.label()
                 ))
                 .on_hover_text(format!(
@@ -1212,12 +1247,13 @@ fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummar
             ui.weak("Usable tritium at end");
             ui.monospace(format!("{:.2} kg", s.final_available_tritium_kg));
             ui.end_row();
-            if let Some(state) = s.uncertainty.get("final_available_tritium_kg") {
-                ui.weak("Tritium uncertainty");
+            {
+                let state = history_value_uncertainty(s, "final_available_tritium_kg");
                 let validation = note(Quantity::TritiumInventory);
+                ui.weak("Tritium uncertainty");
                 ui.weak(format!(
-                    "{} kg · {}",
-                    crate::quantity_text::output_uncertainty(state, 1),
+                    "{} · {}",
+                    uncertainty_with_unit(&state, "kg"),
                     validation.state.label()
                 ))
                 .on_hover_text(format!(
@@ -1239,6 +1275,127 @@ fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummar
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rendered_tooltip(summary: &HistorySummary) -> String {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect(shape, out)),
+                _ => {}
+            }
+        }
+        let point = TransportPoint {
+            variant_id: "fixture".into(),
+            label: "Fixture".into(),
+            blanket_m: 0.45,
+            shield_m: 0.70,
+            breeding: Estimate {
+                mean: 0.9,
+                standard_error: 0.02,
+            },
+            magnet_flux: Estimate {
+                mean: 1.0e18,
+                standard_error: 0.1e18,
+            },
+            seed: 17,
+            histories: 100_000,
+        };
+        let ctx = egui::Context::default();
+        let output = ctx.run_ui(Default::default(), |ui| {
+            tooltip(ui, &point, Some(summary), "fixture assumptions");
+        });
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.drop_without_applying_deltas();
+        rendered
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_sweep_history_tooltip_attributes_ranges_and_deterministic_reason() {
+        let summary = HistorySummary {
+            magnets_replaceable: true,
+            magnet_replacements: 3,
+            first_magnet_replacement_years: Some(4.0),
+            magnet_permanent_limit_years: None,
+            net_electricity_twh: Some(12.5),
+            final_available_tritium_kg: 2.0,
+            uncertainty: std::collections::BTreeMap::from([
+                (
+                    "magnet_replacements".into(),
+                    faris_engine::output_uncertainty::OutputUncertainty::interval(
+                        2.0,
+                        Some(4.0),
+                        "2 sigma of transport-driven flux, first order",
+                    ),
+                ),
+                (
+                    "first_magnet_replacement_years".into(),
+                    faris_engine::output_uncertainty::OutputUncertainty::interval(
+                        3.0,
+                        Some(5.0),
+                        "2 sigma of transport-driven flux, first order",
+                    ),
+                ),
+                (
+                    "net_electricity_twh".into(),
+                    faris_engine::output_uncertainty::OutputUncertainty::deterministic(),
+                ),
+                (
+                    "final_available_tritium_kg".into(),
+                    faris_engine::output_uncertainty::OutputUncertainty::deterministic(),
+                ),
+            ]),
+        };
+        let rendered = rendered_tooltip(&summary);
+        assert!(rendered.contains("Magnet replacements"), "{rendered}");
+        assert!(rendered.contains("Swap-count uncertainty"), "{rendered}");
+        assert!(
+            rendered.contains("2.0 to 4.0 (2 sigma of transport-driven flux, first order) swaps"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("3.0 to 5.0 (2 sigma of transport-driven flux, first order) y"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Net-electricity uncertainty"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("no interval, because deterministic function"),
+            "{rendered}"
+        );
+        assert!(rendered.contains("next step:"), "{rendered}");
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_sweep_history_tooltip_explains_legacy_missing_state() {
+        let summary = HistorySummary {
+            magnets_replaceable: true,
+            magnet_replacements: 1,
+            first_magnet_replacement_years: Some(8.0),
+            magnet_permanent_limit_years: None,
+            net_electricity_twh: Some(4.0),
+            final_available_tritium_kg: 1.0,
+            uncertainty: std::collections::BTreeMap::new(),
+        };
+        let rendered = rendered_tooltip(&summary);
+        assert!(
+            rendered.contains("this saved history has no stored uncertainty state"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("recalculate the history summary"),
+            "{rendered}"
+        );
+    }
 
     #[test]
     fn nice_ticks_cover_the_range_with_round_steps() {
