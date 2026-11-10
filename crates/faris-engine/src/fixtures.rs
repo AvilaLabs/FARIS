@@ -147,6 +147,7 @@ pub fn synthetic_covariance(rates: &TransportDrivingRates, correlation: f64) -> 
         method: "synthetic-fixture-covariance".into(),
         batches: 100,
         rate_ids: entries.iter().map(|e| e.0.to_string()).collect(),
+        unknown_rate_ids: Vec::new(),
         monte_carlo,
         volume_variance: vec![0.0; n],
     }

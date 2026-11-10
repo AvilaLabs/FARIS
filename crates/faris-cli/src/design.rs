@@ -4,9 +4,11 @@
 
 use clap::{Args, Subcommand};
 use faris_engine::design::{
-    CadReader, DesignHeatingOptions, DesignTransportOptions, GeometryOptions, ImportReport,
-    ToolPaths, check_design_with_tools, design_heating, design_init_with_tools, design_transport,
-    render_design_heating_text, render_text, render_transport_text,
+    CadReader, DesignHeatingOptions, DesignHistoryRatesArtifact, DesignTransportOptions,
+    GeometryOptions, ImportReport, ToolPaths, check_design_with_tools,
+    combine_history_energy_rates, design_heating, design_heating_with_history_rates,
+    design_init_with_tools, design_transport, render_design_heating_text, render_text,
+    render_transport_text,
 };
 use faris_model::design::LengthUnit;
 use std::{
@@ -186,7 +188,8 @@ pub enum DesignCommand {
         tools: ToolArguments,
     },
     /// Run separate all-energy coupled neutron/photon/electron heating in explicitly authored
-    /// winding-pack solids, then score the highest sampled ring voxel.
+    /// winding-pack solids, then score the highest sampled ring voxel. With --history-rates,
+    /// also score unfiltered whole-model heating for the exact CAD history component partition.
     Heating {
         design: PathBuf,
         #[arg(long, value_name = "JSON")]
@@ -195,6 +198,10 @@ pub enum DesignCommand {
         out: PathBuf,
         #[arg(long)]
         report: Option<PathBuf>,
+        /// Bind a previously validated CAD history-rate artifact and emit
+        /// `history-energy-rates.json` in the new run directory on success.
+        #[arg(long, value_name = "CAD_HISTORY_RATES.json")]
+        history_rates: Option<PathBuf>,
         /// Radial and vertical peak voxel widths, in metres: --peak-voxel-m 0.05,0.05.
         #[arg(long, value_delimiter = ',', num_args = 2, default_values_t = [0.05, 0.05])]
         peak_voxel_m: Vec<f64>,
@@ -347,6 +354,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             check_report,
             out,
             report,
+            history_rates,
             target_error,
             max_histories,
             max_seconds,
@@ -429,6 +437,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             let cancellation = interrupts.cancellation.clone();
             #[cfg(not(unix))]
             let cancellation = interrupts.clone();
+            let run_dir = out.clone();
             let options = DesignHeatingOptions {
                 check_report,
                 out_dir: out,
@@ -456,8 +465,36 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 threads,
                 cancellation,
             };
-            let result = design_heating(&design, &tools.paths(), &options)?;
+            let tool_paths = tools.paths();
+            let result = if let Some(base_path) = history_rates.as_deref() {
+                design_heating_with_history_rates(&design, &tool_paths, &options, base_path)?
+            } else {
+                design_heating(&design, &tool_paths, &options)?
+            };
             print!("{}", render_design_heating_text(&result));
+            if let Some(base_path) = history_rates.as_deref()
+                && result
+                    .history_energy_response
+                    .as_ref()
+                    .is_some_and(|response| {
+                        response.status == "CALCULATED" && response.target_reached
+                    })
+            {
+                let base_bytes = std::fs::read(base_path)?;
+                let base: DesignHistoryRatesArtifact = serde_json::from_slice(&base_bytes)?;
+                let scenario = faris_model::LoadedScenario::load(Path::new(&base.scenario_path))?;
+                let energy_path = run_dir.join("history-energy-rates.json");
+                combine_history_energy_rates(
+                    base_path,
+                    &run_dir.join("report.json"),
+                    &scenario,
+                    &energy_path,
+                )?;
+                println!(
+                    "Whole-model history-energy rates written to {}",
+                    energy_path.display()
+                );
+            }
             if let Some(path) = report {
                 write_json(&path, &result)?;
                 println!("Report written to {}", path.display());

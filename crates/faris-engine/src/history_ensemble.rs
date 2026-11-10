@@ -180,6 +180,12 @@ impl Sampler {
             .covariance
             .as_ref()
             .ok_or("transport driving rates carry no covariance")?;
+        if !covariance.unknown_rate_ids.is_empty() {
+            return Err(format!(
+                "correlated history ensemble is unavailable because cross-run covariance is unknown for: {}",
+                covariance.unknown_rate_ids.join(", ")
+            ));
+        }
         let entries = rates.covariance_entries();
         let n = entries.len();
         let factor = factor_covariance(&covariance.monte_carlo, n)?;

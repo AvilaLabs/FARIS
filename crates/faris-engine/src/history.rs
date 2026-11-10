@@ -92,13 +92,16 @@ pub struct RegionFluxRate {
 
 /// Sampling covariance between the driving rates, in the rates' own units.
 ///
-/// Matrix order is fixed: the breeder H3 rate, each component flux in
-/// component-ID order, each region flux in response-ID order, then the
-/// whole-model heating power when present.
+/// Matrix order is fixed for the same-run block: the breeder H3 rate, each
+/// component flux in component-ID order, and each region flux in response-ID
+/// order. `unknown_rate_ids` lists later rates (currently separate-run heating)
+/// whose marginal standard errors are known but whose cross-run covariance is
+/// not; no independence assumption is made for them.
 /// `monte_carlo` is the batch-means covariance of the transport tallies scaled
 /// from integrated units to the driving units (H3 per source neutron: divide by
 /// the source neutron rate; component flux: divide by the component volume;
-/// heating: unchanged).
+/// heating: unchanged). A separate-run heat estimate is excluded from this
+/// same-run matrix and is named in `unknown_rate_ids`.
 ///
 /// A component flux standard error in a normalized record also contains the
 /// uncertainty of the stochastic volume estimate, which is independent of the
@@ -113,6 +116,10 @@ pub struct DrivingCovariance {
     pub method: String,
     pub batches: u32,
     pub rate_ids: Vec<String>,
+    /// Rates with standard errors but no covariance to this same-run block.
+    /// These remain explicit and are never treated as independent samples.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unknown_rate_ids: Vec<String>,
     /// Row-major n x n Monte Carlo covariance in driving units.
     pub monte_carlo: Vec<f64>,
     /// Independent volume-estimate variance per rate, in driving units squared.
@@ -207,20 +214,28 @@ impl DrivingCovariance {
 
     fn validate(&self, rates: &TransportDrivingRates) -> Result<(), String> {
         let entries = rates.covariance_entries();
-        let n = entries.len();
-        if self.rate_ids.len() != n
+        let known = self.rate_ids.len();
+        let total = entries.len();
+        let n = known;
+        if known + self.unknown_rate_ids.len() != total
             || entries
                 .iter()
+                .take(known)
                 .zip(&self.rate_ids)
                 .any(|(entry, id)| entry.0 != id)
+            || entries
+                .iter()
+                .skip(known)
+                .zip(&self.unknown_rate_ids)
+                .any(|(entry, id)| entry.0 != id)
         {
-            return Err("covariance rate IDs must list the breeder rate, each component flux in component order, each region flux in response order, then heating".into());
+            return Err("covariance IDs must list the same-run breeder, component and region block, followed by explicitly unknown cross-run rates".into());
         }
         if self.method.trim().is_empty() || self.batches < 2 {
             return Err("covariance needs a method identity and at least two batches".into());
         }
-        if self.monte_carlo.len() != n * n || self.volume_variance.len() != n {
-            return Err("covariance dimensions do not match the rate list".into());
+        if self.monte_carlo.len() != known * known || self.volume_variance.len() != known {
+            return Err("covariance dimensions do not match the same-run rate block".into());
         }
         if self
             .volume_variance
@@ -229,7 +244,7 @@ impl DrivingCovariance {
         {
             return Err("volume variance terms must be finite and nonnegative".into());
         }
-        for (i, (_, rate)) in entries.iter().enumerate() {
+        for (i, (_, rate)) in entries.iter().take(known).enumerate() {
             let se = rate
                 .standard_error
                 .ok_or("a rate with a covariance must carry its standard error")?;
@@ -241,7 +256,14 @@ impl DrivingCovariance {
                 ));
             }
         }
-        factor_covariance(&self.monte_carlo, n)?;
+        for (_, rate) in entries.iter().skip(known) {
+            if rate.standard_error.is_none() {
+                return Err(
+                    "a rate with unknown covariance must still carry its own standard error".into(),
+                );
+            }
+        }
+        factor_covariance(&self.monte_carlo, known)?;
         Ok(())
     }
 }
@@ -494,6 +516,7 @@ impl TransportDrivingRates {
             method: rc.method.clone(),
             batches: rc.batches,
             rate_ids: picks.iter().map(|p| p.0.response_id.clone()).collect(),
+            unknown_rate_ids: Vec::new(),
             monte_carlo,
             volume_variance: picks.iter().map(|p| p.2).collect(),
         }))
@@ -2671,6 +2694,15 @@ mod tests {
             provenance: "analytic control inputs".into(),
         };
         let mut r = rates();
+        let no_heat = run_operating_history(&a, &r).unwrap();
+        let no_heat_on = no_heat.snapshots.iter().find(|s| s.time_s == 0.0).unwrap();
+        assert_eq!(no_heat_on.instantaneous_net_electricity_mw, None);
+        assert!(
+            no_heat_on
+                .energy_unavailable_reason
+                .as_deref()
+                .is_some_and(|why| why.contains("whole-model heating response"))
+        );
         r.transport_deposited_heat_w = Some(ScalarRate {
             mean: 10e6,
             standard_error: Some(0.0),

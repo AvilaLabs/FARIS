@@ -139,10 +139,29 @@ fn rates_with(relative: f64, correlation: f64) -> TransportDrivingRates {
                 "flux-magnet".into(),
                 "heating-total".into(),
             ],
+            unknown_rate_ids: Vec::new(),
             monte_carlo,
             volume_variance,
         }),
     }
+}
+
+#[test]
+fn separate_heating_run_keeps_base_covariance_but_blocks_independent_ensemble_sampling() {
+    let mut rates = rates_with(0.05, 0.2);
+    let covariance = rates.covariance.as_mut().unwrap();
+    covariance.rate_ids.pop();
+    covariance.unknown_rate_ids = vec!["heating-total".into()];
+    let full = covariance.monte_carlo.clone();
+    covariance.monte_carlo = [0, 1, 2, 4, 5, 6, 8, 9, 10]
+        .into_iter()
+        .map(|index| full[index])
+        .collect();
+    covariance.volume_variance.truncate(3);
+    rates.validate().unwrap();
+    let error = Sampler::new(&rates).err().unwrap();
+    assert!(error.contains("cross-run covariance is unknown"));
+    assert!(error.contains("heating-total"));
 }
 
 fn run(
@@ -812,6 +831,7 @@ fn timing_with_synthetic_diagonal_covariance() {
         method: "TEST-ONLY-synthetic-independent-diagonal".into(),
         batches: 100,
         rate_ids: ids,
+        unknown_rate_ids: Vec::new(),
         monte_carlo,
         volume_variance: vec![0.0; n],
     });
@@ -889,6 +909,7 @@ fn regional_case(
         method: "test-covariance".into(),
         batches: 100,
         rate_ids,
+        unknown_rate_ids: Vec::new(),
         monte_carlo,
         volume_variance: vec![0.0; n],
     });

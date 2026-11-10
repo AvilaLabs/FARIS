@@ -750,6 +750,25 @@ class PeakTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "time limits"):
             DT.validate_heating_request(request)
 
+    def test_history_energy_map_must_partition_material_bearing_solids_exactly(self):
+        request = {"schema": DT.REQUEST_SCHEMA, "sampling": {
+            "target_relative_error": 0.05, "particles_per_batch": 1000, "min_batches": 30,
+            "max_batches": 30, "max_seconds": 100.0, "threads": 1, "seed": 1},
+            "response": {"energy_min_ev": 0.0, "peak_voxel_cm": [5.0, 5.0], "solid_ids": ["coil"]},
+            "solids": [{"solid_id": "coil", "classification": "winding_pack", "material_id": "steel"},
+                       {"solid_id": "shield", "classification": "shield", "material_id": "steel"},
+                       {"solid_id": "void", "material_id": None}],
+            "history_energy_response": {"component_map": {"coils": ["coil"], "shield": ["shield"]},
+                                        "source_definition_sha256": "a" * 64,
+                                        "source_kernel_path": "/source.py", "source_kernel_sha256": "b" * 64}}
+        DT.validate_heating_request(request)
+        request["history_energy_response"]["component_map"] = {"coils": ["coil"]}
+        with self.assertRaisesRegex(ValueError, "partition every material-bearing"):
+            DT.validate_heating_request(request)
+        request["history_energy_response"]["component_map"] = {"coils": ["coil", "coil"], "shield": ["shield"]}
+        with self.assertRaisesRegex(ValueError, "repeats or names"):
+            DT.validate_heating_request(request)
+
     def test_heating_target_error_must_be_finite_and_positive(self):
         request = {"schema": DT.REQUEST_SCHEMA, "sampling": {
             "target_relative_error": 0.05, "particles_per_batch": 1000, "min_batches": 30,
@@ -844,6 +863,71 @@ class PeakTest(unittest.TestCase):
         self.assertEqual(source_scores[-1], 10.0)
         self.assertEqual(DT.heating_closure_quality(0.0, 0.0, sum(source_scores)), {"within_3se": True,
                          "roundoff_tolerance_ev_per_source": DT.heating_closure_quality(0.0, 0.0, sum(source_scores))["roundoff_tolerance_ev_per_source"]})
+
+    def test_history_heating_uses_unfiltered_and_partitioned_same_batch_covariance(self):
+        import numpy as np
+        from types import SimpleNamespace
+
+        class FakeLib:
+            def __init__(self):
+                self.batch = 0
+                self.tallies = {}
+
+            def next_batch(self):
+                sign = 1.0 if self.batch % 2 == 0 else -1.0
+                self.batch += 1
+                for tally in self.tallies.values():
+                    tally.results[:, 0, 1] += tally.pattern(sign)
+                return 1 if self.batch == 30 else 0
+
+        lib = FakeLib()
+        components = ("neutron", "photon", "electron", "positron", "total")
+        tally_refs, voxel_refs = {}, {}
+
+        def add(pattern):
+            tid = len(lib.tallies) + 1
+            lib.tallies[tid] = SimpleNamespace(results=np.zeros((1, 1, 2)), pattern=pattern)
+            return SimpleNamespace(id=tid)
+
+        for name in components:
+            weight = 1.0 if name in ("photon", "electron") else 0.0
+            if name == "neutron":
+                tally_pattern = lambda sign: np.array([8.0 + sign])
+                voxel_pattern = lambda sign: np.array([6.75 + 0.75 * sign, 2.25 + 0.25 * sign])
+            elif name == "total":
+                tally_pattern = lambda sign: np.array([10.0 + sign])
+                voxel_pattern = lambda sign: np.array([7.5 + 0.75 * sign, 2.5 + 0.25 * sign])
+            else:
+                tally_pattern = lambda sign, w=weight: np.array([w])
+                voxel_pattern = lambda sign, w=weight: np.array([0.75 * w, 0.25 * w])
+            tally_refs[name] = add(tally_pattern)
+            vid = len(lib.tallies) + 1
+            lib.tallies[vid] = SimpleNamespace(results=np.zeros((2, 1, 2)), pattern=voxel_pattern)
+            voxel_refs[name] = SimpleNamespace(id=vid)
+
+        whole = add(lambda sign: np.array([10.0 + sign]))
+        blanket = add(lambda sign: np.array([4.0 + 0.4 * sign]))
+        magnet = add(lambda sign: np.array([6.0 + 0.6 * sign]))
+        history_refs = {"whole_model": whole, "components": {"blanket": blanket, "magnet": magnet},
+                        "component_map": {"blanket": ["b"], "magnet": ["m"]},
+                        "source_definition_sha256": "a" * 64,
+                        "source_kernel_path": "/source.py", "source_kernel_sha256": "b" * 64}
+        result = DT.collect_heating_batches(
+            lib, tally_refs, voxel_refs, 1, 2, 30, 1e9, 0.0, 0.05,
+            np.ones((1, 2)), np.ones((1, 2), dtype=bool), None, history_refs)
+        self.assertEqual(result[6:9], (30, "target_reached", 1))
+        energy = result[9]
+        self.assertEqual(energy["status"], "CALCULATED")
+        observed = np.array([[10.0 + (1.0 if i % 2 == 0 else -1.0),
+                              4.0 + (0.4 if i % 2 == 0 else -0.4),
+                              6.0 + (0.6 if i % 2 == 0 else -0.6)] for i in range(30)])
+        expected_covariance = np.cov(observed, rowvar=False, ddof=1) / len(observed)
+        np.testing.assert_allclose(energy["covariance_of_mean_ev2"], expected_covariance, rtol=1e-12, atol=1e-14)
+        self.assertAlmostEqual(energy["closure_residual_ev_per_source"]["mean"], 0.0)
+        self.assertTrue(energy["closure_residual_ev_per_source"]["within_3se"])
+        self.assertEqual(energy["cross_run_covariance"], "unknown_to_flux_and_breeder_H3")
+        self.assertEqual(len(energy["covariance_of_mean_ev2"]), 3)
+        self.assertTrue(all(len(row) == 3 for row in energy["covariance_of_mean_ev2"]))
 
     def test_heating_target_stops_early_only_with_reliable_mean_peak_and_vov(self):
         import numpy as np

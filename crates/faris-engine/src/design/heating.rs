@@ -8,6 +8,7 @@ use super::{
     CAD_ADDRESS_SPACE, DesignError, DesignIdentity, ImportReport, Launched, MAX_JSON_BYTES,
     ToolPaths, io_error, launch_python_with_lines, sha256_file, sha256_hex,
 };
+use crate::history::{ScalarRate, TransportDrivingRates};
 use crate::jobs::{Cancellation, ResourceLimits};
 use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
 use faris_model::design::{self, Role};
@@ -179,11 +180,80 @@ pub struct DesignHeatingReport {
     pub execution_identity: Option<HeatingExecutionIdentity>,
     pub validation_scope: String,
     pub solids: Vec<SolidHeating>,
+    /// Full-model energy response coupled to the exact CAD history component map.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_energy_response: Option<HistoryEnergyResponse>,
     pub why: Option<String>,
     pub next_step: Option<String>,
     pub notices: Vec<String>,
     #[serde(default, skip_serializing_if = "ValidationMarks::is_empty")]
     pub validation: ValidationMarks,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryEnergyResponse {
+    pub status: String,
+    pub source_definition_sha256: String,
+    pub source_kernel_path: String,
+    pub source_kernel_sha256: String,
+    pub component_map: BTreeMap<String, Vec<String>>,
+    pub component_map_sha256: String,
+    pub domain: String,
+    pub normalization: String,
+    pub source_strength_normalized_to: String,
+    pub histories: u64,
+    pub batches: u64,
+    pub target_relative_error: f64,
+    pub target_reached: bool,
+    pub variance_of_variance: Option<f64>,
+    pub whole_model: HistoryEnergyScore,
+    pub components: BTreeMap<String, HistoryEnergyScore>,
+    pub response_ids: Vec<String>,
+    pub covariance_of_mean_ev2: Vec<f64>,
+    pub covariance_method: String,
+    pub closure_residual: HistoryEnergyClosure,
+    pub cross_run_covariance: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryEnergyScore {
+    pub mean_ev_per_source: f64,
+    pub standard_error_ev_per_source: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryEnergyClosure {
+    pub mean: f64,
+    pub standard_error: f64,
+    pub within_3se: bool,
+    pub roundoff_tolerance: f64,
+}
+
+pub const HISTORY_ENERGY_RATES_VERSION: &str = "faris-cad-history-energy-rates/v0.1";
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryEnergyRatesArtifact {
+    pub schema_version: String,
+    pub scenario_id: String,
+    pub scenario_sha256: String,
+    pub base_rates_path: String,
+    pub base_rates_sha256: String,
+    pub heating_report_path: String,
+    pub heating_report_sha256: String,
+    pub design_sha256: String,
+    pub check_report_sha256: String,
+    pub h5m_path: String,
+    pub h5m_sha256: String,
+    pub cross_sections_path: String,
+    pub cross_sections_sha256: String,
+    pub source_definition_sha256: String,
+    pub heating_data_identity: serde_json::Value,
+    pub covariance_scope: String,
+    pub driving_rates: TransportDrivingRates,
 }
 
 pub const DESIGN_HEATING_OUTPUTS: &[Output] = &[
@@ -204,6 +274,7 @@ pub const DESIGN_HEATING_OUTPUTS: &[Output] = &[
     calculated("positron", Quantity::Heating),
     calculated("total", Quantity::Heating),
     calculated("closure_residual", Quantity::Heating),
+    calculated("covariance_of_mean_ev2", Quantity::Heating),
     not_calculated(
         "volume_m3",
         "A sampled geometric averaging volume, not nuclear heating.",
@@ -395,6 +466,8 @@ struct WorkerResult {
     runtime_identity: Option<HeatingRuntimeIdentity>,
     #[serde(default)]
     execution_identity: Option<HeatingExecutionIdentity>,
+    #[serde(default)]
+    history_energy_response: Option<HistoryEnergyResponse>,
 }
 
 fn parse_heating_progress(line: &str) -> Option<HeatingProgress> {
@@ -519,6 +592,67 @@ pub fn design_heating(
     tools: &ToolPaths,
     options: &DesignHeatingOptions,
 ) -> Result<DesignHeatingReport, DesignError> {
+    design_heating_impl(design_path, tools, options, None)
+}
+
+/// Run coupled heating and add the exact component partition from a verified CAD history-rate
+/// artifact to the same OpenMC sample. The optional response never substitutes winding-pack heat.
+pub fn design_heating_with_history_rates(
+    design_path: &Path,
+    tools: &ToolPaths,
+    options: &DesignHeatingOptions,
+    base_history_rates_path: &Path,
+) -> Result<DesignHeatingReport, DesignError> {
+    let bytes = read_bounded(base_history_rates_path)?;
+    let base: super::transport::DesignHistoryRatesArtifact = serde_json::from_slice(&bytes)
+        .map_err(|e| DesignError::Tool(format!("CAD history-rate artifact: {e}")))?;
+    let scenario_path = Path::new(&base.scenario_path);
+    let scenario_bytes = read_bounded(scenario_path)?;
+    let scenario = faris_model::LoadedScenario::from_bytes(&scenario_bytes)
+        .map_err(|e| DesignError::Tool(format!("recorded history scenario: {e}")))?;
+    super::transport::load_design_history_rates(base_history_rates_path, &scenario)
+        .map_err(DesignError::Tool)?;
+    let base_sha256 = sha256_hex(&bytes);
+    if !base_sha256.eq_ignore_ascii_case(&sha256_file(base_history_rates_path)?) {
+        return Err(DesignError::Tool(
+            "CAD history-rate artifact changed while it was being checked".into(),
+        ));
+    }
+    let context = HistoryEnergyRequest {
+        component_map: base.component_map,
+        source_definition_sha256: base.source_definition_sha256,
+        design_sha256: base.design_sha256,
+        check_report_sha256: base.check_report_sha256,
+        h5m_sha256: base.h5m_sha256,
+        h5m_path: base.h5m_path,
+        cross_sections_sha256: base.cross_sections_sha256,
+        cross_sections_path: base.cross_sections_path,
+        source_kernel_path: base.source_kernel_path,
+        source_kernel_sha256: base.source_kernel_sha256,
+    };
+    design_heating_impl(design_path, tools, options, Some(context))
+}
+
+#[derive(Clone)]
+struct HistoryEnergyRequest {
+    component_map: BTreeMap<String, Vec<String>>,
+    source_definition_sha256: String,
+    design_sha256: String,
+    check_report_sha256: String,
+    h5m_sha256: String,
+    h5m_path: String,
+    cross_sections_sha256: String,
+    cross_sections_path: String,
+    source_kernel_path: String,
+    source_kernel_sha256: String,
+}
+
+fn design_heating_impl(
+    design_path: &Path,
+    tools: &ToolPaths,
+    options: &DesignHeatingOptions,
+    history_energy_request: Option<HistoryEnergyRequest>,
+) -> Result<DesignHeatingReport, DesignError> {
     if options.particles_per_batch == 0
         || options.max_histories / options.particles_per_batch.max(1) < MIN_BATCHES
         || options.max_histories > MAX_HEATING_HISTORIES
@@ -543,7 +677,26 @@ pub fn design_heating(
     let design = design::parse_design(&design_bytes).design.ok_or_else(|| {
         DesignError::Tool("the design file does not parse; run `faris design check`".into())
     })?;
+    if history_energy_request.as_ref().is_some_and(|context| {
+        serde_json::to_vec(&design.plasma)
+            .ok()
+            .map(|bytes| sha256_hex(&bytes))
+            .as_deref()
+            != Some(context.source_definition_sha256.as_str())
+    }) {
+        return Err(DesignError::Tool(
+            "history rates were generated from a different plasma source definition".into(),
+        ));
+    }
     let report_bytes = read_bounded(&options.check_report)?;
+    if history_energy_request
+        .as_ref()
+        .is_some_and(|context| context.design_sha256 != design_sha256)
+    {
+        return Err(DesignError::Tool(
+            "history rates were generated for a different CAD design".into(),
+        ));
+    }
     let check_report: ImportReport = serde_json::from_slice(&report_bytes).map_err(|e| {
         DesignError::Tool(format!(
             "{} is not a design check report: {e}",
@@ -561,6 +714,17 @@ pub fn design_heating(
             "{} is missing or differs from the checked conversion; rerun `faris design check` and keep its work directory",
             h5m.display()
         )));
+    }
+    if history_energy_request.as_ref().is_some_and(|context| {
+        context.check_report_sha256 != sha256_hex(&report_bytes)
+            || !context
+                .h5m_sha256
+                .eq_ignore_ascii_case(&conversion.h5m_sha256)
+            || h5m.canonicalize().ok().as_deref() != Some(Path::new(&context.h5m_path))
+    }) {
+        return Err(DesignError::Tool(
+            "history rates are bound to a different design check report or H5M".into(),
+        ));
     }
     super::transport::refuse_unsupported_source(&design)?;
     let run_dir = &options.out_dir;
@@ -621,6 +785,7 @@ pub fn design_heating(
         execution_identity: None,
         validation_scope: "No physical validation claim. Calculated values are Monte Carlo estimates scoped to the authored winding-pack solids and the checked CAD conversion.".into(),
         solids: Vec::new(),
+        history_energy_response: None,
         why: None,
         next_step: None,
         notices: vec!["Target stopping uses aggregate per-batch heating error, the resolved peak in each authored solid, and batch variance-of-variance. Geometry volume uncertainty is separate.".into()],
@@ -702,6 +867,16 @@ pub fn design_heating(
         .canonicalize()
         .map_err(|e| io_error(cross_sections, e))?;
     let cross_sections_sha256 = sha256_file(&cross_sections)?;
+    if history_energy_request.as_ref().is_some_and(|context| {
+        !context
+            .cross_sections_sha256
+            .eq_ignore_ascii_case(&cross_sections_sha256)
+            || context.cross_sections_path != cross_sections.display().to_string()
+    }) {
+        return Err(DesignError::Tool(
+            "history rates were generated with different cross-section data".into(),
+        ));
+    }
     report.cross_sections_sha256 = cross_sections_sha256;
     if check_report
         .material_audit
@@ -728,6 +903,12 @@ pub fn design_heating(
             "energy_min_ev": 0.0,
             "peak_voxel_cm": options.peak_voxel_m.map(|v| v * 100.0),
         },
+        "history_energy_response": history_energy_request.as_ref().map(|context| serde_json::json!({
+            "component_map": &context.component_map,
+            "source_definition_sha256": &context.source_definition_sha256,
+            "source_kernel_path": &context.source_kernel_path,
+            "source_kernel_sha256": &context.source_kernel_sha256,
+        })),
         "sampling": {
             "particles_per_batch": options.particles_per_batch,
             "min_batches": MIN_BATCHES,
@@ -1106,6 +1287,21 @@ pub fn design_heating(
             "the heating worker returned a non-finite score or no peak volume".into(),
         ));
     }
+    match (&history_energy_request, &worker.history_energy_response) {
+        (Some(request), Some(response))
+            if history_energy_response_valid(response, request, worker.histories, worker.batches,
+                                             options.target_relative_error) => {}
+        (None, None) => {}
+        (Some(_), Some(_)) => return Err(DesignError::Tool(
+            "the whole-model history-energy response failed its source, partition, covariance, uncertainty, or closure checks".into(),
+        )),
+        (Some(_), None) => return Err(DesignError::Tool(
+            "the coupled-heating worker omitted the requested whole-model history-energy response".into(),
+        )),
+        (None, Some(_)) => return Err(DesignError::Tool(
+            "the coupled-heating worker returned an unrequested history-energy response".into(),
+        )),
+    }
     let closure_failed = worker.solids.iter().any(|solid| {
         let solid_scale = finite_abs_sum(&[
             solid.total.mean_ev_per_source,
@@ -1249,6 +1445,7 @@ pub fn design_heating(
     report.elapsed_seconds = elapsed;
     report.data_identity = worker.data_identity;
     report.solids = solids;
+    report.history_energy_response = worker.history_energy_response;
     if !report.solids.is_empty() {
         report.validation = ValidationMarks::for_catalogue(DESIGN_HEATING_OUTPUTS);
     }
@@ -1256,6 +1453,320 @@ pub fn design_heating(
     report.notices.push("The voxel volume estimator uses ray sampling. This adapter records ray count but does not provide its volume standard error; that geometric uncertainty is not included in the Monte Carlo heating error.".into());
     write_report(&run_dir, &report)?;
     Ok(report)
+}
+
+/// Bind a completed whole-model heat report to one previously validated CAD history-rate
+/// artifact. The separate-run heat/H3/flux covariance is recorded as unknown.
+pub fn combine_history_energy_rates(
+    base_history_rates_path: &Path,
+    heating_report_path: &Path,
+    scenario: &faris_model::LoadedScenario,
+    output_path: &Path,
+) -> Result<HistoryEnergyRatesArtifact, String> {
+    let artifact =
+        build_history_energy_rates(base_history_rates_path, heating_report_path, scenario)?;
+    let bytes = serde_json::to_vec_pretty(&artifact).map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MAX_JSON_BYTES {
+        return Err("combined history-energy receipt exceeds the JSON size limit".into());
+    }
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output_path)
+        .map_err(|e| format!("{}: {e}", output_path.display()))?;
+    file.write_all(&bytes)
+        .map_err(|e| format!("{}: {e}", output_path.display()))?;
+    Ok(artifact)
+}
+
+/// Revalidate the base rates, heating report and both their physical input identities before
+/// returning rates for the shared operating-history ledger.
+pub fn load_history_energy_rates(
+    path: &Path,
+    scenario: &faris_model::LoadedScenario,
+) -> Result<TransportDrivingRates, String> {
+    let bytes = read_bounded(path).map_err(|e| e.to_string())?;
+    let artifact: HistoryEnergyRatesArtifact = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("CAD history-energy artifact JSON: {e}"))?;
+    if artifact.schema_version != HISTORY_ENERGY_RATES_VERSION {
+        return Err("CAD history-energy artifact has an unsupported schema".into());
+    }
+    let expected = build_history_energy_rates(
+        Path::new(&artifact.base_rates_path),
+        Path::new(&artifact.heating_report_path),
+        scenario,
+    )?;
+    if expected != artifact {
+        return Err("CAD history-energy artifact differs from its hash-bound source runs".into());
+    }
+    Ok(artifact.driving_rates)
+}
+
+fn build_history_energy_rates(
+    base_history_rates_path: &Path,
+    heating_report_path: &Path,
+    scenario: &faris_model::LoadedScenario,
+) -> Result<HistoryEnergyRatesArtifact, String> {
+    let base_path = base_history_rates_path
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let report_path = heating_report_path
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let base_bytes = read_bounded(&base_path).map_err(|e| e.to_string())?;
+    let base_sha = sha256_hex(&base_bytes);
+    let base: super::transport::DesignHistoryRatesArtifact = serde_json::from_slice(&base_bytes)
+        .map_err(|e| format!("CAD history-rate artifact JSON: {e}"))?;
+    let rates = super::transport::load_design_history_rates(&base_path, scenario)?;
+    let report_bytes = read_bounded(&report_path).map_err(|e| e.to_string())?;
+    let report_sha = sha256_hex(&report_bytes);
+    let report: DesignHeatingReport = serde_json::from_slice(&report_bytes)
+        .map_err(|e| format!("CAD heating report JSON: {e}"))?;
+    let response = report
+        .history_energy_response
+        .as_ref()
+        .ok_or("heating report has no whole-model history-energy response")?;
+    let heating_run_dir = Path::new(&report.run_directory);
+    let heating_runtime_valid = report
+        .runtime_identity
+        .as_ref()
+        .is_some_and(|identity| verify_runtime_identity(identity, heating_run_dir));
+    let heating_execution_valid = report
+        .execution_identity
+        .as_ref()
+        .is_some_and(|identity| verify_execution_identity(identity, heating_run_dir));
+    if scenario.source_sha256 != base.scenario_sha256
+        || base.scenario_id != scenario.scenario.id
+        || report.schema_version != RESULT_SCHEMA
+        || response.status != "CALCULATED"
+        || !response.target_reached
+        || !response.closure_residual.within_3se
+        || response.component_map != base.component_map
+        || response.source_definition_sha256 != base.source_definition_sha256
+        || response.source_kernel_path != base.source_kernel_path
+        || !response
+            .source_kernel_sha256
+            .eq_ignore_ascii_case(&base.source_kernel_sha256)
+        || report.design.sha256 != base.design_sha256
+        || report.check_report_sha256 != base.check_report_sha256
+        || report.h5m_sha256 != base.h5m_sha256
+        || report.cross_sections_sha256 != base.cross_sections_sha256
+        || report.runtime_identity.as_ref().is_none_or(|runtime| {
+            runtime.openmc_c_api_library.path != base.openmc_library_path
+                || !runtime
+                    .openmc_c_api_library
+                    .sha256
+                    .eq_ignore_ascii_case(&base.openmc_library_sha256)
+        })
+        || !heating_runtime_valid
+        || !heating_execution_valid
+        || !report.source_rate_per_s.is_finite()
+        || report.source_rate_per_s != base.source_neutron_rate_per_s
+        || report.data_identity.is_none()
+        || rates.transport_deposited_heat_w.is_some()
+    {
+        return Err(
+            "heating result is not a converged whole-model response for this exact CAD history run"
+                .into(),
+        );
+    }
+    let data_identity = report.data_identity.clone().expect("checked above");
+    if !heating_neutron_data_matches(&base, &data_identity) {
+        return Err(
+            "heating neutron MT=301 HDF hashes differ from the CAD history-rate run".into(),
+        );
+    }
+    let heat = ScalarRate {
+        mean: response.whole_model.mean_ev_per_source
+            * report.source_rate_per_s
+            * ELEMENTARY_CHARGE_C,
+        standard_error: Some(
+            response.whole_model.standard_error_ev_per_source
+                * report.source_rate_per_s
+                * ELEMENTARY_CHARGE_C,
+        ),
+        unit: "W".into(),
+        response_id: "heating-total-whole-model".into(),
+    };
+    if !heat.mean.is_finite()
+        || heat.mean < 0.0
+        || heat
+            .standard_error
+            .is_none_or(|se| !se.is_finite() || se < 0.0)
+    {
+        return Err("whole-model heating conversion to watts is non-finite or negative".into());
+    }
+    let mut driving_rates = rates;
+    driving_rates.transport_deposited_heat_w = Some(heat);
+    if let Some(covariance) = driving_rates.covariance.as_mut() {
+        covariance
+            .unknown_rate_ids
+            .push("heating-total-whole-model".into());
+        covariance.method = format!(
+            "{}; separate heating run covariance unknown",
+            covariance.method
+        );
+    }
+    driving_rates.validate()?;
+    let canonical_file = |path: &Path| -> Result<String, String> {
+        if !path.is_file() {
+            return Err(format!("{} is not a regular file", path.display()));
+        }
+        Ok(path
+            .canonicalize()
+            .map_err(|e| e.to_string())?
+            .display()
+            .to_string())
+    };
+    if sha256_file(&base_path).map_err(|e| e.to_string())? != base_sha
+        || sha256_file(&report_path).map_err(|e| e.to_string())? != report_sha
+    {
+        return Err(
+            "a source report changed while the combined history-energy receipt was being checked"
+                .into(),
+        );
+    }
+    Ok(HistoryEnergyRatesArtifact {
+        schema_version: HISTORY_ENERGY_RATES_VERSION.into(),
+        scenario_id: base.scenario_id,
+        scenario_sha256: base.scenario_sha256,
+        base_rates_path: canonical_file(&base_path)?,
+        base_rates_sha256: base_sha,
+        heating_report_path: canonical_file(&report_path)?,
+        heating_report_sha256: report_sha,
+        design_sha256: base.design_sha256,
+        check_report_sha256: base.check_report_sha256,
+        h5m_path: base.h5m_path,
+        h5m_sha256: base.h5m_sha256,
+        cross_sections_path: base.cross_sections_path,
+        cross_sections_sha256: base.cross_sections_sha256,
+        source_definition_sha256: base.source_definition_sha256,
+        heating_data_identity: data_identity,
+        covariance_scope: "base flux/H3 same-run covariance preserved; separate whole-model heating covariance to flux and H3 is unknown and ensemble propagation refuses this artifact".into(),
+        driving_rates,
+    })
+}
+
+fn heating_neutron_data_matches(
+    base: &super::transport::DesignHistoryRatesArtifact,
+    heating_identity: &serde_json::Value,
+) -> bool {
+    if heating_identity
+        .get("atomic_relaxation")
+        .and_then(serde_json::Value::as_str)
+        != Some("enabled")
+        || heating_identity
+            .get("electron_treatment")
+            .and_then(serde_json::Value::as_str)
+            != Some("led")
+    {
+        return false;
+    }
+    let Some(heating_tables) = heating_identity
+        .get("neutron_mt301")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    let base_nuclides = base
+        .nuclear_data_identity
+        .tables
+        .iter()
+        .flat_map(|table| {
+            table
+                .nuclides
+                .iter()
+                .map(move |nuclide| (nuclide, (table.path.as_str(), table.sha256.as_str())))
+        })
+        .collect::<BTreeMap<_, _>>();
+    if base_nuclides.len() != heating_tables.len() {
+        return false;
+    }
+    let neutron_matches = base_nuclides.iter().all(|(nuclide, (path, digest))| {
+        heating_tables.get(*nuclide).is_some_and(|entry| {
+            entry.get("path").and_then(serde_json::Value::as_str) == Some(*path)
+                && entry.get("mt301").and_then(serde_json::Value::as_bool) == Some(true)
+                && entry
+                    .get("sha256")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|actual| actual.eq_ignore_ascii_case(digest))
+        })
+    });
+    if !neutron_matches {
+        return false;
+    }
+    let Some(photons) = heating_identity
+        .get("photon")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    let expected_elements = base_nuclides
+        .keys()
+        .map(|nuclide| {
+            nuclide
+                .chars()
+                .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_lowercase())
+                .collect::<String>()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    if photons
+        .keys()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        != expected_elements
+    {
+        return false;
+    }
+    let mut total_bytes = 0_u64;
+    for entry in photons.values() {
+        let Some(path_text) = entry.get("path").and_then(serde_json::Value::as_str) else {
+            return false;
+        };
+        let Some(expected_sha) = entry.get("sha256").and_then(serde_json::Value::as_str) else {
+            return false;
+        };
+        let Some(shell_count) = entry.get("shell_count").and_then(serde_json::Value::as_u64) else {
+            return false;
+        };
+        let path = Path::new(path_text);
+        let Ok(canonical) = path.canonicalize() else {
+            return false;
+        };
+        let Ok(metadata) = canonical.metadata() else {
+            return false;
+        };
+        if !path.is_absolute()
+            || canonical != path
+            || !metadata.is_file()
+            || metadata.len() == 0
+            || metadata.len() > 12 * 1024 * 1024 * 1024
+            || shell_count == 0
+        {
+            return false;
+        }
+        let Ok(before) = canonical.metadata() else {
+            return false;
+        };
+        let Ok(actual_sha) = bounded_file_sha256(&canonical, 12 * 1024 * 1024 * 1024) else {
+            return false;
+        };
+        let Ok(after) = canonical.metadata() else {
+            return false;
+        };
+        if before.len() != after.len()
+            || before.modified().ok() != after.modified().ok()
+            || !actual_sha.eq_ignore_ascii_case(expected_sha)
+        {
+            return false;
+        }
+        total_bytes = total_bytes.saturating_add(metadata.len());
+        if total_bytes > 64 * 1024 * 1024 * 1024 {
+            return false;
+        }
+    }
+    true
 }
 
 fn write_report(run_dir: &Path, report: &DesignHeatingReport) -> Result<(), DesignError> {
@@ -1404,6 +1915,128 @@ fn heating_peak_is_converged(mean: f64, standard_error: Option<f64>) -> bool {
 
 fn valid_sha256(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn history_energy_response_valid(
+    response: &HistoryEnergyResponse,
+    request: &HistoryEnergyRequest,
+    histories: u64,
+    batches: u64,
+    target: f64,
+) -> bool {
+    let expected_map_hash = serde_json::to_vec(&request.component_map)
+        .ok()
+        .map(|bytes| sha256_hex(&bytes));
+    let dimension = 1 + request.component_map.len();
+    let scores = std::iter::once(&response.whole_model)
+        .chain(
+            request
+                .component_map
+                .keys()
+                .filter_map(|key| response.components.get(key)),
+        )
+        .collect::<Vec<_>>();
+    if response.source_definition_sha256 != request.source_definition_sha256
+        || response.source_kernel_path != request.source_kernel_path
+        || !response
+            .source_kernel_sha256
+            .eq_ignore_ascii_case(&request.source_kernel_sha256)
+        || response.component_map != request.component_map
+        || expected_map_hash.as_deref() != Some(response.component_map_sha256.as_str())
+        || response.domain != "unfiltered_whole_model_all_material_bearing_solids"
+        || response.normalization != "eV_per_unit_source_neutron"
+        || response.source_strength_normalized_to != "one_source_neutron"
+        || !matches!(response.status.as_str(), "CALCULATED" | "INCONCLUSIVE")
+        || (response.status == "CALCULATED"
+            && (!response.target_reached || !response.closure_residual.within_3se))
+        || response.histories != histories
+        || response.batches != batches
+        || response.batches < MIN_BATCHES
+        || response.target_relative_error != target
+        || response
+            .variance_of_variance
+            .is_some_and(|v| !v.is_finite() || v < 0.0)
+        || response.components.len() != request.component_map.len()
+        || scores.len() != dimension
+        || response.response_ids
+            != std::iter::once("whole-model-heating".to_string())
+                .chain(
+                    request
+                        .component_map
+                        .keys()
+                        .map(|id| format!("component-heating:{id}")),
+                )
+                .collect::<Vec<_>>()
+        || response.covariance_of_mean_ev2.len() != dimension * dimension
+        || response.covariance_method != "same-run-independent-batch-covariance-of-mean"
+        || response.cross_run_covariance != "unknown_to_flux_and_breeder_H3"
+        || scores.iter().any(|score| {
+            !score.mean_ev_per_source.is_finite()
+                || score.mean_ev_per_source < 0.0
+                || !score.standard_error_ev_per_source.is_finite()
+                || score.standard_error_ev_per_source < 0.0
+        })
+        || !response.closure_residual.mean.is_finite()
+        || !response.closure_residual.standard_error.is_finite()
+        || response.closure_residual.standard_error < 0.0
+        || !response.closure_residual.roundoff_tolerance.is_finite()
+        || response.closure_residual.roundoff_tolerance < 0.0
+    {
+        return false;
+    }
+    let covariance = &response.covariance_of_mean_ev2;
+    if crate::history::factor_covariance(covariance, dimension).is_err() {
+        return false;
+    }
+    for (index, score) in scores.iter().enumerate() {
+        let variance = covariance[index * dimension + index];
+        let expected = score.standard_error_ev_per_source.powi(2);
+        if (variance - expected).abs() > 1.0e-6 * expected + f64::MIN_POSITIVE {
+            return false;
+        }
+    }
+    let contrast = std::iter::once(1.0)
+        .chain(std::iter::repeat_n(-1.0, dimension - 1))
+        .collect::<Vec<_>>();
+    let closure_variance = (0..dimension)
+        .flat_map(|i| (0..dimension).map(move |j| (i, j)))
+        .map(|(i, j)| contrast[i] * covariance[i * dimension + j] * contrast[j])
+        .sum::<f64>();
+    let closure_expected_variance = response.closure_residual.standard_error.powi(2);
+    if !closure_variance.is_finite()
+        || (closure_variance - closure_expected_variance).abs()
+            > 1.0e-6 * closure_expected_variance.abs().max(closure_variance.abs())
+                + f64::MIN_POSITIVE
+    {
+        return false;
+    }
+    let component_sum = response
+        .components
+        .values()
+        .map(|s| s.mean_ev_per_source)
+        .sum::<f64>();
+    let expected_residual = response.whole_model.mean_ev_per_source - component_sum;
+    let scale = response.whole_model.mean_ev_per_source.abs()
+        + response
+            .components
+            .values()
+            .map(|s| s.mean_ev_per_source.abs())
+            .sum::<f64>();
+    let roundoff = 64.0 * f64::EPSILON * scale.max(1.0e-300);
+    let closure_limit = 3.0 * response.closure_residual.standard_error + roundoff;
+    response.closure_residual.within_3se == (response.closure_residual.mean.abs() <= closure_limit)
+        && (response.closure_residual.roundoff_tolerance - roundoff).abs()
+            <= roundoff.max(1.0e-300) * 1.0e-8
+        && (response.closure_residual.mean - expected_residual).abs()
+            <= 1.0e-8 * scale.max(1.0e-300)
+        && (!response.target_reached
+            || (response.status == "CALCULATED"
+                && scores.iter().all(|score| {
+                    score.mean_ev_per_source > 0.0
+                        && score.standard_error_ev_per_source / score.mean_ev_per_source <= target
+                })
+                && response.variance_of_variance.is_some_and(|v| v <= 0.1)))
+        && (!response.target_reached || response.closure_residual.within_3se)
 }
 
 fn verify_file_identity(receipt: &HeatingFileIdentity, expected: Option<&Path>) -> bool {
@@ -1647,6 +2280,45 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
             );
         }
     }
+    if let Some(energy) = &report.history_energy_response {
+        let heat_w =
+            energy.whole_model.mean_ev_per_source * report.source_rate_per_s * ELEMENTARY_CHARGE_C;
+        let heat_se_w = energy.whole_model.standard_error_ev_per_source
+            * report.source_rate_per_s
+            * ELEMENTARY_CHARGE_C;
+        let _ = writeln!(
+            text,
+            "  Whole-model history energy response: {}",
+            energy.status
+        );
+        let _ = writeln!(
+            text,
+            "    all material-bearing CAD solids, unfiltered; {heat_w:.6e} ± {heat_se_w:.6e} W",
+        );
+        let _ = writeln!(
+            text,
+            "    source: one-neutron normalized; eV-to-W conversion applied once using {:.6e} source neutrons/s",
+            report.source_rate_per_s
+        );
+        let _ = writeln!(
+            text,
+            "    whole-model batch VOV: {}",
+            energy
+                .variance_of_variance
+                .map_or_else(|| "not available".into(), |v| format!("{v:.3}"))
+        );
+        let _ = writeln!(
+            text,
+            "    component partition closure: {:.6e} ± {:.6e} eV/source neutron (within 3 SE: {})",
+            energy.closure_residual.mean,
+            energy.closure_residual.standard_error,
+            energy.closure_residual.within_3se,
+        );
+        let _ = writeln!(
+            text,
+            "    cross-run covariance with flux and breeder H3: unknown; history ensembles refuse this rate set",
+        );
+    }
     let _ = writeln!(text, "  Validation scope: {}", report.validation_scope);
     if !report.validation.is_empty() {
         let _ = writeln!(
@@ -1666,6 +2338,90 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn whole_model_energy_response_requires_same_batch_partition_covariance() {
+        let component_map = BTreeMap::from([("blanket".into(), vec!["blanket-cell".into()])]);
+        let context = HistoryEnergyRequest {
+            component_map: component_map.clone(),
+            source_definition_sha256: "a".repeat(64),
+            design_sha256: "b".repeat(64),
+            check_report_sha256: "c".repeat(64),
+            h5m_sha256: "d".repeat(64),
+            cross_sections_sha256: "e".repeat(64),
+            source_kernel_path: "/runtime/openmc_plasma_source.py".into(),
+            source_kernel_sha256: "f".repeat(64),
+        };
+        let map_hash = sha256_hex(&serde_json::to_vec(&component_map).unwrap());
+        let response = HistoryEnergyResponse {
+            status: "CALCULATED".into(),
+            source_definition_sha256: context.source_definition_sha256.clone(),
+            source_kernel_path: context.source_kernel_path.clone(),
+            source_kernel_sha256: context.source_kernel_sha256.clone(),
+            component_map,
+            component_map_sha256: map_hash,
+            domain: "unfiltered_whole_model_all_material_bearing_solids".into(),
+            normalization: "eV_per_unit_source_neutron".into(),
+            source_strength_normalized_to: "one_source_neutron".into(),
+            histories: 30_000,
+            batches: 30,
+            target_relative_error: 0.05,
+            target_reached: true,
+            variance_of_variance: Some(0.02),
+            whole_model: HistoryEnergyScore {
+                mean_ev_per_source: 10.0,
+                standard_error_ev_per_source: 1.0,
+            },
+            components: BTreeMap::from([(
+                "blanket".into(),
+                HistoryEnergyScore {
+                    mean_ev_per_source: 10.0,
+                    standard_error_ev_per_source: 1.0,
+                },
+            )]),
+            response_ids: vec![
+                "whole-model-heating".into(),
+                "component-heating:blanket".into(),
+            ],
+            covariance_of_mean_ev2: vec![1.0, 1.0, 1.0, 1.0],
+            covariance_method: "same-run-independent-batch-covariance-of-mean".into(),
+            closure_residual: HistoryEnergyClosure {
+                mean: 0.0,
+                standard_error: 0.0,
+                within_3se: true,
+                roundoff_tolerance: 64.0 * f64::EPSILON * 20.0,
+            },
+            cross_run_covariance: "unknown_to_flux_and_breeder_H3".into(),
+        };
+        assert!(history_energy_response_valid(
+            &response, &context, 30_000, 30, 0.05
+        ));
+        assert!(
+            faris_model::validation::unclassified_numbers(
+                &serde_json::to_value(&response).unwrap(),
+                DESIGN_HEATING_OUTPUTS,
+            )
+            .is_empty()
+        );
+        let mut invalid = response.clone();
+        invalid.covariance_of_mean_ev2 = vec![1.0, 0.0, 0.0, 1.0];
+        assert!(!history_energy_response_valid(
+            &invalid, &context, 30_000, 30, 0.05
+        ));
+        let mut wrong_partition = response;
+        wrong_partition
+            .components
+            .get_mut("blanket")
+            .unwrap()
+            .mean_ev_per_source = 9.0;
+        assert!(!history_energy_response_valid(
+            &wrong_partition,
+            &context,
+            30_000,
+            30,
+            0.05
+        ));
+    }
 
     #[test]
     fn worker_parser_preserves_failed_correlated_closure_and_terminal_controls() {
@@ -2042,6 +2798,7 @@ mod tests {
                     is_peak: true,
                 }],
             }],
+            history_energy_response: None,
             why: None,
             next_step: None,
             notices: vec![],

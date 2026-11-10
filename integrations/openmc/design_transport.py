@@ -79,6 +79,7 @@ import argparse
 import hashlib
 import inspect
 import json
+import hashlib
 import math
 import os
 import re
@@ -1443,7 +1444,7 @@ class ScalarMoments:
 def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count: int, bins: int,
                             max_batches: int, max_seconds: float, started: float,
                             target_relative_error: float | None = None, volumes_by_solid=None, ranked=None,
-                            particles_per_batch: int | None = None):
+                            particles_per_batch: int | None = None, history_tallies: dict | None = None):
     """Run C API batches using fixed-size online moments and exact same-batch closure residuals."""
     import numpy as np
 
@@ -1456,6 +1457,16 @@ def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count
     voxel_closure_moments = VectorMoments((bins, solid_count))
     stop_reason, terminal_status, batches_done = "history_limit", None, 0
     aggregate = ScalarMoments()
+    history_moments = None
+    history_closure = None
+    history_aggregate = None
+    history_previous = {}
+    history_names = tuple((history_tallies or {}).get("components", {}).keys())
+    if history_tallies:
+        history_moments = BatchCovarianceMoments(1 + len(history_names))
+        history_closure = ScalarMoments()
+        history_aggregate = ScalarMoments()
+        history_previous = {"whole_model": 0.0, **dict.fromkeys(history_names, 0.0)}
     peak_relative_error = None
     for _ in range(max_batches):
         terminal_status = lib.next_batch()
@@ -1474,6 +1485,31 @@ def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count
             voxel_previous[name] = voxel_cumulative.copy()
             voxel_batch_values[name] = voxel_batch
             voxel_moments[name].add(voxel_batch)
+        history_response = None
+        if history_tallies:
+            refs = {"whole_model": history_tallies["whole_model"], **history_tallies["components"]}
+            current = {}
+            for name, ref in refs.items():
+                values = np.asarray(lib.tallies[ref.id].results[:, 0, 1], dtype=float)
+                current[name] = float(np.sum(values))
+                if not math.isfinite(current[name]):
+                    raise ValueError("whole-model history heating tally is non-finite")
+            batch = {name: current[name] - history_previous[name] for name in refs}
+            history_previous = current
+            vector = np.asarray([batch["whole_model"]] + [batch[name] for name in history_names])
+            history_moments.add(vector)
+            history_aggregate.add(batch["whole_model"])
+            history_closure.add(batch["whole_model"] - math.fsum(batch[name] for name in history_names))
+            energy_scale = abs(float(history_moments.mean[0])) + math.fsum(
+                abs(float(v)) for v in history_moments.mean[1:])
+            energy_roundoff = 64.0 * sys.float_info.epsilon * max(energy_scale, 1.0e-300)
+            closure_se_now = history_closure.standard_error
+            closure_now = (closure_se_now is not None and math.isfinite(closure_se_now)
+                           and abs(history_closure.mean) <= 3.0 * closure_se_now + energy_roundoff)
+            history_response = {"relative_errors": history_moments.relative_errors,
+                                "total_mean": float(history_moments.mean[0]),
+                                "closure_ok": closure_now,
+                                "vov": history_aggregate.variance_of_variance}
         component_sum = np.zeros(solid_count)
         voxel_component_sum = np.zeros((bins, solid_count))
         for name in component_names:
@@ -1496,7 +1532,12 @@ def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count
                 and aggregate.relative_error <= target_relative_error
                 and peak_relative_error is not None
                 and peak_relative_error <= HEATING_PEAK_TARGET_FACTOR * target_relative_error
-                and vov is not None and vov <= HEATING_VOV_LIMIT)
+                and vov is not None and vov <= HEATING_VOV_LIMIT
+                and (history_response is None or bool(np.isfinite(history_response["relative_errors"]).all()
+                     and np.all(history_response["relative_errors"] <= target_relative_error)
+                     and history_response["closure_ok"]
+                     and history_response["vov"] is not None
+                     and history_response["vov"] <= HEATING_VOV_LIMIT)))
         timed_out = time.monotonic() - started >= max_seconds and batches_done < max_batches
         if target_met:
             stop_reason = "target_reached"
@@ -1518,8 +1559,52 @@ def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count
             break
         if terminal_status not in (0, None):
             break
-    return (moments, voxel_moments, closure_moments, voxel_closure_moments,
-            aggregate, peak_relative_error, batches_done, stop_reason, terminal_status)
+    result = (moments, voxel_moments, closure_moments, voxel_closure_moments,
+              aggregate, peak_relative_error, batches_done, stop_reason, terminal_status)
+    if not history_tallies:
+        return result
+    mean = history_moments.mean
+    covariance = history_moments.covariance_of_mean
+    closure_se = history_closure.standard_error
+    scale = abs(float(mean[0])) + math.fsum(abs(float(v)) for v in mean[1:])
+    roundoff = 64.0 * sys.float_info.epsilon * max(scale, 1.0e-300)
+    closure_ok = (closure_se is not None and math.isfinite(closure_se)
+                  and abs(history_closure.mean) <= 3.0 * closure_se + roundoff)
+    history_target_reached = bool(
+        np.isfinite(history_moments.relative_errors).all()
+        and np.all(history_moments.relative_errors <= target_relative_error)
+        and closure_ok and history_aggregate.variance_of_variance is not None
+        and history_aggregate.variance_of_variance <= HEATING_VOV_LIMIT)
+    history_result = {
+        "status": "CALCULATED" if history_target_reached else "INCONCLUSIVE",
+        "source_definition_sha256": history_tallies["source_definition_sha256"],
+        "source_kernel_path": history_tallies["source_kernel_path"],
+        "source_kernel_sha256": history_tallies["source_kernel_sha256"],
+        "component_map": history_tallies["component_map"],
+        "component_map_sha256": hashlib.sha256(json.dumps(
+            history_tallies["component_map"], sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False).encode("utf-8")).hexdigest(),
+        "normalization": "eV_per_unit_source_neutron",
+        "domain": "unfiltered_whole_model_all_material_bearing_solids",
+        "source_strength_normalized_to": "one_source_neutron",
+        "batches": history_moments.count,
+        "histories": history_moments.count * particles_per_batch if particles_per_batch is not None else 0,
+        "target_relative_error": target_relative_error,
+        "target_reached": history_target_reached,
+        "variance_of_variance": history_aggregate.variance_of_variance,
+        "whole_model": {"mean_ev_per_source": float(mean[0]),
+                        "standard_error_ev_per_source": float(math.sqrt(max(float(covariance[0, 0]), 0.0)))},
+        "components": {name: {"mean_ev_per_source": float(mean[index + 1]),
+                              "standard_error_ev_per_source": float(math.sqrt(max(float(covariance[index + 1, index + 1]), 0.0)))}
+                       for index, name in enumerate(history_names)},
+        "response_ids": ["whole-model-heating"] + [f"component-heating:{name}" for name in history_names],
+        "covariance_of_mean_ev2": covariance.tolist(),
+        "covariance_method": "same-run-independent-batch-covariance-of-mean",
+        "closure_residual_ev_per_source": {"mean": float(history_closure.mean), "standard_error": closure_se,
+                                           "within_3se": closure_ok, "roundoff_tolerance": roundoff},
+        "cross_run_covariance": "unknown_to_flux_and_breeder_H3",
+    }
+    return (*result, history_result)
 
 
 def normalize_heating_source(source) -> None:
@@ -1577,6 +1662,26 @@ def validate_heating_request(request: dict) -> None:
             raise ValueError(f"{solid_id}: response lacks explicit winding-pack identity")
         if solids[solid_id]["material_id"] is None:
             raise ValueError(f"{solid_id}: winding-pack response has no material")
+    history = request.get("history_energy_response")
+    if history is not None:
+        component_map = history.get("component_map") if isinstance(history, dict) else None
+        if (not isinstance(component_map, dict) or not component_map or len(component_map) > 255
+                or not isinstance(history.get("source_definition_sha256"), str)
+                or not re.fullmatch(r"[0-9a-fA-F]{64}", history["source_definition_sha256"])
+                or not Path(history.get("source_kernel_path", "")).is_absolute()
+                or not re.fullmatch(r"[0-9a-fA-F]{64}", history.get("source_kernel_sha256", ""))):
+            raise ValueError("history energy response needs a bounded component map and source identity")
+        active_ids = {sid for sid, solid in solids.items()
+                      if solid.get("material_id") not in (None, "void")}
+        mapped_ids = []
+        for component, ids in component_map.items():
+            if not isinstance(component, str) or not component or not isinstance(ids, list) or not ids:
+                raise ValueError("history energy components need names and nonempty solid lists")
+            if len(set(ids)) != len(ids) or any(sid not in active_ids for sid in ids):
+                raise ValueError(f"{component}: history energy map repeats or names a non-material solid")
+            mapped_ids.extend(ids)
+        if len(mapped_ids) != len(set(mapped_ids)) or set(mapped_ids) != active_ids:
+            raise ValueError("history energy component map must partition every material-bearing CAD solid exactly once")
 
 
 def heating_data_identity(request: dict, openmc, h5py) -> dict:
@@ -1601,7 +1706,7 @@ def heating_data_identity(request: dict, openmc, h5py) -> dict:
         data = openmc.data.IncidentNeutron.from_hdf5(str(path))
         if 301 not in data.reactions:
             raise ValueError(f"coupled heating needs MT=301 for {nuclide}")
-        identity["neutron_mt301"][nuclide] = {"sha256": sha256_file(path), "mt301": True}
+        identity["neutron_mt301"][nuclide] = {"path": str(path), "sha256": sha256_file(path), "mt301": True}
     for element in elements:
         if element not in photon:
             raise ValueError(f"coupled heating needs photon data for {element}")
@@ -1613,7 +1718,7 @@ def heating_data_identity(request: dict, openmc, h5py) -> dict:
         if (not shells or relaxation is None or shells - set(relaxation.binding_energy)
                 or shells - set(relaxation.num_electrons)):
             raise ValueError(f"coupled heating needs complete atomic-relaxation shell data for {element}")
-        identity["photon"][element] = {"sha256": sha256_file(path), "shell_count": len(shells)}
+        identity["photon"][element] = {"path": str(path), "sha256": sha256_file(path), "shell_count": len(shells)}
     return identity
 
 
@@ -1853,6 +1958,34 @@ def phase_heating(request: dict, work: Path) -> dict:
         voxel_tally.estimator = "collision"
         voxel_tallies[component] = voxel_tally
         all_tallies.extend((tally, voxel_tally))
+    history_tallies = None
+    history_request = request.get("history_energy_response")
+    source_kernel_path = Path(inspect.getsourcefile(tokamak_source)).resolve()
+    source_kernel_sha256 = sha256_file(source_kernel_path)
+    if history_request is not None and (
+            str(source_kernel_path) != history_request["source_kernel_path"]
+            or source_kernel_sha256.lower() != history_request["source_kernel_sha256"].lower()):
+        return unavailable("The tokamak source implementation differs from the CAD history-rate run.",
+                           "Use the same pinned openmc-plasma-source module and rerun both CAD transport calculations.")
+    if history_request is not None:
+        history_tallies = {"whole_model": openmc.Tally(tally_id=160, name="history-whole-model-heating"),
+                           "components": {}, "component_map": history_request["component_map"],
+                           "source_definition_sha256": history_request["source_definition_sha256"],
+                           "source_kernel_path": str(source_kernel_path),
+                           "source_kernel_sha256": source_kernel_sha256}
+        whole = history_tallies["whole_model"]
+        whole.nuclides = ["total"]
+        whole.scores = ["heating"]
+        whole.estimator = "collision"
+        all_tallies.append(whole)
+        for index, (component, component_ids) in enumerate(sorted(history_request["component_map"].items())):
+            tally = openmc.Tally(tally_id=161 + index, name=f"history-component-heating-{component}")
+            tally.filters = [openmc.CellFilter([ids[sid] for sid in component_ids])]
+            tally.nuclides = ["total"]
+            tally.scores = ["heating"]
+            tally.estimator = "collision"
+            history_tallies["components"][component] = tally
+            all_tallies.append(tally)
     model.tallies = openmc.Tallies(all_tallies)
     model_xml = work / "solver" / "heating-model.xml"
     model_xml.parent.mkdir(parents=True, exist_ok=True)
@@ -1871,6 +2004,7 @@ def phase_heating(request: dict, work: Path) -> dict:
     terminal_status = None
     aggregate = ScalarMoments()
     peak_relative_error = None
+    history_energy = None
     try:
         openmc.lib.init(["--threads", str(int(sampling["threads"])), str(model_xml)])
         try:
@@ -1879,13 +2013,16 @@ def phase_heating(request: dict, work: Path) -> dict:
                 terminal_status = init_status
             started = time.monotonic()
             if terminal_status is None:
-                (batch_moments, voxel_moments, closure_moments, voxel_closure_moments,
-                 aggregate, peak_relative_error, batches_done, stop_reason, terminal_status) = collect_heating_batches(
+                collected = collect_heating_batches(
                     openmc.lib, tallies, voxel_tallies, len(solid_ids), bins,
                     int(sampling["max_batches"]), float(sampling["max_seconds"]), started,
                     float(sampling["target_relative_error"]), volume_by_solid,
                     ranked_pieces(pieces["volumes_cm3"], pieces["r_edges_cm"]).reshape(solid_count, -1),
-                    int(sampling["particles_per_batch"]))
+                    int(sampling["particles_per_batch"]), history_tallies)
+                (batch_moments, voxel_moments, closure_moments, voxel_closure_moments,
+                 aggregate, peak_relative_error, batches_done, stop_reason, terminal_status) = collected[:9]
+                if len(collected) == 10:
+                    history_energy = collected[9]
             openmc.lib.simulation_finalize()
         finally:
             openmc.lib.finalize()
@@ -1899,6 +2036,19 @@ def phase_heating(request: dict, work: Path) -> dict:
     if after_run_identity != execution_identity:
         return unavailable("The retagged H5M or exported model XML changed while the OpenMC C API run was active.",
                            "Keep both C API inputs unchanged for the full run and rerun coupled heating.",
+                           data_identity, runtime_identity, execution_identity)
+    try:
+        after_run_data_identity = heating_data_identity(request, openmc, h5py)
+        after_run_cross_sections_sha256 = sha256_file(xml)
+    except (OSError, ValueError, KeyError, AttributeError) as exc:
+        return unavailable(f"Coupled-heating nuclear-data identity could not be rechecked after the run: {exc}",
+                           "Keep the selected neutron and photon data files unchanged for the full run, then rerun heating.",
+                           data_identity, runtime_identity, execution_identity)
+    if (after_run_data_identity != data_identity
+            or after_run_cross_sections_sha256 != preflight["cross_sections_sha256"]
+            or sha256_file(source_kernel_path) != source_kernel_sha256):
+        return unavailable("Coupled-heating neutron/photon data or the tokamak source implementation changed while OpenMC was running.",
+                           "Keep the exact selected nuclear-data and source files unchanged for the full run and rerun heating.",
                            data_identity, runtime_identity, execution_identity)
     histories = batches_done * int(sampling["particles_per_batch"])
     lost = lost_count(getattr(openmc.lib, "_dll", None))
@@ -1916,6 +2066,8 @@ def phase_heating(request: dict, work: Path) -> dict:
                        "mean_relative_error": aggregate.relative_error,
                        "peak_relative_error": peak_relative_error,
                        "variance_of_variance": aggregate.variance_of_variance})
+        if history_tallies is not None:
+            result["history_energy_response"] = history_energy
         (work / "solver" / "heating-result.json").write_text(json.dumps(result, indent=1) + "\n")
         return result
     if batches_done < int(sampling["min_batches"]):
@@ -2030,6 +2182,8 @@ def phase_heating(request: dict, work: Path) -> dict:
         reasons.append("At least one resolved per-solid heating peak has no usable error estimate at or below its authored target.")
     if closure_failed:
         reasons.append("At least one per-coil or per-voxel correlated batch closure residual exceeded three standard errors plus the explicit floating-point tolerance.")
+    if history_energy is not None and history_energy.get("status") != "CALCULATED":
+        reasons.append("The whole-model history heating response did not meet its same-run uncertainty and component-closure requirements.")
     reasons.extend(peak_reasons)
     if terminal_quality == "INCONCLUSIVE" and terminal_why:
         reasons.append(terminal_why)
@@ -2055,6 +2209,8 @@ def phase_heating(request: dict, work: Path) -> dict:
               "solids": result_solids,
               "volume_basis": "Sampled cylindrical ring voxels; geometry sampling uncertainty is reported separately when available.",
               "limitations": ["OpenMC material-volume ray count is reported; a volume sampling standard error is not exposed by this adapter."]}
+    if history_tallies is not None:
+        result["history_energy_response"] = history_energy
     (work / "solver" / "heating-result.json").write_text(json.dumps(result, indent=1) + "\n")
     return result
 

@@ -30,6 +30,23 @@ fn cad_history_rate_sidecar_is_dispatched_to_its_bound_reader_without_changing_r
 }
 
 #[test]
+fn cad_history_energy_sidecar_is_dispatched_to_its_hash_bound_reader() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("history-energy-rates.json");
+    std::fs::write(
+        &path,
+        br#"{"schema_version":"faris-cad-history-energy-rates/v0.1"}"#,
+    )
+    .unwrap();
+    let scenario = LoadedScenario::from_bytes(SCENARIO).unwrap();
+    let error = rates_from_run(&scenario, &path).unwrap_err();
+    assert!(
+        error.contains("CAD history-energy artifact JSON"),
+        "{error}"
+    );
+}
+
+#[test]
 fn cad_dose_design_format_requires_only_consumed_provenance_files() {
     let dir = tempfile::tempdir().unwrap();
     for name in [

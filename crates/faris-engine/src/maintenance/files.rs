@@ -263,6 +263,13 @@ pub fn rates_from_run(
     {
         return crate::design::load_design_history_rates(run_path, scenario);
     }
+    if value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_str)
+        == Some(crate::design::HISTORY_ENERGY_RATES_VERSION)
+    {
+        return crate::design::load_history_energy_rates(run_path, scenario);
+    }
     let run = load_reactor_run(run_path, scenario).map_err(|e| e.to_string())?;
     let normalized = run
         .normalized

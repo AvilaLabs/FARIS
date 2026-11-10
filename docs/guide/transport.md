@@ -20,6 +20,32 @@ itself does not establish winding-pack identity. If no such solid is identified,
 MT=301 heating, photon data or complete atomic-relaxation shell maps, the result is `NOT_EVALUATED` with a next step.
 The separate neutron flux command remains available with its existing energy threshold.
 
+For CAD-driven net-energy histories, first make a complete all-energy history-rate artifact with
+`faris design transport`'s `--history-component`, `--history-scenario` and `--h3-component`
+options, mapping every material-bearing CAD solid exactly once. Then run:
+
+```bash
+faris design heating DESIGN --check-report CHECK.json --out HEATING-RUN \
+  --history-rates CAD-HISTORY-RATES.json
+```
+
+This adds an unfiltered whole-model `heating` tally and one same-batch tally per history component
+to the coupled run. The sampled component partition must close to the whole-model result within
+three standard errors and roundoff. A winding-pack tally remains a local magnet response and is
+never substituted for whole-model deposited energy. When the response reaches the authored error
+target and closure checks, `HEATING-RUN/history-energy-rates.json` binds it to both run reports and
+contains the whole-model deposited power in watts for the operating-history ledger. The conversion
+uses one unit-strength source-neutron tally and applies the recorded source rate and eV-to-joule
+factor once.
+
+The heat and flux/H3 runs are separate samples. Their cross-run covariance is unknown: the combined
+rate artifact preserves the flux/H3 covariance block, marks heating covariance as unknown, and
+refuses correlated history-ensemble propagation. It does not assume independent runs. The exact
+CAD design, check report, H5M, cross-sections XML, source definition and source-kernel hash must
+match. The heating report also records and rechecks every used neutron MT=301 and photon HDF hash
+before and after the run. The response remains an unqualified Monte Carlo estimate; it does not
+establish a validated plant energy balance.
+
 The headline is the highest resolved sampled cylindrical ring voxel at `--peak-voxel-m DR,DZ` (default `0.05,0.05`
 metres). Its raw score is retained in eV per source neutron; the engine converts it once to kW/m³ using the D-T
 source rate and the sampled voxel volume. The report keeps the ray-sampled volume method and ray count separate from
