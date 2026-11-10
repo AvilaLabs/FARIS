@@ -688,7 +688,7 @@
     },
     {
       "id": "FARIS-053",
-      "title": "OpenMC 0.15.3 model export paths did not match the single-file XML API",
+      "title": "CAD dose preparation expected a single model.xml from the multi-file export API",
       "severity": "S3",
       "status": "fixed",
       "found": "2026-11-10",
@@ -696,7 +696,7 @@
         "unreleased"
       ],
       "fixed_in": "15a3549",
-      "disposition": "The 709 CAD preparation path used export_to_xml while expecting one model.xml, and neutron and photon paths passed a directory to OpenMC 0.15.3 export_to_model_xml, which expects a filename. These API mismatches prevented native dose model preparation or stage export. The worker now uses an explicit single-file export helper and checks that the requested model.xml was created. Native preparation subsequently succeeded; the dose diagnostic is still live, and no physical PASS is claimed.",
+      "disposition": "The 709 CAD preparation path called export_to_xml, which writes separate XML files, but then expected a single model.xml file. Native dose model preparation therefore failed at export. It now uses an explicit single-file model export helper and checks that model.xml was created. The neutron and photon paths also use explicit model.xml paths for clarity; their prior directory arguments were valid OpenMC inputs. Native preparation subsequently succeeded; the dose diagnostic is still live, and no physical PASS is claimed.",
       "regression_test": "integrations/openmc/test_maintenance_event_r2s.py::test_prepared_model_export_uses_openmc_0153_single_file_api"
     },
     {

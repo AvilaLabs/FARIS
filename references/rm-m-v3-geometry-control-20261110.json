@@ -1,0 +1,158 @@
+{
+  "schema": "faris-rm-m-v3-geometry-control/v1",
+  "recorded_date": "2026-11-10",
+  "scope": "Fresh generated RM-M CAD geometry and metadata verification. Faceted volume comparison only; 1M-history lost-particle,200k-source-site,OpenMC stochastic volumes,whole-facet bounds and scientific/performance campaigns are not established by this receipt.",
+  "artifact_directory": "runs/continuation/s0g-rm-m-v3-finalized-v1",
+  "artifacts": {
+    "rm_m.h5m": {
+      "bytes": 89925864,
+      "sha256": "25d125f609293bbbce37482984eb9144de851d53c23b42a227d00ad762ce979d"
+    },
+    "rm_m_model_card.json": {
+      "bytes": 44341,
+      "sha256": "6a4d977bcca288ec2589730c751d77b05a73d1886f9484634aa6a4a4fdc307cb"
+    },
+    "rm_m_roles.json": {
+      "bytes": 11790,
+      "sha256": "06e642de4acc78d4abb63b459597fdd7e8f81951ef6b7dee6dd1833d5c2b8353"
+    },
+    "rm_m_rr.h5m": {
+      "bytes": 89925864,
+      "sha256": "871f289329b528409bbae985c47000fed37f6d719eadc88fe7cccd5a9a035ed5"
+    }
+  },
+  "step": {
+    "bytes": 54151181,
+    "sha256": "427981051e45ba2b1b64dcc5a013738b896a52b892b44b7d89abf94cd3dd4edf"
+  },
+  "original_conversion_seconds": 756.9946483890017,
+  "original_strict_mesh_audit_seconds": 214.10184020299857,
+  "finalization_seconds": 89.99273419380188,
+  "retagged_geometry_identical": true,
+  "solid_count": 30,
+  "maximum_absolute_relative_volume_difference": 8.523727441012152e-05,
+  "faceted_volume_comparisons": [
+    {
+      "solid": "plasma",
+      "relative_difference": -4.260049081161732e-05
+    },
+    {
+      "solid": "scrape_off_layer",
+      "relative_difference": -3.64741626199816e-05
+    },
+    {
+      "solid": "first_wall_tungsten",
+      "relative_difference": -3.109228859921043e-05
+    },
+    {
+      "solid": "vv_inner_wall",
+      "relative_difference": -8.523727441012152e-05
+    },
+    {
+      "solid": "vv_flibe_channel",
+      "relative_difference": -5.1718236538600415e-05
+    },
+    {
+      "solid": "vv_beryllium",
+      "relative_difference": 2.196906977114388e-05
+    },
+    {
+      "solid": "vv_outer_wall",
+      "relative_difference": -5.226867762020415e-05
+    },
+    {
+      "solid": "blanket_flibe",
+      "relative_difference": -3.6317894745341306e-05
+    },
+    {
+      "solid": "tank_wall",
+      "relative_difference": -4.4013600612125003e-05
+    },
+    {
+      "solid": "thermal_shield",
+      "relative_difference": -2.9856543097617205e-05
+    },
+    {
+      "solid": "tih2_shield",
+      "relative_difference": -5.1201269347878053e-05
+    },
+    {
+      "solid": "port_duct",
+      "relative_difference": -2.87644840210044e-05
+    },
+    {
+      "solid": "tf_coil_00",
+      "relative_difference": -3.8863313131076715e-05
+    },
+    {
+      "solid": "tf_coil_01",
+      "relative_difference": -3.886331309455038e-05
+    },
+    {
+      "solid": "tf_coil_02",
+      "relative_difference": -3.8863313129078314e-05
+    },
+    {
+      "solid": "tf_coil_03",
+      "relative_difference": -3.88633131748195e-05
+    },
+    {
+      "solid": "tf_coil_04",
+      "relative_difference": -3.886331319780112e-05
+    },
+    {
+      "solid": "tf_coil_05",
+      "relative_difference": -3.886331315816616e-05
+    },
+    {
+      "solid": "tf_coil_06",
+      "relative_difference": -3.886331311975244e-05
+    },
+    {
+      "solid": "tf_coil_07",
+      "relative_difference": -3.886331309044255e-05
+    },
+    {
+      "solid": "tf_coil_08",
+      "relative_difference": -3.886331312696889e-05
+    },
+    {
+      "solid": "tf_coil_09",
+      "relative_difference": -3.88633131215288e-05
+    },
+    {
+      "solid": "tf_coil_10",
+      "relative_difference": -3.8863313085779616e-05
+    },
+    {
+      "solid": "tf_coil_11",
+      "relative_difference": -3.8863313115200526e-05
+    },
+    {
+      "solid": "tf_coil_12",
+      "relative_difference": -3.8863313153281176e-05
+    },
+    {
+      "solid": "tf_coil_13",
+      "relative_difference": -3.886331319291614e-05
+    },
+    {
+      "solid": "tf_coil_14",
+      "relative_difference": -3.886331317226599e-05
+    },
+    {
+      "solid": "tf_coil_15",
+      "relative_difference": -3.886331311497848e-05
+    },
+    {
+      "solid": "tf_coil_16",
+      "relative_difference": -3.886331308800006e-05
+    },
+    {
+      "solid": "tf_coil_17",
+      "relative_difference": -3.88633131215288e-05
+    }
+  ],
+  "source_exception_preserved": "s0g-rm-m-v3/rm_m_build_instrumentation.json; original run stopped after successful conversion on single-explicit-void retag assumption; finalizer reused exact STEP and H5M, changed only random-ray NAME values.",
+  "qualified_geometry_acceptance": false
+}

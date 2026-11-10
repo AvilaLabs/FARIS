@@ -1,0 +1,32 @@
+{
+  "schema": "faris-native-default-cad-control/v1",
+  "scope": "Synthetic three-torus software/geometry control only; no plant design or physical qualification. Fresh conversion passed at initial default chord; automatic refinement did not execute in this actual run and is covered separately by native regression tests.",
+  "raw_report": "runs/continuation/default-tori7-native-control-20261110-v1/native-default-report.retry2.json",
+  "raw_report_sha256": "c8fb887df1b01f9752094897a9f9d8de2d1a04fbd309445f82fe4fec8ef24c16",
+  "binary": "runs/continuation/native-target-v33/debug/faris",
+  "binary_sha256_before_v59_rebuild": "809fe2983e0e52869f78aecb8c1f4f7f0b8811864f5508537ed9d92ac962e8cb",
+  "build_scope": "v57 development CLI build, O0 engine/model feedback configuration; not a release/performance/reproducibility build",
+  "checks": {
+    "1": "PASS",
+    "2": "PASS",
+    "3": "PASS",
+    "4": "PASS",
+    "5": "PASS",
+    "6": "PASS",
+    "7": "PASS",
+    "8": "PASS",
+    "9": "PASS"
+  },
+  "chord_m": 0.001,
+  "attempts": 1,
+  "h5m_sha256": "cbac3965d24650e1f91af64b75479974b3edf8a93e0b795df442197d528aee0c",
+  "volume_error_max": 0.0007315416330130331,
+  "bounds_m": {
+    "core": 0.0009853505412834647,
+    "shell1": 0.0009853505412834647,
+    "shell2": 0.000999647082084128
+  },
+  "note": "Original corpus conversion of the same STEP retains a measured1.17957mm witness; native conversion produced different facet bytes and met1mm. Do not claim it exercised adaptive retry or replace the original failure.",
+  "recorded_date": "2026-11-10",
+  "raw_report_available_in_repository": false
+}
