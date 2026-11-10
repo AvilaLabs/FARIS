@@ -815,6 +815,32 @@
       "fixed_in": "ff03cac",
       "disposition": "The inboard campaign assigned rel_max_lost_particles = 1.0, which OpenMC 0.16 rejects because the value must be less than 1. The retained v3 C API log records this ValueError before transport began. The solver coarse-abort setting is now the supported 0.5; the separate live-batch observer still applies the strict 1e-6 campaign limit. A focused regression inspects the actual exported OpenMC settings. This was a pre-transport tool refusal, not a change to the campaign threshold or a physics result.",
       "regression_test": "integrations/openmc/risk_tests/test_s0g_inboard_campaign.py::test_run_exports_real_openmc_settings_with_supported_lost_particle_threshold"
+    },
+    {
+      "id": "FARIS-063",
+      "title": "Replay displayed normalized legacy transport values without exact loss accounting",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "f7a3cba",
+      "disposition": "The replay loader accepted normalized values saved in historical run records that lacked exact selected-library lost-particle accounting. The transport panel could therefore show those values alongside a NOT_EVALUATED loss badge. Replay now verifies the raw artifact and echoed request identity, withholds normalized values and spectra in memory when the exact loss receipt is absent, and surfaces the reason without changing saved run or raw artifact bytes. Mixed windowed records also validate the child identity and propagate an untrusted child reason. Valid counted legacy records remain available, including records with no spectra sidecar. This corrects replay presentation; it does not alter or qualify the historical transport results.",
+      "regression_test": "crates/faris-engine/src/reactor.rs::public_replay_loader_withholds_legacy_values_and_keeps_counted_legacy_records"
+    },
+    {
+      "id": "FARIS-064",
+      "title": "R3 material-volume sampling refused a mesh extending beyond the transport sphere",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "83f0b8a",
+      "disposition": "The R3 full-H5M mesh aligned to 100 cm cells extended to corners 1067.7 cm from the origin, beyond the 1000 cm transport sphere. In the retained v1 run, OpenMC Mesh.material_volumes stopped with “Mesh not fully contained in geometry” before any Monte Carlo histories. R3 volume sampling now uses an auxiliary 1167.7 cm world with the same DAGMC geometry and materials; the original 1000 cm neutron and photon transport geometry is unchanged. The fresh v2 live run is not an acceptance result. This fixes a pretransport sampling refusal and makes no scientific or dose qualification claim.",
+      "regression_test": "integrations/openmc/risk_tests/test_r3_source_serialization.py::test_r2s_material_volume_sampling_aux_world_contains_mesh_without_changing_transport_geometry"
     }
   ]
 }
