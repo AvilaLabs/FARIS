@@ -488,6 +488,11 @@ def sampling_settings(args) -> dict:
     }
 
 
+def _json_normalize(value):
+    """Normalize tuple/list and scalar shapes through the recorded JSON contract."""
+    return json.loads(json.dumps(value, sort_keys=True, allow_nan=False))
+
+
 def _resolve_record_ref(ref: dict, base: Path, label: str) -> tuple[Path, str]:
     if not isinstance(ref, dict) or not isinstance(ref.get("path"), str) or not isinstance(ref.get("sha256"), str):
         raise ValueError(f"reused neutron receipt lacks a valid {label} path/hash")
@@ -513,7 +518,7 @@ def _validate_neutron_reuse_source(record_path: Path, *, expected_settings: dict
     record = json.loads(record_path.read_text(encoding="utf-8"))
     if record.get("kind") != "r3-r2s" or record.get("source_problem_protocol") != sc.FULL_EMISSION_PROTOCOL:
         raise ValueError("reuse source is not the same full-emission R2S protocol")
-    if record.get("settings") != expected_settings:
+    if _json_normalize(record.get("settings")) != _json_normalize(expected_settings):
         raise ValueError("reused neutron settings differ from the requested R2S settings")
     if record.get("activation_group_basis", {}).get("energy_edges_eV") != expected_groups.get("energy_edges_eV") or \
             record.get("settings", {}).get("activation_groups") != expected_settings.get("activation_groups"):
@@ -562,7 +567,7 @@ def _validate_neutron_reuse_source(record_path: Path, *, expected_settings: dict
     if (protocol.get("schema") != "faris-r3-bounded-campaign-protocol/v1" or
             protocol_digest != BM._canonical_sha256(protocol_body) or
             protocol_digest != plan_ref.get("protocol_sha256") or
-            protocol.get("sampling_settings") != expected_settings):
+            _json_normalize(protocol.get("sampling_settings")) != _json_normalize(expected_settings)):
         raise ValueError("reused neutron protocol plan does not match its recorded settings/hash")
     mesh_ref = protocol.get("activation_mesh", {})
     mesh_path, mesh_sha = _resolve_record_ref(mesh_ref, source_run, "activation mesh")

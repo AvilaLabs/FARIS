@@ -60,7 +60,8 @@ class NeutronReuseValidationTests(unittest.TestCase):
             path = basis_dir / f"{name}.json"
             path.write_text(name)
             basis[name] = {"path": f"shutdown_dose_basis/{name}.json", "sha256": r2s.RM.sha256(path)}
-        settings = {"activation_groups": "toy-groups", "seeds": [11, 12], "stop_after_neutron": False}
+        settings = {"activation_groups": "toy-groups", "seeds": [11, 12], "stop_after_neutron": False,
+                    "timesteps": ((1.0, "a"), (1.0, "d"))}
         runtime = {"openmc_version": "0.15.3", "library_sha256": "runtime"}
         resources = {"collapse_activation_output_budget_bytes": 1000, "disk_reserve_bytes": 2000,
                      "working_memory_budget_bytes": 3000, "activation_domain_chunk": 2,
