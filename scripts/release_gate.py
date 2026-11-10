@@ -509,18 +509,34 @@ def check_fuzz(g: Gate):
         problems.append(f"driver is {data.get('driver')!r}, not libfuzzer")
     if data.get("dirty") is not False:
         problems.append("the fuzzed tree was not clean")
-    by_name = {c.get("name"): c for c in checks if isinstance(c, dict)}
+    by_name = {}
+    for check in checks:
+        if not isinstance(check, dict):
+            problems.append("a fuzz check is not an object")
+            continue
+        name = check.get("name")
+        if not isinstance(name, str) or name not in targets:
+            problems.append(f"invalid or unexpected fuzz target name {name!r}")
+            continue
+        if name in by_name:
+            problems.append(f"{name} has duplicate fuzz evidence")
+        by_name[name] = check
     for target in targets:
         c = by_name.get(target)
         if c is None:
             problems.append(f"{target} was not fuzzed")
-        elif c.get("verdict") != "PASS" or c.get("crashes") != 0:
+        elif (c.get("verdict") != "PASS" or type(c.get("crashes")) is not int or
+              c.get("crashes") != 0 or type(c.get("exit_status")) is not int or
+              c.get("exit_status") != 0):
             problems.append(f"{target} did not finish clean")
-        elif not isinstance(c.get("seconds"), int) or c["seconds"] < FUZZ_SECONDS:
+        elif type(c.get("seconds")) is not int or c["seconds"] < FUZZ_SECONDS:
             problems.append(f"{target} ran {c.get('seconds')} s, under {FUZZ_SECONDS} s")
+        elif type(c.get("cpu_seconds")) is not int or c["cpu_seconds"] < FUZZ_SECONDS:
+            problems.append(f"{target} used {c.get('cpu_seconds')} CPU s, under {FUZZ_SECONDS}")
     if problems:
         return False, f"{len(problems)} problems, first: {problems[0]}"
-    return True, f"all {len(targets)} fuzz targets ran at least {FUZZ_SECONDS} s with 0 crashes for commit {g.commit[:12]}"
+    return True, (f"all {len(targets)} fuzz targets ran and used at least {FUZZ_SECONDS} s each, "
+                  f"with 0 crashes for commit {g.commit[:12]}")
 
 
 def check_repro(g: Gate):

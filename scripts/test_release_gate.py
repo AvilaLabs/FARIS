@@ -72,7 +72,8 @@ FUZZ_TARGETS = ("scenario", "facets")
 
 
 def fuzz_evidence(**changes):
-    checks = [{"name": t, "verdict": "PASS", "seconds": 3600, "executions": 10, "crashes": 0} for t in FUZZ_TARGETS]
+    checks = [{"name": t, "verdict": "PASS", "seconds": 3600, "cpu_seconds": 3600,
+               "executions": 10, "crashes": 0, "exit_status": 0} for t in FUZZ_TARGETS]
     return {"commit": COMMIT, "driver": "libfuzzer", "dirty": False, "checks": checks, **changes}
 
 
@@ -369,6 +370,16 @@ class ReleaseGate(unittest.TestCase):
         short = fuzz_evidence()["checks"]
         short[1] = dict(short[1], seconds=60)
         self.assertIn("facets ran 60 s", reason(checks=short))
+        low_cpu = fuzz_evidence()["checks"]
+        low_cpu[1] = dict(low_cpu[1], cpu_seconds=3599)
+        self.assertIn("facets used 3599 CPU s", reason(checks=low_cpu))
+        duplicate = fuzz_evidence()["checks"] + [dict(fuzz_evidence()["checks"][0])]
+        self.assertIn("scenario has duplicate", reason(checks=duplicate))
+        malformed = fuzz_evidence()["checks"] + [{"name": [], "verdict": "PASS"}]
+        self.assertIn("invalid or unexpected fuzz target name", reason(checks=malformed))
+        failed_status = fuzz_evidence()["checks"]
+        failed_status[0] = dict(failed_status[0], exit_status=1)
+        self.assertIn("scenario did not finish clean", reason(checks=failed_status))
         crashed = fuzz_evidence()["checks"]
         crashed[0] = dict(crashed[0], crashes=1, verdict="FAIL")
         self.assertIn("scenario did not finish clean", reason(checks=crashed))

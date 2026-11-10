@@ -7,6 +7,13 @@ name: Fuzz targets
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Run the full release fuzz campaign as parallel per-target jobs
+        type: choice
+        options: [smoke, release]
+        default: smoke
+        required: true
   schedule:
     - cron: "17 3 * * 1"
   pull_request:
@@ -20,6 +27,7 @@ permissions:
 
 jobs:
   fuzz:
+    if: github.event_name != 'workflow_dispatch' || inputs.profile != 'release'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -36,6 +44,75 @@ jobs:
         if: always()
         with:
           name: fuzz-evidence
+          path: |
+            fuzz/evidence.json
+            fuzz/artifacts
+
+  list-release-targets:
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'release'
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - id: targets
+        run: echo "targets=$(python3 scripts/fuzz_aggregate.py --list-targets)" >> "$GITHUB_OUTPUT"
+
+  release-fuzz-target:
+    needs: list-release-targets
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'release'
+    strategy:
+      fail-fast: false
+      max-parallel: 19
+      matrix:
+        target: ${{ fromJson(needs.list-release-targets.outputs.targets) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly
+        with:
+          toolchain: nightly
+      - name: Verify the bounded CPU-time runner is available
+        timeout-minutes: 2
+        env:
+          LC_ALL: C
+        run: |
+          systemd-run --user --scope -q -p MemoryMax=3G -p MemorySwapMax=0 taskset -c 0-1 /usr/bin/time -f '%U %S' -o /tmp/fuzz-cpu-check python3 -c 'import time; end=time.process_time()+0.1; exec("while time.process_time() < end: pass")'
+          awk '{ if ($1 + $2 <= 0) exit 1 }' /tmp/fuzz-cpu-check
+      - run: cargo install cargo-fuzz --locked --version 0.13.2
+      - name: Run this target for at least one CPU-hour
+        env:
+          CARGO_BUILD_JOBS: 2
+        run: scripts/fuzz_all.sh 3600 "fuzz/evidence/${{ matrix.target }}.json" "${{ matrix.target }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: fuzz-evidence-${{ matrix.target }}
+          path: |
+            fuzz/evidence/${{ matrix.target }}.json
+            fuzz/artifacts/${{ matrix.target }}
+
+  aggregate-release-fuzz:
+    needs: [list-release-targets, release-fuzz-target]
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.profile == 'release' && needs.release-fuzz-target.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: fuzz-evidence-*
+          path: fuzz/job-evidence
+          merge-multiple: true
+      - name: Bind every target record to this candidate commit
+        run: python3 scripts/fuzz_aggregate.py --input-dir fuzz/job-evidence/evidence --output fuzz/evidence.json --commit "${GITHUB_SHA}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fuzz-release-evidence
           path: |
             fuzz/evidence.json
             fuzz/artifacts

@@ -273,6 +273,20 @@ def condense_multigroup(openmc, model, edges: list[float], source, directory: Pa
     model.settings.seed = MGXS_SEED
     os.environ["PATH"] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
     os.environ["OMP_NUM_THREADS"] = str(int(threads))
+    # OpenMC 0.16's stochastic-slab conversion creates a fresh Materials
+    # collection from the geometry. That collection does not inherit the
+    # model's cross_sections attribute, and its nested model.run() therefore
+    # needs the same CE index through the environment. Pin it from this model;
+    # an ambient index could silently select unrelated nuclear data.
+    cross_sections = getattr(model.materials, "cross_sections", None)
+    if not cross_sections:
+        raise RuntimeError("the model must specify materials.cross_sections for MGXS generation")
+    try:
+        cross_sections = Path(cross_sections).expanduser().resolve(strict=True)
+    except (OSError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"the model's materials.cross_sections cannot be resolved: {cross_sections}") from exc
+    if not cross_sections.is_file():
+        raise RuntimeError(f"the model's materials.cross_sections is not a file: {cross_sections}")
     target = directory / "mgxs.h5"
     # OpenMC 0.16 takes the slab run's settings as keywords and ignores the model's; 0.15.3 reads the model's
     # batches and the particle count argument.
@@ -284,6 +298,8 @@ def condense_multigroup(openmc, model, edges: list[float], source, directory: Pa
     else:
         options = {"nparticles": parameters["nparticles"]}
     here = os.getcwd()
+    previous_cross_sections = os.environ.get("OPENMC_CROSS_SECTIONS")
+    os.environ["OPENMC_CROSS_SECTIONS"] = str(cross_sections)
     os.chdir(directory)
     try:
         model.convert_to_multigroup(method=parameters["method"], groups=openmc.mgxs.EnergyGroups(edges),
@@ -291,6 +307,10 @@ def condense_multigroup(openmc, model, edges: list[float], source, directory: Pa
                                     correction=parameters["correction"], **options)
     finally:
         os.chdir(here)
+        if previous_cross_sections is None:
+            os.environ.pop("OPENMC_CROSS_SECTIONS", None)
+        else:
+            os.environ["OPENMC_CROSS_SECTIONS"] = previous_cross_sections
     if not target.is_file():
         raise RuntimeError("the multigroup step wrote no library")
     discard(directory, keep={"mgxs.h5"})

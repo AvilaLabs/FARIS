@@ -66,8 +66,8 @@ RUSTUP_TOOLCHAIN=nightly cargo fuzz run facets --fuzz-dir fuzz -- -rss_limit_mb=
 `scripts/fuzz_all.sh` makes the seed corpus first (`scripts/fuzz_seed.py`: the repository's own design,
 scenario, history, physics-case, facets, ACTINV and PNG files plus a real study file and a few small
 archives; it is generated into `fuzz/corpus/`, not committed), then runs each target under libFuzzer with
-`-rss_limit_mb=2048 -timeout=10 -jobs=1` inside a 3 GB memory cgroup on two CPUs, and writes the
-evidence file. A run over an hour per target is 16 hours or more; ask first.
+`-rss_limit_mb=2048 -timeout=10` inside a 3 GB memory cgroup on two CPUs, and writes the
+evidence file. The 19 targets require at least 19 CPU-hours. The `Fuzz targets` workflow accepts a `release` profile on manual dispatch: it runs one target per bounded hosted job, then combines only complete evidence for the same clean commit. Ask before starting a release campaign unless it is already authorized.
 
 A finding is written to `fuzz/artifacts/<target>/`. Minimise it (`cargo fuzz tmin`), add the input as an
 ordinary `#[test]` in the crate that owns the parser, and fix the parser so it returns an error. The
@@ -100,15 +100,15 @@ may use.
 
 ```json
 {
-  "schema_version": "faris-fuzz-evidence/v0.1",
+  "schema_version": "faris-fuzz-evidence/v0.2",
   "commit": "<sha>", "dirty": false, "driver": "libfuzzer", "toolchain": "rustc 1.99.0-nightly ...",
   "seconds_per_target_requested": 3600, "finished": "2026-10-20T04:00:00Z",
   "checks": [
-    {"name": "facets", "verdict": "PASS", "seconds": 3600, "executions": 41000000, "crashes": 0, "exit_status": 0}
+    {"name": "facets", "verdict": "PASS", "seconds": 3600, "cpu_seconds": 3600, "executions": 41000000, "crashes": 0, "exit_status": 0}
   ]
 }
 ```
 
 The gate passes only when the commit is the one being released, the tree was clean, the driver is
 `libfuzzer`, and every file in `fuzz/fuzz_targets` has a check that is PASS with `crashes` 0 and
-`seconds` of at least 3600.
+`seconds` and measured `cpu_seconds` of at least 3600 each. The driver measures target user and system CPU time inside its memory scope, continues in bounded chunks until both durations are met, and rejects evidence if the source tree changes during the run.
