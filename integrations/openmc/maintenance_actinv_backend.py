@@ -48,6 +48,30 @@ def checked_ref(ref: dict, label: str) -> Path:
     return path
 
 
+def validate_model_geometry_binding(model_xml: Path, geometry_path: Path) -> None:
+    """Require one modern or legacy DAGMC XML reference to the hash-checked H5M."""
+    root = ET.parse(model_xml).getroot()
+    nodes = root.findall(".//dagmc_universe") + root.findall(".//dagmc")
+    if len(nodes) != 1:
+        raise ValueError("model XML must reference the hash-bound exact DAGMC geometry")
+    node = nodes[0]
+    if node.tag == "dagmc_universe":
+        reference = node.get("filename")
+    else:
+        filenames = node.findall("filename")
+        reference = filenames[0].text if len(filenames) == 1 else None
+    if not isinstance(reference, str) or not reference.strip():
+        raise ValueError("model XML must reference the hash-bound exact DAGMC geometry")
+    target = Path(reference)
+    if not target.is_absolute():
+        target = Path(model_xml).parent / target
+    try:
+        if target.resolve(strict=True) != Path(geometry_path).resolve(strict=True):
+            raise ValueError("model XML must reference the hash-bound exact DAGMC geometry")
+    except OSError as exc:
+        raise ValueError("model XML must reference the hash-bound exact DAGMC geometry") from exc
+
+
 def validate_safe_model_sources(root: ET.Element) -> None:
     """Accept only standard data-defined IndependentSource and MeshSource XML."""
     source_types = {
@@ -246,9 +270,7 @@ def activation_batches_from_artifacts(request: dict) -> dict:
     library_index_path = checked_ref(request["activation_library_index"], "ACTINV library index")
     root = ET.parse(model_path).getroot()
     validate_safe_model_sources(root)
-    dags = root.findall(".//dagmc/filename")
-    if len(dags) != 1 or (model_path.parent / (dags[0].text or "")).resolve() != geometry_path:
-        raise ValueError("model XML must reference the hash-bound exact DAGMC geometry")
+    validate_model_geometry_binding(model_path, geometry_path)
     component_map = json.loads(map_path.read_bytes())
     if set(component_map) != {"schema", "geometry_sha256", "materials"} or component_map["schema"] != "faris-cad-component-material-map/v0.1":
         raise ValueError("component/material map has unsupported schema")

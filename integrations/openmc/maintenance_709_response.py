@@ -1141,6 +1141,7 @@ def run_photon_stage(request: dict, out: Path, openmc=None, request_sha256: str 
         solver_model = model_dir / "model.xml"
         if not solver_model.is_file():
             raise RuntimeError("OpenMC did not export the photon model")
+        validate_model_geometry_binding(solver_model, geometry_path)
         root = ET.parse(solver_model).getroot()
         if sum(float(node.attrib.get("strength", "0")) for node in root.findall("./settings/source")) <= 0:
             raise ValueError("serialized photon model has no positive absolute source strengths")

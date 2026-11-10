@@ -88,6 +88,17 @@ class RequestBoundaryTests(unittest.TestCase):
         self.assertEqual(chain.name, "chain.xml")
         self.assertEqual(component_map.name, "component-map.json")
 
+    def test_geometry_binding_accepts_openmc_0153_dagmc_universe_only_for_verified_file(self):
+        model = Path(self.request["model"]["model_xml"])
+        geometry = Path(self.request["geometry"]["path"]).resolve()
+        model.write_text(f'<model><geometry><dagmc_universe filename="{geometry}"/>'
+                         '</geometry></model>', encoding="utf-8")
+        worker.validate_model_geometry_binding(model, geometry)
+        model.write_text(f'<model><geometry><dagmc_universe filename="{geometry}.other"/>'
+                         '</geometry></model>', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "hash-verified DAGMC geometry"):
+            worker.validate_model_geometry_binding(model, geometry)
+
     def test_rejects_history_artifact_that_does_not_match_rust_hash(self):
         history_path = Path(self.request["history_artifact"]["path"])
         history_path.write_bytes(b'{"events":[1]}')

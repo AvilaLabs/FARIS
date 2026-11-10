@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +17,20 @@ import maintenance_actinv_backend as backend
 
 
 class ActinvBackendContracts(unittest.TestCase):
+    def test_geometry_binding_accepts_modern_dagmc_universe_and_rejects_mismatch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            geometry = root / "dose.h5m"
+            geometry.write_bytes(b"hash-checked fixture")
+            model = root / "model.xml"
+            model.write_text('<model><geometry><dagmc_universe filename="dose.h5m"/>'
+                             '</geometry></model>', encoding="utf-8")
+            backend.validate_model_geometry_binding(model, geometry)
+            model.write_text('<model><geometry><dagmc><filename>other.h5m</filename>'
+                             '</dagmc></geometry></model>', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash-bound exact DAGMC geometry"):
+                backend.validate_model_geometry_binding(model, geometry)
+
     def response(self, *, volume=500.0):
         return {
             "element_indices": np.array([0]),
