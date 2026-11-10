@@ -941,7 +941,7 @@ def deviation(args) -> int:
     timing["global_bound"] = time.monotonic() - t
     timing.update({f"measure_{k}": v for k, v in phases.items()})
     per_solid = []
-    for entry, row, solid in zip(mapping, rows, faces):
+    for entry, row, solid, certification in zip(mapping, rows, faces, certifications):
         out = {
             "volume": entry["volume"],
             "step_index": entry["step_index"],

@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -140,6 +141,86 @@ else:
             result = fd.certify_triangles(PlaneOracle(), triangles, 0.1, max_queries=1000, max_depth=8)
             self.assertEqual(result["status"], "unresolved")
             self.assertGreater(result["upper_bound"], 0.1)
+
+    class DeviationReportAssembly(unittest.TestCase):
+        def test_each_solid_gets_its_own_global_certification(self):
+            with tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                mapping = [
+                    {"volume": 1, "step_index": 0},
+                    {"volume": 2, "step_index": 1},
+                ]
+                map_path = root / "map.json"
+                map_path.write_text(json.dumps(mapping))
+
+                vertices = np.array([
+                    [0., 0., 0.], [1., 0., 0.], [0., 1., 0.],
+                    [2., 0., 0.], [3., 0., 0.], [2., 1., 0.],
+                ], dtype="<f8")
+                triangles = np.array([[0, 1, 2], [3, 4, 5]], dtype="<u4")
+                surface_dtype = np.dtype([
+                    ("first", "<u8"), ("count", "<u8"),
+                    ("fwd", "<u4"), ("rev", "<u4"),
+                ])
+                surfaces = np.array([(0, 1, 1, 0), (1, 1, 2, 0)], dtype=surface_dtype)
+                header = bytearray(48)
+                header[16:40] = np.array([6, 2, 2], dtype="<u8").tobytes()
+                facets_path = root / "facets.bin"
+                facets_path.write_bytes(header + vertices.tobytes() + triangles.tobytes() + surfaces.tobytes())
+
+                class FaceStub:
+                    analytic = np.array([True, False])
+
+                    def __len__(self):
+                        return 2
+
+                face_a, face_b = FaceStub(), FaceStub()
+                rows = [
+                    {"points": 1, "points_available": 1, "points_closed_form": 1,
+                     "points_occt": 0, "points_occt_needed": 0, "occt_calls": 0,
+                     "worst": 0.1, "at": None},
+                    {"points": 1, "points_available": 1, "points_closed_form": 1,
+                     "points_occt": 0, "points_occt_needed": 0, "occt_calls": 0,
+                     "worst": 0.2, "at": None},
+                ]
+                certifications = [
+                    {"status": "certified", "upper_bound": 1.5, "queries": 11,
+                     "max_queries": 100, "max_depth": 8},
+                    {"status": "unresolved", "upper_bound": 4.5, "queries": 22,
+                     "max_queries": 200, "max_depth": 9},
+                ]
+                args = type("Args", (), {
+                    "map": map_path,
+                    "facets": facets_path,
+                    "step": root / "unused.step",
+                    "shape_cache": None,
+                    "shape_unit_m": 1e-3,
+                    "workers": 1,
+                    "occt_points": 0,
+                    "block_points": 32,
+                    "tolerance_m": 1e-4,
+                    "max_bound_queries": 100,
+                    "max_bound_depth": 8,
+                    "report": root / "deviation.json",
+                })()
+
+                with patch.object(faris_cad, "load_solids", return_value=["solid-a", "solid-b"]), \
+                     patch.object(fd, "SolidFaces", side_effect=[face_a, face_b]), \
+                     patch.object(fd, "measure", return_value=(rows, {})), \
+                     patch.object(fd, "certify_triangles", side_effect=certifications) as certify, \
+                     patch.object(faris_cad, "tool_versions", return_value={}), \
+                     patch.object(faris_cad, "peak_rss_mb", return_value=1):
+                    self.assertEqual(faris_cad.deviation(args), 0)
+
+                report = json.loads(args.report.read_text())
+                self.assertEqual(
+                    [(solid["volume"], solid["global_bound_status"]) for solid in report["solids"]],
+                    [(1, "certified"), (2, "unresolved")],
+                )
+                self.assertAlmostEqual(report["solids"][0]["global_upper_bound_m"], 0.0015)
+                self.assertAlmostEqual(report["solids"][1]["global_upper_bound_m"], 0.0045)
+                self.assertEqual(certify.call_args_list[0].args[0], face_a)
+                self.assertEqual(certify.call_args_list[1].args[0], face_b)
 
     def shapes():
         """Solids with one analytic surface type each, cut so that some faces are partial."""
