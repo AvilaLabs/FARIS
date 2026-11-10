@@ -78,8 +78,62 @@ def fixture(path: Path, *, include_explicit_void: bool = True):
             name.create_dataset("values", data=np.array([b"mat:steel", b"mat:void_comp"], dtype="S32"))
 
 
+def fixture_multiple_void_groups(path: Path):
+    fixture(path)
+    with h5py.File(path, "r+") as f:
+        sets = f["tstt/sets"]
+        del sets["list"]
+        rows = sets.create_dataset("list", data=np.array([
+            [-1, -1, -1, 0], [-1, -1, -1, 0], [0, -1, -1, 0],
+            [1, -1, -1, 0], [2, -1, -1, 0], [5, -1, -1, 0],
+        ], dtype=np.int64))
+        rows.attrs["start_id"] = np.int64(1000)
+        del sets["contents"]
+        sets.create_dataset("contents", data=np.array([1000, 1001, 1002, 1000, 1001, 1002], dtype=np.uint64))
+        tags = f["tstt/tags"]
+        del tags["GEOM_DIMENSION"]["id_list"]
+        del tags["GEOM_DIMENSION"]["values"]
+        tags["GEOM_DIMENSION"].create_dataset("id_list", data=np.array([1000, 1001, 1002], dtype=np.uint64))
+        tags["GEOM_DIMENSION"].create_dataset("values", data=np.array([3, 3, 3], dtype=np.int32))
+        del tags["GLOBAL_ID"]["id_list"]
+        del tags["GLOBAL_ID"]["values"]
+        tags["GLOBAL_ID"].create_dataset("id_list", data=np.array([1000, 1001, 1002], dtype=np.uint64))
+        tags["GLOBAL_ID"].create_dataset("values", data=np.array([8, 9, 10], dtype=np.int32))
+        del tags["NAME"]["id_list"]
+        del tags["NAME"]["values"]
+        tags["NAME"].create_dataset("id_list", data=np.array([1002, 1003, 1004, 1005], dtype=np.uint64))
+        tags["NAME"].create_dataset("values", data=np.array(
+            [b"mat:steel", b"mat:void", b"mat:void", b"mat:void_comp"], dtype="S32"))
+
+
 @unittest.skipIf(h5py is None, "h5py is not installed in this Python")
 class RetagDagmcMaterialsTests(unittest.TestCase):
+    def test_retags_multiple_disjoint_explicit_void_groups_by_exact_union(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, target = Path(tmp) / "original.h5m", Path(tmp) / "random-ray.h5m"
+            fixture_multiple_void_groups(source)
+            record = RETAG.retag_void_h5m(source, target, [9, 10])
+            self.assertEqual(record["changed_material_groups"], [
+                {"set_handle": 1003, "from": "mat:void", "to": "mat:filler", "volume_global_ids": [9]},
+                {"set_handle": 1004, "from": "mat:void", "to": "mat:filler", "volume_global_ids": [10]},
+                {"set_handle": 1005, "from": "mat:void_comp", "to": "mat:filler_comp", "volume_global_ids": [8, 9, 10]},
+            ])
+            with h5py.File(source, "r") as original, h5py.File(target, "r") as copied:
+                self.assertEqual(original["tstt/sets/contents"][()].tolist(), copied["tstt/sets/contents"][()].tolist())
+                self.assertEqual([bytes(v).rstrip(b"\0").decode() for v in copied["tstt/tags/NAME/values"][()]],
+                                 ["mat:steel", "mat:filler", "mat:filler", "mat:filler_comp"])
+
+    def test_overlapping_explicit_void_membership_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, target = Path(tmp) / "original.h5m", Path(tmp) / "random-ray.h5m"
+            fixture_multiple_void_groups(source)
+            with h5py.File(source, "r+") as f:
+                # Make the second explicit group point at the same entity as the first.
+                f["tstt/sets/contents"][2] = 1001
+            with self.assertRaisesRegex(ValueError, "disjoint"):
+                RETAG.retag_void_h5m(source, target, [9, 10])
+            self.assertFalse(target.exists())
+
     def test_retags_only_void_name_groups_and_preserves_source_and_geometry(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, target = Path(tmp) / "original.h5m", Path(tmp) / "random-ray.h5m"
@@ -109,7 +163,7 @@ class RetagDagmcMaterialsTests(unittest.TestCase):
                 RETAG.retag_void_h5m(source, target, [8])
             self.assertFalse(target.exists())
             fixture(source, include_explicit_void=False)
-            with self.assertRaisesRegex(ValueError, "exactly one mat:void"):
+            with self.assertRaisesRegex(ValueError, "mat:void groups"):
                 RETAG.retag_void_h5m(source, target, [9])
             self.assertFalse(target.exists())
 

@@ -3,9 +3,10 @@
 """Copy a DAGMC H5M and retag only its explicit-void and implicit-complement NAME groups.
 
 This does not remesh geometry. It is deliberately strict: the input must contain
-one ``mat:void`` group bound to exactly the caller-declared void volume IDs and
-one ``mat:void_comp`` marker. All HDF5 datasets other than NAME/values must be
-byte-for-byte semantically identical in the output.
+one or more disjoint ``mat:void`` groups whose union is exactly the
+caller-declared void volume IDs, and one ``mat:void_comp`` marker. All HDF5
+datasets other than NAME/values must be byte-for-byte semantically identical
+in the output.
 """
 from __future__ import annotations
 
@@ -127,24 +128,27 @@ def _inspect(path: Path, expected_void_volume_ids: set[int], *, retagged: bool =
         names = [bytes(value).rstrip(b"\0").decode("utf-8") for value in name_values]
         expected_names = {old: (new if retagged else old) for old, new in RENAME.items()}
         matches = {old: [i for i, value in enumerate(names) if value == expected_names[old]] for old in RENAME}
-        if any(len(indexes) != 1 for indexes in matches.values()):
-            raise ValueError("H5M must contain exactly one mat:void and one mat:void_comp NAME group")
+        if not matches["mat:void"] or len(matches["mat:void_comp"]) != 1:
+            raise ValueError("H5M must contain mat:void groups and exactly one mat:void_comp NAME group")
         tags = []
         for old, indexes in matches.items():
-            index = indexes[0]
-            set_handle = int(name_ids[index])
-            row_index = set_handle - set_start
-            if not (0 <= row_index < len(rows)):
-                raise ValueError(f"{old} NAME group is not an H5M set")
-            member_handles = _set_contents(rows, contents, row_index)
-            members = sorted({global_ids[entity] for entity in member_handles
-                              if dimension.get(entity) == 3 and entity in global_ids})
-            if not members or any(dimension.get(entity) != 3 for entity in member_handles):
-                raise ValueError(f"{old} must contain only mapped volume entities")
-            tags.append({"set_handle": set_handle, "from": old, "to": RENAME[old],
-                         "volume_global_ids": members})
-        explicit = next(item for item in tags if item["from"] == "mat:void")
-        if set(explicit["volume_global_ids"]) != expected_void_volume_ids:
+            for index in indexes:
+                set_handle = int(name_ids[index])
+                row_index = set_handle - set_start
+                if not (0 <= row_index < len(rows)):
+                    raise ValueError(f"{old} NAME group is not an H5M set")
+                member_handles = _set_contents(rows, contents, row_index)
+                members = sorted({global_ids[entity] for entity in member_handles
+                                  if dimension.get(entity) == 3 and entity in global_ids})
+                if not members or any(dimension.get(entity) != 3 for entity in member_handles):
+                    raise ValueError(f"{old} must contain only mapped volume entities")
+                tags.append({"set_handle": set_handle, "from": old, "to": RENAME[old],
+                             "volume_global_ids": members})
+        explicit = [item for item in tags if item["from"] == "mat:void"]
+        explicit_ids = [gid for item in explicit for gid in item["volume_global_ids"]]
+        if len(explicit_ids) != len(set(explicit_ids)):
+            raise ValueError("mat:void groups must have disjoint volume membership")
+        if set(explicit_ids) != expected_void_volume_ids:
             raise ValueError("mat:void volume IDs do not match the explicitly declared void roles")
         if "tstt/tags/NAME/values" not in handle:
             raise ValueError("H5M NAME value table is missing")
