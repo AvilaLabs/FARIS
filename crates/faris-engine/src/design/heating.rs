@@ -1564,11 +1564,14 @@ pub fn combine_cad_history_energy_rates(
     design_path: &Path,
     output_path: &Path,
 ) -> Result<HistoryEnergyRatesArtifact, String> {
-    let context = super::transport::resolve_cad_operating_context(design_path, None)?;
+    let identity = super::transport::resolve_cad_source_identity(design_path)?;
     let artifact = build_history_energy_rates(
         base_history_rates_path,
         heating_report_path,
-        EnergySourceContext::CadDesign(&context),
+        EnergySourceContext::CadDesign {
+            identity: &identity,
+            design_path,
+        },
     )?;
     write_history_energy_rates(&artifact, output_path)?;
     Ok(artifact)
@@ -1607,13 +1610,22 @@ pub fn load_cad_history_energy_rates(
     path: &Path,
     design_path: &Path,
 ) -> Result<TransportDrivingRates, String> {
-    let context = super::transport::resolve_cad_operating_context(design_path, None)?;
-    load_history_energy_rates_impl(path, EnergySourceContext::CadDesign(&context))
+    let identity = super::transport::resolve_cad_source_identity(design_path)?;
+    load_history_energy_rates_impl(
+        path,
+        EnergySourceContext::CadDesign {
+            identity: &identity,
+            design_path,
+        },
+    )
 }
 
 enum EnergySourceContext<'a> {
     LegacyScenario(&'a faris_model::LoadedScenario),
-    CadDesign(&'a super::transport::CadOperatingContext),
+    CadDesign {
+        identity: &'a faris_model::design::CadSourceIdentity,
+        design_path: &'a Path,
+    },
 }
 
 fn load_history_energy_rates_impl(
@@ -1668,17 +1680,17 @@ fn build_history_energy_rates(
                 None,
             )
         }
-        EnergySourceContext::CadDesign(context) => {
-            let rates =
-                super::transport::load_cad_design_history_rates(&base_path, &context.design_path)?;
+        EnergySourceContext::CadDesign {
+            identity: expected_identity,
+            design_path,
+        } => {
+            let rates = super::transport::load_cad_design_history_rates(&base_path, design_path)?;
             let identity = base
                 .cad_source_identity
                 .as_ref()
                 .ok_or("CAD history-energy receipt requires typed CAD source identity")?;
             if base.schema_version != super::transport::DESIGN_HISTORY_RATES_CAD_VERSION
-                || identity.design_id != context.design_id
-                || identity.design_sha256 != context.design_sha256
-                || identity.fusion_power_mw != context.fusion_power_mw
+                || identity != expected_identity
             {
                 return Err("CAD design source identity differs from its history rates".into());
             }

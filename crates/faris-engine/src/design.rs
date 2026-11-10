@@ -82,7 +82,8 @@ pub use transport::{
     DesignTransportReport, FluenceLimit, HistoryRatesArtifactRef, NotEvaluated, PeakFlux,
     SolidFlux, TransportProgress, TransportProgressFn, VarianceReduction, design_transport,
     flux_n_m2_s, fuzz_helper_outputs, leading_peak, load_cad_design_history_rates,
-    load_design_history_rates, render_transport_text, resolve_cad_operating_context, span_text,
+    load_design_history_rates, render_transport_text, resolve_cad_operating_context,
+    resolve_cad_source_identity, span_text,
 };
 pub use transport_progress::{
     SamplingEstimate, StopsAt, duration_text, estimate_sampling, estimate_text, histories_text,

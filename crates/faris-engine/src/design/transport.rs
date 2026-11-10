@@ -133,22 +133,10 @@ pub fn resolve_cad_operating_context(
     design_path: &Path,
     assumptions_override: Option<&Path>,
 ) -> Result<CadOperatingContext, String> {
-    let design_path = design_path.canonicalize().map_err(|e| e.to_string())?;
-    if !design_path.is_file() {
-        return Err("CAD design input must be a regular file".into());
-    }
-    let design_bytes = read_bounded(&design_path).map_err(|e| e.to_string())?;
-    let design: faris_model::design::Design =
-        serde_json::from_slice(&design_bytes).map_err(|e| format!("CAD design JSON: {e}"))?;
-    if design.schema_version != faris_model::design::DESIGN_VERSION {
-        return Err("CAD design schema version is unsupported".into());
-    }
-    let fusion_power_mw = design
-        .plasma
-        .fusion_power_mw
-        .filter(|p| p.is_finite() && *p > 0.0)
-        .ok_or("CAD design plasma source power must be finite and positive")?;
-    let design_sha256 = sha256_hex(&design_bytes);
+    let (design_path, _design_bytes, design, source_identity) =
+        load_cad_source_identity(design_path)?;
+    let fusion_power_mw = source_identity.fusion_power_mw;
+    let design_sha256 = source_identity.design_sha256.clone();
     let (history_assumptions_path, history_assumptions_overridden, expected_hash) = if let Some(
         path,
     ) =
@@ -192,12 +180,6 @@ pub fn resolve_cad_operating_context(
         serde_json::from_slice(&assumptions_bytes)
             .map_err(|e| format!("operating-history assumptions JSON: {e}"))?;
     assumptions.validate()?;
-    let source_identity = faris_model::design::CadSourceIdentity {
-        design_id: design.id.clone(),
-        design_sha256: design_sha256.clone(),
-        fusion_power_mw,
-    };
-    source_identity.validate()?;
     Ok(CadOperatingContext {
         design_path,
         design_id: design.id,
@@ -207,6 +189,52 @@ pub fn resolve_cad_operating_context(
         history_assumptions_sha256,
         history_assumptions_overridden,
     })
+}
+
+/// Resolve only the checked design/source identity. Unlike
+/// [`resolve_cad_operating_context`], this does not read planning assumptions, so it is suitable
+/// for validating a transport or heating response that may later be used with an explicit
+/// operating-history assumptions override.
+pub fn resolve_cad_source_identity(
+    design_path: &Path,
+) -> Result<faris_model::design::CadSourceIdentity, String> {
+    let (_, _, _, identity) = load_cad_source_identity(design_path)?;
+    Ok(identity)
+}
+
+fn load_cad_source_identity(
+    design_path: &Path,
+) -> Result<
+    (
+        PathBuf,
+        Vec<u8>,
+        faris_model::design::Design,
+        faris_model::design::CadSourceIdentity,
+    ),
+    String,
+> {
+    let design_path = design_path.canonicalize().map_err(|e| e.to_string())?;
+    if !design_path.is_file() {
+        return Err("CAD design input must be a regular file".into());
+    }
+    let design_bytes = read_bounded(&design_path).map_err(|e| e.to_string())?;
+    let design: faris_model::design::Design =
+        serde_json::from_slice(&design_bytes).map_err(|e| format!("CAD design JSON: {e}"))?;
+    if design.schema_version != faris_model::design::DESIGN_VERSION {
+        return Err("CAD design schema version is unsupported".into());
+    }
+    let fusion_power_mw = design
+        .plasma
+        .fusion_power_mw
+        .filter(|power| power.is_finite() && *power > 0.0)
+        .ok_or("CAD design plasma source power must be finite and positive")?;
+    let identity = faris_model::design::CadSourceIdentity {
+        design_id: design.id.clone(),
+        design_sha256: sha256_hex(&design_bytes),
+        fusion_power_mw,
+    };
+    identity.validate()?;
+    Ok((design_path, design_bytes, design, identity))
 }
 /// The fewest batches a run may stop at, as for the reactor run's sampling plan.
 const MIN_BATCHES: u64 = 30;
@@ -3118,6 +3146,35 @@ mod tests {
             override_context.history_assumptions_sha256,
             context.history_assumptions_sha256
         );
+    }
+
+    #[test]
+    fn cad_source_identity_does_not_require_planning_assumptions() {
+        let dir = tempfile::tempdir().unwrap();
+        let design_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../scenarios/rm-m/rm-m.faris-design.json");
+        let mut design: serde_json::Value =
+            serde_json::from_slice(&read_bounded(&design_path).unwrap()).unwrap();
+        design["operating_scenario"] = serde_json::json!({"path": null, "sha256": null});
+        let unlinked_path = dir.path().join("unlinked-design.json");
+        std::fs::write(&unlinked_path, serde_json::to_vec(&design).unwrap()).unwrap();
+
+        let identity = resolve_cad_source_identity(&unlinked_path).unwrap();
+        assert_eq!(identity.design_id, "rm-m");
+        assert_eq!(identity.fusion_power_mw, 525.0);
+        assert_eq!(identity.design_sha256, sha256_file(&unlinked_path).unwrap());
+
+        let planning_error = resolve_cad_operating_context(&unlinked_path, None).unwrap_err();
+        assert!(planning_error.contains("no linked operating-history assumptions"));
+
+        let assumptions_path = dir.path().join("planning.json");
+        let assumptions_fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../scenarios/rm-m/rm-m.operating-history.json");
+        std::fs::copy(assumptions_fixture, &assumptions_path).unwrap();
+        let context =
+            resolve_cad_operating_context(&unlinked_path, Some(&assumptions_path)).unwrap();
+        assert!(context.history_assumptions_overridden);
+        assert_eq!(context.design_sha256, identity.design_sha256);
     }
 
     #[test]
