@@ -223,6 +223,76 @@ else:
             self.assertEqual(result["status"], "unresolved")
             self.assertLessEqual(result["queries"], 1)
 
+        def test_measured_tori7_witness_returns_loose_certified_global_bound(self):
+            params = [
+                {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 1800., "minor": 900.},
+                {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 1800., "minor": 600.},
+            ]
+
+            class MeasuredTorusSolid:
+                faces = [object(), object()]
+                measured_witness_distance = 1.1795735420579376
+
+                def full_torus_faces(self):
+                    return params
+
+                def convex_planar_faces(self):
+                    return []
+
+                def point_distance(self, _point, floor=0.0):
+                    raise AssertionError("a measured out-of-tolerance witness makes CAD queries unnecessary")
+
+            tri = np.array([[
+                [2650.721516306545, 409.42907740697643, 178.33152887945784],
+                [2672.1997098391607, 308.49242137904616, 134.13803955855698],
+                [2663.937255521974, 411.47037366572624, 89.61106193623502],
+            ]])
+            result = fd.certify_triangles(MeasuredTorusSolid(), tri, 1.0)
+            self.assertEqual(result["status"], "certified")
+            self.assertEqual(result["queries"], 0)
+            self.assertGreater(result["upper_bound"], 1.0)
+            self.assertGreaterEqual(result["upper_bound"], 1.1795735420579376)
+
+        def test_within_tolerance_witness_keeps_normal_torus_certification_path(self):
+            params = {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 30., "minor": 5.}
+
+            class MeasuredTorusSolid:
+                measured_witness_distance = .05
+
+                def full_torus_faces(self):
+                    return [params]
+
+                def convex_planar_faces(self):
+                    return []
+
+                def point_distance(self, _point, floor=0.0):
+                    raise AssertionError("the analytic bound should certify this in-tolerance triangle")
+
+            angles = np.deg2rad([0., 2., -2.])
+            tri = np.array([[[35*np.cos(a), 35*np.sin(a), 0.] for a in angles]])
+            result = fd.certify_triangles(MeasuredTorusSolid(), tri, .1)
+            self.assertEqual(result["status"], "certified")
+            self.assertEqual(result["queries"], 0)
+            self.assertLessEqual(result["upper_bound"], .1)
+
+        def test_unproven_torus_witness_does_not_skip_generic_fallback(self):
+            class UnsupportedOracle:
+                measured_witness_distance = 1.2
+
+                def full_torus_faces(self):
+                    return []
+
+                def convex_planar_faces(self):
+                    return []
+
+                def point_distance(self, _point, floor=0.0):
+                    return .01, 0
+
+            tri = np.array([[[0., 0., 0.], [.2, 0., 0.], [0., .2, 0.]]])
+            result = fd.certify_triangles(UnsupportedOracle(), tri, .05, max_queries=1, max_depth=0)
+            self.assertEqual(result["status"], "unresolved")
+            self.assertEqual(result["queries"], 1)
+
         def test_subdivision_certifies_every_point_when_global_upper_is_under_tolerance(self):
             triangles = np.array([[[0.0, 0.0, 0.09], [0.2, 0.0, 0.09], [0.0, 0.2, 0.09]]])
             result = fd.certify_triangles(PlaneOracle(), triangles, 0.1, max_queries=1000, max_depth=8)
@@ -341,6 +411,14 @@ else:
         return profile.extrude(20).val()
 
     class ClosedForms(unittest.TestCase):
+        def test_measure_retains_an_exact_boundary_witness_for_certification(self):
+            solid = fd.SolidFaces(cq.Solid.makeTorus(30, 5).wrapped)
+            points = np.array([[33.5, 0., 0.]])
+            rows, _timing = fd.measure([solid], [points], workers=1, occt_points=0, block=8)
+            self.assertIsNotNone(rows[0]["at"])
+            self.assertGreater(rows[0]["worst"], 1.0)
+            self.assertEqual(solid.measured_witness_distance, rows[0]["worst"])
+
         def test_full_torus_topology_guard_rejects_trimmed_torus(self):
             full = fd.SolidFaces(cq.Solid.makeTorus(30, 5).wrapped)
             self.assertGreaterEqual(len(full.full_torus_faces()), 1)

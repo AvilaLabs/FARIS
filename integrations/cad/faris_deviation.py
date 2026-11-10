@@ -517,6 +517,7 @@ class SolidFaces:
         self._classifiers = {}
         self._convex_planar_faces = None
         self._full_torus_faces = None
+        self.measured_witness_distance = None
 
     def full_torus_faces(self):
         """Return torus parameters only for faces proven to be the whole periodic surface.
@@ -1020,6 +1021,15 @@ def measure(solids, point_sets, workers=3, occt_points=2000, block=512):
     timing["occt"] = time.monotonic() - clock
     for row in rows:
         row["points"] = row["points_closed_form"] + row["points_occt"]
+    # Preserve only an attained exact distance as a witness. Closed-form values
+    # were face-certified; OCCT values were measured to the complete solid boundary.
+    for solid, row in zip(solids, rows):
+        at = row["at"]
+        value = row["worst"]
+        solid.measured_witness_distance = (
+            float(value) if at is not None and math.isfinite(value)
+            and len(at) == 3 and all(math.isfinite(float(x)) for x in at) else None
+        )
     return rows, timing
 
 
@@ -1190,6 +1200,17 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
     analytic_upper = np.minimum(planar_upper, torus_upper)
     planar_done = analytic_upper <= tolerance
     certified_upper = float(np.max(analytic_upper[planar_done])) if planar_done.any() else 0.0
+    witness_distance = getattr(solid, "measured_witness_distance", None)
+    if (torus_faces and witness_distance is not None and math.isfinite(witness_distance)
+            and witness_distance > tolerance and np.isfinite(analytic_upper).all()):
+        # The measured witness proves the tolerance is exceeded. A finite analytic
+        # upper bound over every triangle still certifies the complete global maximum.
+        # Do not spend subdivision or CAD-query budget trying to make a failing case pass.
+        global_upper = max(float(np.max(analytic_upper)), float(witness_distance))
+        return {"status": "certified", "sampled_distance_upper": float(witness_distance),
+                "upper_bound": global_upper, "queries": 0,
+                "max_queries": max_queries, "max_depth": max_depth,
+                "seconds": time.monotonic() - started}
     # Largest unresolved upper bound first, so each query reduces the current global bound.
     pending = []
     serial = 0
