@@ -92,7 +92,9 @@ pub enum MaintenanceCommand {
     /// D1S/R2S comparison is available when both methods can share the event's history basis;
     /// otherwise the result keeps D1S explicitly NOT_EVALUATED.
     DoseRun {
-        /// faris-maintenance-designs/v0.1 inputs or faris-maintenance-cad-dose-designs/v0.1 with only the scenario, CAD history-rate record, history assumptions, and dose_physics manifest.
+        /// faris-maintenance-designs/v0.1 inputs or faris-maintenance-cad-dose-designs/v0.2
+        /// with the checked CAD design, CAD history-rate record, optional history-assumptions
+        /// override, and dose_physics manifest. The scenario-bound CAD v0.1 format is also supported.
         #[arg(long)]
         designs: PathBuf,
         /// faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes.
