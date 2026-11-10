@@ -208,7 +208,10 @@ class FnsTofHelpers(unittest.TestCase):
 
     def test_aim_control_receipt_binds_runtime_all_points_radii_plans_and_statepoints(self):
         import tempfile
-        import h5py
+        try:
+            import h5py
+        except ImportError:
+            self.skipTest("h5py is required to build synthetic AIM statepoints")
         from unittest.mock import patch
         parsed = B.input_deck(DECK_FOUR)
         runtime = {"executable_sha256": "e" * 64, "linked_library_sha256": "l" * 64,
@@ -322,6 +325,7 @@ class FnsTofHelpers(unittest.TestCase):
         import ast
         import inspect
         import tempfile
+        import types
         from unittest.mock import patch
         parsed = B.input_deck(DECK_FOUR)
         with tempfile.TemporaryDirectory() as temp:
@@ -367,9 +371,10 @@ class FnsTofHelpers(unittest.TestCase):
                     patch.object(R, "validate_response_mapping", return_value={}), \
                     patch.object(R, "library_identity", return_value={"sha256": "x"}), \
                     patch.object(R.shutil, "which", return_value=str(executable)), \
-                    patch.object(R, "selected_openmc_runtime_identity", return_value=runtime), \
+                    patch.object(R, "openmc_runtime_preflight_identity", return_value=runtime), \
                     patch.object(R, "verify_imp0_control_receipt", return_value={"status": "PASS"}), \
                     patch.object(R, "aim_runtime_identity", return_value={"patch_sha256": "p"}), \
+                    patch.dict(sys.modules, {"openmc": types.SimpleNamespace(__version__=R.OPENMC_REQUIRED)}), \
                     patch.object(R, "vacuum_aim_control_model", side_effect=RuntimeError("mocked model/launch boundary")) as model_boundary:
                 with self.assertRaisesRegex(RuntimeError, "mocked model/launch boundary"):
                     R.command_aim_vacuum_control(args)

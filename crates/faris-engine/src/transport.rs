@@ -2114,7 +2114,9 @@ mod tests {
                 histories: 1_000_000,
                 lost_particle_events: events,
             }],
-            library_path: "/openmc/lib/libopenmc.so".into(),
+            // An absolute path on the host under test: Unix-style `/...` is
+            // rooted but not absolute on Windows.
+            library_path: std::env::current_exe().unwrap().display().to_string(),
             library_sha256: "a".repeat(64),
         };
         assert!(validate_lost_particle_accounting(&accounting(1), 1_000_000).is_ok());

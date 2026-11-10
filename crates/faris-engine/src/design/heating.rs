@@ -2542,7 +2542,13 @@ fn verify_file_identity(receipt: &HeatingFileIdentity, expected: Option<&Path>) 
     let Ok(canonical) = path.canonicalize() else {
         return false;
     };
-    if canonical != path || expected.is_some_and(|expected| expected != canonical.as_path()) {
+    if canonical != path
+        || expected.is_some_and(|expected| {
+            expected
+                .canonicalize()
+                .map_or(true, |expected| expected != canonical)
+        })
+    {
         return false;
     }
     bounded_file_sha256(&canonical, MAX_RECEIPT_FILE_BYTES)
@@ -3317,6 +3323,15 @@ mod tests {
         };
         assert!(verify_runtime_identity(&runtime, &run_dir));
         assert!(verify_execution_identity(&execution, &run_dir));
+        #[cfg(unix)]
+        {
+            // macOS temp paths can resolve through aliases such as /var -> /private/var.
+            // Model that by checking the same receipt through a symlinked expected run dir.
+            let run_alias = root.join("run-alias");
+            std::os::unix::fs::symlink(&run_dir, &run_alias).unwrap();
+            assert!(verify_runtime_identity(&runtime, &run_alias));
+            assert!(verify_execution_identity(&execution, &run_alias));
+        }
         std::fs::write(&xml, b"changed model").unwrap();
         assert!(!verify_execution_identity(&execution, &run_dir));
         let _ = std::fs::remove_dir_all(root);

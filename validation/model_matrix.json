@@ -140,7 +140,7 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/transport.rs": "cc5e5f507ee4c824ba7cb41d882730a27596614f8fc8c209b4e0c62919e80383"
+        "crates/faris-engine/src/transport.rs": "a3431f6bee770110d7f4c032a3810ece3d6ee0617678b0852fe4398868c067ee"
       },
       "status": "not validated",
       "validation": [
@@ -1516,8 +1516,8 @@
         "crates/faris-engine/src/maintenance.rs": "876fcef8869f7c0ed7257143113d608710055cc1b4ae4bcb18fc3a1d20326d93",
         "crates/faris-engine/src/maintenance/actinv.rs": "80698befe7a9c8fe9ce3b4bf10aff999dcfe3905cff4f78cf1087dd33f76f50f",
         "crates/faris-engine/src/maintenance/files.rs": "96ef52ccecef4aeece051949dd81d31950ada0e1a6486682e541f695e1427d93",
-        "crates/faris-engine/src/maintenance/spatial_dose.rs": "bc1ce825dc611eef091dd24492051d23309db7c9383be7b78b96407822a61362",
-        "crates/faris-engine/src/maintenance/spatial_dose_worker.rs": "7e9138186357753c084d5503539041c5609c4d6cccee6fe1e5711c488adb14b4",
+        "crates/faris-engine/src/maintenance/spatial_dose.rs": "de0b07ddc0ed868895159b31f775ca703bb391ab47117112cdea50907bed1f94",
+        "crates/faris-engine/src/maintenance/spatial_dose_worker.rs": "b235a83953fe8d1dc440c604f7fc673ebc870755357e6fc00f564fa0f6c20953",
         "integrations/openmc/maintenance_709_response.py": "4bd712d2b8af80e3e1bbdcd56872577f57006c645f713b432794f16856a387b5",
         "integrations/openmc/maintenance_event_r2s.py": "a2873e2d287b3bf917e040039b7485bd64514457399e049288666011e20875fa"
       },
@@ -2068,7 +2068,7 @@
       ],
       "source_sha256": {
         "controls/photon_energy_closure.py": "499ec945b24a7d5fb2418ccdd688aa76d9d03e5560b302bcc7d3eb90f094a82d",
-        "crates/faris-engine/src/design/heating.rs": "7e7fe4f153564b3a540eb42c810da118d2f524ac9c798b388478bbe1ea8beda2",
+        "crates/faris-engine/src/design/heating.rs": "e9d415b850c894e2d99856e10023b504c022b8d8aca745edfdb9d27afe06d4fe",
         "integrations/openmc/design_transport.py": "1b2de5b330dfac97675ca1d971705d63ced9bffb9f22991a054dc72067560c58"
       },
       "status": "not validated",

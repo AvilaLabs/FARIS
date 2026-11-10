@@ -1138,7 +1138,7 @@ mod tests {
     }
 
     #[test]
-    fn large_shared_physical_artifact_is_supported_and_hashed_once() {
+    fn large_shared_physical_artifact_is_supported_with_bounded_hashing() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("rm-m-geometry.h5");
         let bytes = vec![0_u8; 64 * 1024 * 1024];
@@ -1151,7 +1151,15 @@ mod tests {
         for _ in 0..6 {
             verifier.verify(&reference, temp.path()).unwrap();
         }
-        assert_eq!(verifier.total_bytes_read, bytes.len() as u64);
+        // Unix fingerprints include stable file identity and change metadata, so the
+        // repeated reference can reuse its verified hash. Other platforms deliberately
+        // rehash because their available fingerprint fields are not safe cache keys.
+        let expected_bytes_read = if cfg!(unix) {
+            bytes.len() as u64
+        } else {
+            bytes.len() as u64 * 6
+        };
+        assert_eq!(verifier.total_bytes_read, expected_bytes_read);
         assert!(bytes.len() as u64 > MAX_CURVE_FILE_BYTES as u64);
         assert!(bytes.len() as u64 <= MAX_PHYSICAL_ARTIFACT_BYTES);
     }

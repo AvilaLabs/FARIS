@@ -3092,11 +3092,18 @@ mod bounded_worker_tests {
     fn worker_environment_is_an_explicit_allowlist_with_selected_python_and_helper_paths() {
         let helper_root = tempfile::tempdir().unwrap();
         std::fs::create_dir(helper_root.path().join("openmc_plasma_source")).unwrap();
-        let selected_python = Path::new("/selected/env/bin/python");
+        let selected_python_dir = helper_root.path().join("selected-python");
+        std::fs::create_dir(&selected_python_dir).unwrap();
+        let selected_python = selected_python_dir.join("python");
+        let inherited_entries = [
+            helper_root.path().join("system-bin"),
+            helper_root.path().join("fallback-bin"),
+        ];
+        let inherited_path = std::env::join_paths(&inherited_entries).unwrap();
         let env = worker_environment(
-            selected_python,
+            &selected_python,
             Some(helper_root.path()),
-            Some(OsString::from("/usr/bin:/bin")),
+            Some(inherited_path),
         )
         .unwrap();
         let values: BTreeMap<_, _> = env.into_iter().collect();
@@ -3114,14 +3121,8 @@ mod bounded_worker_tests {
         );
         let paths =
             std::env::split_paths(values.get(OsStr::new("PATH")).unwrap()).collect::<Vec<_>>();
-        assert_eq!(paths[0], Path::new("/selected/env/bin").to_path_buf());
-        assert_eq!(
-            paths[1..],
-            [
-                Path::new("/usr/bin").to_path_buf(),
-                Path::new("/bin").to_path_buf()
-            ]
-        );
+        assert_eq!(paths[0], selected_python_dir);
+        assert_eq!(paths[1..], inherited_entries);
         assert!(!values.contains_key(OsStr::new("HOME")));
         assert!(!values.contains_key(OsStr::new("OPENMC_CROSS_SECTIONS")));
     }
@@ -3165,6 +3166,11 @@ mod bounded_worker_tests {
         let other = dir.path().join("actinv-other");
         std::fs::write(&selected, b"selected executable bytes").unwrap();
         std::fs::write(&other, b"selected executable bytes").unwrap();
+        // The manifest identity records the resolved file path. Creating the
+        // fixture from a canonical path keeps this assertion portable across
+        // platforms that rewrite temporary paths (for example /var -> /private/var).
+        let selected = selected.canonicalize().unwrap();
+        let other = other.canonicalize().unwrap();
         let prepared = make_ref(&selected).unwrap();
         assert_eq!(
             verify_selected_actinv(&selected, &prepared).unwrap(),

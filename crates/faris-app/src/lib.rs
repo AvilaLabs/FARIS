@@ -84,6 +84,8 @@ pub(crate) const VIEWPORT_HELP: &str = "Drag to orbit · Shift-drag to pan · sc
 
 #[cfg(test)]
 mod audit;
+#[cfg(test)]
+mod keyboard_focus_tests;
 
 /// Smallest text anywhere in the interface, and the size of body text (A11Y-021).
 pub(crate) const MIN_TEXT_PX: f32 = 11.0;
