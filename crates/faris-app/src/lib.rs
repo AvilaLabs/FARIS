@@ -2561,6 +2561,9 @@ impl eframe::App for FarisApp {
                 "history_loaded":snapshot.is_some(), "source_on":snapshot.map(|s|s.operating),
                 "core":self.study.interface_status(&self.manifest.source_sha256, variant),
                 "transport":self.transport.interface_status(variant),
+                "design_transport":self.design_flux.interface_status(),
+                "design_heating":self.design_heating.interface_status(),
+                "maintenance_dose":self.maintenance_dose.interface_status(),
                 "cutaway":self.cutaway, "scene_revision":self.revision, "message":self.message,
             });
             // While recording, the plan waits for what the recorder waits for, so

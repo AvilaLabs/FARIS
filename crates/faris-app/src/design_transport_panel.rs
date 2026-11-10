@@ -154,6 +154,53 @@ impl DesignTransportPanel {
         self.job.is_running()
     }
 
+    /// Read-only state for bounded native interface checks. This reports the panel's actual
+    /// CAD handoff and validation state; it does not start or synthesize a transport result.
+    pub fn interface_status(&self) -> serde_json::Value {
+        let preview_problems = self
+            .preview
+            .as_ref()
+            .map(|(_, problems)| problems.as_slice())
+            .unwrap_or(&[]);
+        let problems = if self.problems.is_empty() {
+            preview_problems
+        } else {
+            &self.problems
+        };
+        let shown = self.result.as_ref();
+        let context = shown.and_then(|result| result.history_context.as_ref());
+        serde_json::json!({
+            "open": self.open,
+            "job_phase": format!("{:?}", self.job.phase()),
+            "pending": self.is_running() || self.report_loading.is_some() || self.report_pick.is_some(),
+            "cancel_requested": self.job.running_view().is_some_and(|view| view.cancelling),
+            "input_problem_count": problems.len(),
+            "input_problems": problems.iter().map(|problem| problem.text()).collect::<Vec<_>>(),
+            "history_mapping_enabled": !self.inputs.history_components_json.trim().is_empty(),
+            "history_mapping_json_valid": self.inputs.history_components_json.trim().is_empty()
+                || serde_json::from_str::<std::collections::BTreeMap<String, Vec<String>>>(
+                    &self.inputs.history_components_json,
+                ).is_ok(),
+            "result_visible": shown.is_some(),
+            "saved_report_view_only": shown.is_some_and(|result| result.opened_from.is_some()),
+            "result_status": shown.map(|result| result.report.status.as_str()),
+            "history_rates_path": shown.and_then(|result| result.report.history_rates_artifact.as_ref().map(|reference| reference.path.as_str())),
+            "history_context": context.map(|value| serde_json::json!({
+                "design": value.design,
+                "check_report": value.check_report,
+                "history_rates": value.history_rates,
+                "design_id": value.design_id,
+                "design_sha256": value.design_sha256,
+                "fusion_power_mw": value.fusion_power_mw,
+                "history_components": value.history_components,
+            })),
+            "continue_available": shown.is_some_and(|result| {
+                result.history_context.is_some() && result.report.history_rates_artifact.is_some()
+            }),
+            "handoff_pending": self.history_handoff.is_some(),
+        })
+    }
+
     pub fn take_history_handoff(&mut self) -> Option<CadHistoryContext> {
         self.history_handoff.take()
     }
@@ -848,6 +895,23 @@ mod tests {
         assert!(panel.result.is_none());
         assert!(!panel.is_running());
         assert!(!panel.open);
+    }
+
+    #[test]
+    fn interface_status_reports_empty_and_invalid_input_without_starting_transport() {
+        let mut panel = DesignTransportPanel::with_job(Job::default(), RunInputs::default());
+        panel.inputs.history_components_json = "{invalid".into();
+        panel.preview = Some((
+            panel.inputs.clone(),
+            vec![Problem::new(None, "bad map", "edit it")],
+        ));
+        let state = panel.interface_status();
+        assert_eq!(state["open"], false);
+        assert_eq!(state["job_phase"], "Idle");
+        assert_eq!(state["pending"], false);
+        assert_eq!(state["input_problem_count"], 1);
+        assert_eq!(state["history_mapping_json_valid"], false);
+        assert_eq!(state["result_visible"], false);
     }
 
     #[test]

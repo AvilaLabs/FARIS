@@ -178,6 +178,42 @@ impl MaintenanceDosePanel {
         self.run.is_some() || self.prepare.is_some()
     }
 
+    /// Read-only state for bounded native interface checks. The snapshot exposes current CAD
+    /// identities and real worker/error states without injecting dose results or launching work.
+    pub fn interface_status(&self) -> serde_json::Value {
+        let cad_designs_inputs_current = self.cad_designs_inputs.as_ref().is_some_and(|expected| {
+            expected.0 == self.inputs.designs.trim()
+                && expected.1 == self.cad_history_assumptions.trim()
+                && expected.2 == self.cad_dose_physics.trim()
+        });
+        let (result_state, error) = match &self.state {
+            LoadState::Empty => ("empty", None),
+            LoadState::Failed(message) => ("failed", Some(message.as_str())),
+            LoadState::Ready(_) => ("ready", None),
+        };
+        serde_json::json!({
+            "open": self.open,
+            "pending": self.is_pending(),
+            "preparation_pending": self.prepare.is_some(),
+            "dose_run_pending": self.run.is_some(),
+            "result_load_pending": self.loading.is_some(),
+            "preparation_cancel_requested": self.prepare.as_ref().is_some_and(|run| run.cancel.is_cancelled()),
+            "dose_run_cancel_requested": self.run.as_ref().is_some_and(|run| run.cancel.is_cancelled()),
+            "cad_history_context": self.cad_context.as_ref().map(|context| serde_json::json!({
+                "design": context.design,
+                "history_rates": context.history_rates,
+                "design_id": context.design_id,
+                "design_sha256": context.design_sha256,
+                "fusion_power_mw": context.fusion_power_mw,
+                "history_components": context.history_components,
+            })),
+            "cad_design_file_created": self.cad_designs_inputs.is_some(),
+            "cad_design_inputs_current": cad_designs_inputs_current,
+            "result_state": result_state,
+            "error": error,
+        })
+    }
+
     fn cad_design_inputs_match(&self) -> bool {
         self.cad_context.is_some()
             && self.cad_designs_inputs.as_ref()
@@ -1143,6 +1179,18 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn interface_status_starts_empty_without_pending_or_result() {
+        let panel = MaintenanceDosePanel::default();
+        let state = panel.interface_status();
+        assert_eq!(state["open"], false);
+        assert_eq!(state["pending"], false);
+        assert_eq!(state["preparation_pending"], false);
+        assert_eq!(state["dose_run_pending"], false);
+        assert_eq!(state["result_state"], "empty");
+        assert_eq!(state["cad_history_context"], serde_json::Value::Null);
     }
 
     #[test]

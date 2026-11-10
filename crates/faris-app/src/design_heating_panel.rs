@@ -280,6 +280,39 @@ impl DesignHeatingPanel {
         self.running.is_some() || self.combine.is_some()
     }
 
+    /// Read-only state for bounded native interface checks. CAD identities and response status
+    /// come from the panel's current context/result; this method never starts OpenMC or binding.
+    pub fn interface_status(&self) -> serde_json::Value {
+        let report = self.result.as_ref().and_then(|result| result.as_ref().ok());
+        let error = self
+            .result
+            .as_ref()
+            .and_then(|result| result.as_ref().err());
+        let response = report.and_then(|value| value.history_energy_response.as_ref());
+        serde_json::json!({
+            "open": self.open,
+            "pending": self.running.is_some() || self.combine.is_some(),
+            "transport_running": self.running.is_some(),
+            "energy_binding_pending": self.combine.is_some(),
+            "cancel_requested": self.running.as_ref().is_some_and(|run| run.cancellation.is_cancelled()),
+            "cad_history_context": self.cad_history.as_ref().map(|context| serde_json::json!({
+                "design": context.design,
+                "history_rates": context.history_rates,
+                "design_id": context.design_id,
+                "design_sha256": context.design_sha256,
+                "fusion_power_mw": context.fusion_power_mw,
+                "history_components": context.history_components,
+            })),
+            "result_status": report.map(|value| value.status.as_str()),
+            "whole_model_response_status": response.map(|value| value.status.as_str()),
+            "whole_model_target_reached": response.map(|value| value.target_reached),
+            "whole_model_closure_within_3se": response.map(|value| value.closure_residual.within_3se),
+            "cad_history_message": self.cad_history_message,
+            "error": error,
+            "handoff_pending": self.history_handoff.is_some(),
+        })
+    }
+
     pub fn window(&mut self, ctx: &egui::Context) {
         self.poll(ctx);
         if !self.open {
@@ -436,5 +469,20 @@ mod tests {
         assert!(text.contains("Why:"));
         assert!(text.contains("Next step:"));
         assert!(text.contains(&faris_model::validation::note(Quantity::Heating).next_step));
+    }
+
+    #[test]
+    fn interface_status_keeps_empty_heating_panel_not_evaluated() {
+        let panel = DesignHeatingPanel::default();
+        let state = panel.interface_status();
+        assert_eq!(state["open"], false);
+        assert_eq!(state["pending"], false);
+        assert_eq!(state["transport_running"], false);
+        assert_eq!(state["result_status"], serde_json::Value::Null);
+        assert_eq!(
+            state["whole_model_response_status"],
+            serde_json::Value::Null
+        );
+        assert_eq!(state["cad_history_context"], serde_json::Value::Null);
     }
 }
