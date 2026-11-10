@@ -114,10 +114,16 @@ q(omega) = (1-beta)*p_iso(omega) + beta*(1/n_visible)*sum_j p_rectangle_j(omega)
 w        = p_iso(omega)/q(omega)
 ```
 
-Each rectangle is a square inscribed in the projected finite-detector sphere
-at that run's radius. The positive `(1-beta)` term preserves every physical
-isotropic direction. For source birth, `0 < w <= 1/(1-beta)`; the plan also
-records a finite positive lower bound from the exact rectangle Jacobians. The
+Each rectangle is a square on the plane normal to its detector centerline. It
+contains the full tangent disk of directions that intersect that detector
+sphere. At center distance `D` and sphere radius `R`, the tangent disk radius
+is `R/sqrt(1-(R/D)^2)`; the square half-side is padded slightly above that
+radius for roundoff. The exact rectangle solid angle is required to exceed the
+sphere's tangent-cone solid angle, so the proposal does not leave any sphere
+direction to the rare isotropic fallback alone. The positive `(1-beta)` term
+also preserves every other physical isotropic direction. For source birth,
+`0 < w <= 1/(1-beta)`; the plan also records a finite positive lower bound
+from the exact rectangle Jacobians. The
 FNS physical source histogram, all four detector points, deck FM factors,
 fine/coarse energy bins, and volume-normalized cell-flux score stay unchanged.
 No source/elastic-collision AIM is enabled: the existing patch requires weight

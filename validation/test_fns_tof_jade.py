@@ -116,8 +116,12 @@ class FnsTofHelpers(unittest.TestCase):
         self.assertGreater(bounds["lower_bound"], 0.0)
         self.assertLessEqual(bounds["lower_bound"], bounds["upper_bound"])
         self.assertAlmostEqual(bounds["upper_bound"], 1.0 / 0.9)
-        self.assertTrue(all(row["proposal_isotropic_probability"] < row["finite_sphere_solid_angle_probability"]
+        self.assertTrue(all(row["proposal_isotropic_probability"] > row["finite_sphere_solid_angle_probability"]
                             for row in plan["detector_apertures"]))
+        for row in plan["detector_apertures"]:
+            self.assertGreaterEqual(row["square_half_side_cm"],
+                                    row["radius_cm"] / math.sqrt(
+                                        1.0 - (row["radius_cm"] / row["source_distance_cm"]) ** 2))
         self.assertEqual(len(plan["environment"]["OPENMC_APERTURE_BIAS"].split(";")), 4)
         for radius in (2.5, 1.25, 0.625):
             radius_plan = R.source_aperture_plan(parsed, radius, 0.1)
@@ -127,6 +131,13 @@ class FnsTofHelpers(unittest.TestCase):
             R.source_aperture_plan(parsed, 2.5, 1.0)
         with self.assertRaisesRegex(ValueError, "requires all four"):
             R.source_aperture_plan(B.input_deck(DECK), 2.5, 0.1)
+
+    def test_aim_control_plan_rejects_legacy_inscribed_aperture_undersupport(self):
+        plan = R.source_aperture_plan(B.input_deck(DECK_FOUR), 2.5, 0.1)
+        legacy = dict(plan["detector_apertures"][0])
+        legacy["square_half_side_cm"] = legacy["radius_cm"] / math.sqrt(2.0)
+        with self.assertRaisesRegex(ValueError, "control-plan unresolved.*undersupports"):
+            R.validate_source_aperture_coverage(legacy)
 
     @unittest.skipUnless(UPSTREAM_CACHE.is_dir(), "external pinned FNS checkout is not present")
     def test_pinned_fns_fe5_apertures_use_all_four_actual_deck_points(self):

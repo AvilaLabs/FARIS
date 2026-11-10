@@ -106,6 +106,21 @@ def _normalize(vector: list[float]) -> list[float]:
     return [value / length for value in vector]
 
 
+def validate_source_aperture_coverage(record: dict) -> None:
+    """Require the rectangular proposal to contain every ray intersecting the sphere."""
+    distance = float(record["source_distance_cm"])
+    radius = float(record["radius_cm"])
+    require(math.isfinite(distance) and math.isfinite(radius) and distance > radius > 0.0,
+            "AIM control-plan unresolved: finite sphere must lie outside the point source")
+    tangent_disk_radius = radius / math.sqrt(1.0 - (radius / distance) ** 2)
+    required_half_side = math.nextafter(tangent_disk_radius * (1.0 + 32.0 * sys.float_info.epsilon), math.inf)
+    require(float(record["square_half_side_cm"]) >= required_half_side,
+            "AIM control-plan unresolved: rectangular proposal undersupports the full finite-sphere angular cone")
+    require(float(record["proposal_isotropic_probability"])
+            > float(record["finite_sphere_solid_angle_probability"]),
+            "AIM control-plan unresolved: rectangle proposal solid angle does not cover the finite-sphere support")
+
+
 def source_aperture_plan(parsed: dict, radius_cm: float, beta: float) -> dict:
     """Construct four finite rectangular AIM targets while retaining isotropic support."""
     require(math.isfinite(beta) and AIM_CONTROL_MIN_BETA < beta < AIM_CONTROL_MAX_BETA,
@@ -117,7 +132,6 @@ def source_aperture_plan(parsed: dict, radius_cm: float, beta: float) -> dict:
     require(ids == AIM_REQUIRED_TALLIES,
             f"FNS-Fe-5 AIM requires all four F5 detector points {AIM_REQUIRED_TALLIES}, got {ids}")
     source = [float(value) for value in parsed["source_position_cm"]]
-    half = radius / math.sqrt(2.0)
     aperture_records = []
     rect_specs = []
     max_pdf_bound = 0.0
@@ -125,6 +139,10 @@ def source_aperture_plan(parsed: dict, radius_cm: float, beta: float) -> dict:
         center = [float(value) for value in point["position_cm"]]
         delta = [center[i] - source[i] for i in range(3)]
         distance = math.sqrt(math.fsum(value * value for value in delta))
+        require(distance > radius,
+                f"AIM control-plan unresolved: F{point['tally']} finite sphere intersects the point source")
+        tangent_disk_radius = radius / math.sqrt(1.0 - (radius / distance) ** 2)
+        half = math.nextafter(tangent_disk_radius * (1.0 + 32.0 * sys.float_info.epsilon), math.inf)
         normal = _normalize(delta)
         reference = [1.0, 0.0, 0.0] if abs(normal[0]) < 0.9 else [0.0, 1.0, 0.0]
         u_hat = _normalize([normal[1] * reference[2] - normal[2] * reference[1],
@@ -136,14 +154,14 @@ def source_aperture_plan(parsed: dict, radius_cm: float, beta: float) -> dict:
         u = [half * value for value in u_hat]
         v = [half * value for value in v_hat]
         area = 4.0 * half * half
-        # A square with corners at radius from its centre lies within the
-        # projected finite sphere. The exact proposal solid angle is analytic.
+        # The square contains the whole tangent disk of directions that hit
+        # the sphere. The exact proposal solid angle is analytic.
         solid_angle = 4.0 * math.atan((half * half) /
                                       (distance * math.sqrt(distance * distance + 2.0 * half * half)))
         full_sphere_fraction = 0.5 * (1.0 - math.sqrt(1.0 - (radius / distance) ** 2))
         rectangle_fraction = solid_angle / (4.0 * math.pi)
-        require(rectangle_fraction > 0.0 and rectangle_fraction < full_sphere_fraction,
-                f"F{point['tally']} AIM rectangle does not lie strictly inside its finite sphere aperture")
+        require(rectangle_fraction > full_sphere_fraction,
+                f"AIM control-plan unresolved: F{point['tally']} AIM square does not cover finite-sphere support")
         # At the rectangle corner, p_rect is maximal for this source point.
         pdf_bound = (distance * distance + 2.0 * half * half) ** 1.5 / (area * distance)
         max_pdf_bound = max(max_pdf_bound, pdf_bound)
@@ -152,6 +170,7 @@ def source_aperture_plan(parsed: dict, radius_cm: float, beta: float) -> dict:
         aperture_records.append({"mcnp_tally_number": point["tally"], "angle_deg": point["angle_deg"],
                                  "center_cm": center, "u_cm": u, "v_cm": v,
                                  "source_distance_cm": distance, "radius_cm": radius,
+                                 "projected_tangent_disk_radius_cm": tangent_disk_radius,
                                  "square_half_side_cm": half, "projected_square_area_cm2": area,
                                  "proposal_solid_angle_sr": solid_angle,
                                  "proposal_isotropic_probability": rectangle_fraction,
@@ -159,6 +178,7 @@ def source_aperture_plan(parsed: dict, radius_cm: float, beta: float) -> dict:
                                  "rectangular_proposal_pdf_source_upper_bound_sr-1": pdf_bound,
                                  "analytic_isotropic_volume_average_flux_per_cm2_per_source":
                                      isotropic_sphere_volume_average_cm2(distance, radius)})
+        validate_source_aperture_coverage(aperture_records[-1])
     aperture_spec = f"{beta:.17g} " + rect_specs[0] + " ; " + " ; ".join(rect_specs[1:])
     min_weight_bound = 1.0 / ((1.0 - beta) + 4.0 * math.pi * beta * max_pdf_bound)
     max_weight_bound = 1.0 / (1.0 - beta)
@@ -264,8 +284,14 @@ def verify_aim_control_receipt(path: Path, runtime: dict, case_id: str, parsed: 
         require(isinstance(level_results, list) and len(level_results) == len(AIM_REQUIRED_TALLIES)
                 and {row.get("mcnp_tally_number") for row in level_results} == set(AIM_REQUIRED_TALLIES),
                 "AIM vacuum-control receipt lacks exactly one result for every FNS detector point")
+        saved_plan = level.get("source_aperture")
+        saved_apertures = saved_plan.get("detector_apertures") if isinstance(saved_plan, dict) else None
+        require(isinstance(saved_apertures, list) and len(saved_apertures) == len(AIM_REQUIRED_TALLIES),
+                "AIM control-plan unresolved: source-aperture coverage records are incomplete")
+        for aperture in saved_apertures:
+            validate_source_aperture_coverage(aperture)
         expected_plan = source_aperture_plan(parsed, radius, beta)
-        require(level.get("source_aperture") == expected_plan,
+        require(saved_plan == expected_plan,
                 "AIM vacuum-control source apertures differ from current detector centers, radius or beta")
         expected_positions = {int(row["tally"]): row["position_cm"] for row in parsed["detectors"]}
         require({int(row["mcnp_tally_number"]): row["position_cm"] for row in level["results"]}
