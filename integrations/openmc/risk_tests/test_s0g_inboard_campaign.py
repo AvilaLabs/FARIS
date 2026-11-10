@@ -80,6 +80,43 @@ def run(configuration, replicate_index, *, mean=1.0, se=0.01, elapsed=10.0, high
 
 
 class CampaignProtocolTests(unittest.TestCase):
+    def test_run_exports_real_openmc_settings_with_supported_lost_particle_threshold(self):
+        try:
+            import openmc
+        except ImportError as exc:
+            self.skipTest(f"OpenMC Python API is unavailable: {exc}")
+
+        material = openmc.Material(name="test-fuel")
+        material.add_nuclide("H1", 1.0)
+        material.set_density("g/cm3", 1.0)
+        sphere = openmc.Sphere(r=10.0, boundary_type="vacuum")
+        cell = openmc.Cell(cell_id=1, fill=material, region=-sphere)
+        model = openmc.Model(geometry=openmc.Geometry([cell]), materials=openmc.Materials([material]))
+        source = openmc.IndependentSource(space=openmc.stats.Point((0.0, 0.0, 0.0)))
+
+        def inspect_launch(openmc_arg, model_xml, tally_id, threads, batches, budget, on_batch, histories_per_batch):
+            root = __import__("xml.etree.ElementTree", fromlist=["parse"]).parse(model_xml)
+            settings = root.find("settings")
+            self.assertEqual(settings.findtext("run_mode"), "fixed source")
+            self.assertEqual(settings.findtext("rel_max_lost_particles"), "0.5")
+            raise RuntimeError("stop after validating exported settings")
+
+        runtime_identity = {"test": "runtime"}
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir, run_dir = Path(tmp) / "model", Path(tmp) / "run"
+            model_dir.mkdir()
+            run_dir.mkdir()
+            with mock.patch.object(CAMPAIGN, "_discover_runtime_identity", return_value=(runtime_identity, [])), \
+                    mock.patch.object(CAMPAIGN.RM, "load_roles", return_value={}), \
+                    mock.patch.object(CAMPAIGN.RM, "role_ids", return_value={"plasma": 1, "tf": 1}), \
+                    mock.patch.object(CAMPAIGN.RM, "build_model", return_value=(model, [cell])), \
+                    mock.patch.object(CAMPAIGN.RM, "tokamak_mesh_source", return_value=(source, 1.0)), \
+                    mock.patch.object(CAMPAIGN.R3_STATS, "run_live_tally", side_effect=inspect_launch):
+                with self.assertRaisesRegex(RuntimeError, "stop after validating"):
+                    CAMPAIGN._run_one(openmc, model_dir, run_dir, "rm_m", None,
+                                      histories=100, batches=10, seed=17, replicate_index=0,
+                                      threads=1, memory_limit_bytes=1_000_000_000, remaining_budget_s=10.0)
+
     def test_plan_refuses_existing_snapshot_before_prerequisite_inspection(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)

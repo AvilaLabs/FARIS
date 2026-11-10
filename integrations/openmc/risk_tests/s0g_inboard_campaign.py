@@ -502,7 +502,7 @@ def _run_one(openmc, model_dir: Path, run_dir: Path, stem: str, windows: Path | 
     # The C API live-batch observer applies the campaign's strict 1e-6 limit after every batch.
     # Keep OpenMC's coarse abort thresholds above this campaign bound so the observer can receipt it.
     settings.max_lost_particles = 2_000_000_000
-    settings.rel_max_lost_particles = 1.0
+    settings.rel_max_lost_particles = 0.5
     settings.statepoint = {"batches": []}
     settings.temperature = {"default": RM.DATA_TEMPERATURE_K, "method": "nearest", "tolerance": 1.0}
     settings.output = {"summary": False, "tallies": False}
