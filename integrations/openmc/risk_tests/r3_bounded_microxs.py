@@ -2,16 +2,20 @@
 # SPDX-FileCopyrightText: 2026 Avila Labs
 """Bounded, offline R3 MicroXS collapse from OpenMC mesh-flux results.
 
-This producer reads only the pointwise energy grid and cross-section arrays in
+The collapse stage reads only pointwise energy-grid and cross-section arrays in
 each OpenMC neutron HDF5 file. It does not load CE angular distributions or
 start OpenMC. Its energy-bin integration reproduces the pinned OpenMC 0.15.3
 ``MicroXS.from_multigroup_flux`` / ``Nuclide::collapse_rate`` calculation for
 the declared group flux: flux is uniform within each group, pointwise XS is
 linear between tabulated points, and values outside the table/threshold are
-not extrapolated. The output is a one-group MicroXS tensor, streamed by
-nuclide and domain chunk.
+not extrapolated. Persisted output is compact nuclide x reaction x group-mean
+XS; domain-specific one-group MicroXS is reconstructed from actual mesh flux
+inside each bounded activation chunk and never retained as a dense tensor.
 
-An audited full-chain coverage report is a hard prerequisite. The caller must
+The separate bounded activation stage runs OpenMC's independent depletion
+operator one small domain chunk at a time, serializes every cooling-state
+photon contribution, and deletes each temporary depletion result. An audited
+full-chain coverage report is a hard prerequisite. The caller must
 provide the actual neutron-response ``fluxes.npy`` and matching
 ``mesh_material_volumes.npz`` in MeshMaterialFilter bin order. The files and
 all required nuclear-data HDF5 files are hash-pinned in a fresh plan before
@@ -19,22 +23,27 @@ the collapse can be run.
 """
 from __future__ import annotations
 
+import argparse
+import gzip
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import shutil
+import sys
 import xml.etree.ElementTree as ET
+import zlib
 
 import h5py
 import numpy as np
 
 import r3_activation_coverage as AC
 
-SCHEMA = "faris-r3-bounded-microxs/v1"
-PLAN_SCHEMA = "faris-r3-bounded-microxs-plan/v1"
-ALGORITHM = "openmc-0153-flux-collapse-pointwise-linear-v1"
+SCHEMA = "faris-r3-bounded-microxs/v2"
+PLAN_SCHEMA = "faris-r3-bounded-microxs-plan/v2"
+ALGORITHM = "openmc-0153-flux-collapse-pointwise-linear-groupmeans-v2"
+MAX_SOURCE_ROW_BYTES = 16 * 1024 * 1024
 DEFAULT_REACTION_ORDER = ("(n,gamma)", "(n,2n)", "(n,p)", "(n,3n)", "(n,4n)", "(n,a)", "fission")
 DEFAULT_REACTION_MT = {
     "(n,gamma)": 102,
@@ -279,6 +288,61 @@ def _domain_table(volumes_path: Path, domain_count_expected: int):
     return elements.astype(np.int64), material_ids, domain_volumes
 
 
+def collapse_resource_estimate(domain_count: int, nuclide_count: int, reaction_count: int = 7,
+                               group_count: int = 42, domain_chunk: int = 64) -> dict:
+    """Pre-neutron-solve resource gate for compact group means and chunked MicroXS."""
+    values = (domain_count, nuclide_count, reaction_count, group_count, domain_chunk)
+    if any(int(value) < 1 for value in values):
+        raise ValueError("collapse resource-estimate inputs must be positive")
+    one_group_raw = nuclide_count * reaction_count * 8
+    group_mean_raw = nuclide_count * reaction_count * group_count * 8
+    # Persist only group-mean XS; domain one-group values are computed and
+    # hashed inside one depletion chunk, never retained across all domains.
+    total_output_upper = group_mean_raw + domain_count * (8 * 3) + 32 * 1024 * 1024
+    work = 128 * 1024 * 1024 + domain_chunk * (
+        nuclide_count * reaction_count * 8 + group_count * 8 + nuclide_count * reaction_count * 8)
+    direct_tensor = domain_count * nuclide_count * reaction_count * group_count * 8
+    direct_peak = 3 * direct_tensor + 256 * 1024 * 1024
+    return {"domain_count": domain_count,
+            "hypothetical_dense_one_group_microxs_bytes": one_group_raw,
+            "group_mean_xs_bytes": group_mean_raw,
+            "group_mean_xs_file_upper_bytes": group_mean_raw,
+            "bounded_output_bytes_upper_bound": total_output_upper,
+            "bounded_working_bytes_estimate": work,
+            "direct_one_tensor_bytes": direct_tensor,
+            "direct_peak_bytes_estimate": direct_peak,
+            "estimate_scope": "compact nuclide x reaction x group-mean XS, exact domain/material/volume table, chunk-local one-group MicroXS, and 32 MiB metadata allowance; direct path reserves three full dense tensors plus 256 MiB"}
+
+
+def collapse_metadata_memory_preflight(cross_sections_xml: Path, required_nuclides: list[str],
+                                       reactions: list[str], reaction_mt: dict[str, int],
+                                       domain_count: int, domain_chunk: int,
+                                       temperature_k: float = 293.6,
+                                       temperature_tolerance_k: float = 1.0) -> dict:
+    """Bound pointwise-array working memory using HDF5 metadata only."""
+    index = AC._cross_section_index(Path(cross_sections_xml).resolve(strict=True))
+    sizes = {}
+    max_source = max_chunk = 0
+    for name in required_nuclides:
+        path = index.get(name)
+        if path is None or not Path(path).is_file():
+            raise ValueError(f"required pointwise XS HDF5 is missing for {name}")
+        spec = _validate_nuclide_hdf(path, name, reactions, reaction_mt,
+                                     temperature_k, temperature_tolerance_k)
+        sizes[name] = {"path": str(Path(path).resolve()), "file_size_bytes": Path(path).stat().st_size,
+                       "pointwise_source_array_bytes": spec["source_array_bytes"],
+                       "largest_hdf_chunk_bytes": spec["largest_hdf_chunk_bytes"]}
+        max_source = max(max_source, spec["source_array_bytes"])
+        max_chunk = max(max_chunk, spec["largest_hdf_chunk_bytes"])
+    chunk = min(int(domain_chunk), int(domain_count))
+    working = 4 * max_source + max_chunk + chunk * (42 + len(reactions) * 3) * 8 + 128 * 1024 * 1024
+    return {"required_nuclide_count": len(required_nuclides), "reaction_count": len(reactions),
+            "max_pointwise_source_array_bytes": max_source, "largest_hdf5_chunk_bytes": max_chunk,
+            "domain_chunk": chunk, "working_bytes_estimate": working,
+            "memory_identity_by_nuclide": sizes,
+            "scope": "Metadata-only exact dataset/chunk estimate for one-nuclide-at-a-time collapse; no CE/angular arrays are loaded."}
+
+
 def _input_file(path: Path, label: str) -> dict:
     path = Path(path).resolve(strict=True)
     if not path.is_file():
@@ -359,16 +423,17 @@ def prepare_plan(plan_path: Path, *, fluxes_path: Path, volumes_path: Path, chai
         [int(element), int(material), float(volume)]
         for element, material, volume in zip(elements, material_ids, domain_volumes)
     ])
-    output_raw_bytes = domain_count * nuclide_count * reaction_count * np.dtype(np.float64).itemsize
-    if output_raw_bytes > output_budget_bytes:
-        raise ValueError(f"one-group MicroXS archive needs {output_raw_bytes} bytes, above {output_budget_bytes}-byte budget")
+    resource_estimate = collapse_resource_estimate(domain_count, nuclide_count, reaction_count,
+                                                   int(edges.size - 1), min(domain_chunk, domain_count))
+    output_raw_bytes = resource_estimate["group_mean_xs_bytes"]
+    if resource_estimate["bounded_output_bytes_upper_bound"] > output_budget_bytes:
+        raise ValueError(f"bounded MicroXS outputs need at most {resource_estimate['bounded_output_bytes_upper_bound']} bytes, above {output_budget_bytes}-byte budget")
     chunk_domains = min(domain_chunk, domain_count)
     working_estimate = 4 * max_source_bytes + max_hdf_chunk_bytes + \
         chunk_domains * (edges.size + reaction_count * 3) * np.dtype(np.float64).itemsize + 128 * 1024 * 1024
     if working_estimate > memory_limit_bytes:
         raise ValueError(f"bounded collapse working estimate {working_estimate} exceeds memory limit {memory_limit_bytes}")
-    output_sidecar_bytes = domain_count * (2 * 8 + 8) + nuclide_count * reaction_count + 16 * 1024 * 1024
-    output_upper_bytes = output_raw_bytes + output_sidecar_bytes
+    output_upper_bytes = resource_estimate["bounded_output_bytes_upper_bound"]
     free_bytes = shutil.disk_usage(output_run_dir.parent).free
     required_free = output_upper_bytes + disk_reserve_bytes
     if free_bytes < required_free:
@@ -402,9 +467,9 @@ def prepare_plan(plan_path: Path, *, fluxes_path: Path, volumes_path: Path, chai
                     "material_ids": sorted(map(int, np.unique(material_ids))),
                     "volume_sum_cm3": float(math.fsum(map(float, domain_volumes))),
                     "element_material_volume_map_sha256": domain_map_hash},
-        "resources": {"max_domain_chunk": chunk_domains, "estimated_working_bytes": working_estimate,
+        "resources": {**resource_estimate, "max_domain_chunk": chunk_domains, "estimated_working_bytes": working_estimate,
                       "max_source_arrays_bytes": max_source_bytes, "largest_hdf_chunk_bytes": max_hdf_chunk_bytes,
-                      "output_raw_bytes_upper_bound": output_raw_bytes,
+                      "group_mean_xs_raw_bytes_upper_bound": output_raw_bytes,
                       "output_file_bytes_upper_bound": output_upper_bytes,
                       "output_budget_bytes": output_budget_bytes, "disk_reserve_bytes": disk_reserve_bytes,
                       "free_bytes_at_plan": free_bytes, "memory_limit_bytes": memory_limit_bytes,
@@ -447,7 +512,7 @@ def _check_plan(plan: dict) -> tuple[dict[str, Path], np.ndarray, list[str], lis
 
 
 def run_collapse(plan_path: Path, run_dir: Path) -> dict:
-    """Stream one-group MicroXS collapse into a fresh bounded HDF5 artifact.
+    """Stream pointwise XS arrays into a compact group-mean HDF5 artifact.
 
     This is an offline numerical/data transformation. It does not initialize
     OpenMC, create an OpenMC model, or execute a solver.
@@ -475,9 +540,7 @@ def run_collapse(plan_path: Path, run_dir: Path) -> dict:
     mt_by_name = plan["reaction_mt"]
     specs = plan["temperature"]["per_nuclide_hdf"]
     n_domains, n_nuclides, n_reactions = flux.shape[0], len(nuclides), len(reactions)
-    chunk = int(plan["resources"]["max_domain_chunk"])
-    zero_flux_count = 0
-    output_path = run_dir / "microxs_one_group.h5"
+    output_path = run_dir / "group_mean_xs.h5"
     with h5py.File(output_path, "x") as out:
         out.attrs["schema"] = SCHEMA
         out.attrs["algorithm"] = ALGORITHM
@@ -492,10 +555,9 @@ def run_collapse(plan_path: Path, run_dir: Path) -> dict:
             [[reaction in chain_reactions[name] for reaction in reactions] for name in nuclides], dtype=np.uint8))
         out.create_dataset("reaction_data_present_mask", data=np.asarray(
             [[reaction in specs[name]["data_reactions"] for reaction in reactions] for name in nuclides], dtype=np.uint8))
-        chunk_shape = (1, min(chunk, n_domains), n_reactions)
-        data = out.create_dataset("microxs_barns", shape=(n_nuclides, n_domains, n_reactions),
-                                  dtype=np.float64, chunks=chunk_shape, compression="lzf",
-                                  shuffle=True, fillvalue=0.0)
+        data = out.create_dataset("group_mean_xs_barns", shape=(n_nuclides, n_reactions, len(edges) - 1),
+                                  dtype=np.float64, chunks=(1, 1, len(edges) - 1),
+                                  compression="lzf", shuffle=True, fillvalue=0.0)
         for ni, name in enumerate(nuclides):
             channel_names = list(specs[name]["data_reactions"])
             group_means = {}
@@ -512,25 +574,13 @@ def run_collapse(plan_path: Path, run_dir: Path) -> dict:
                         if not np.all(np.isfinite(xs_values)) or np.any(xs_values < 0.0):
                             raise ValueError(f"{name} MT {mt} has invalid pointwise XS values")
                         group_means[reaction] = group_mean_xs(energy, xs_values, threshold, edges)
-            for start in range(0, n_domains, chunk):
-                stop = min(start + chunk, n_domains)
-                spectra = np.asarray(flux[start:stop], dtype=np.float64)
-                if not np.all(np.isfinite(spectra)) or np.any(spectra < 0.0):
-                    raise ValueError(f"neutron flux artifact has invalid values in domains {start}:{stop}")
-                totals = np.sum(spectra, axis=1)
-                zero_flux_count += int(np.count_nonzero(totals == 0.0)) if ni == 0 else 0
-                block = np.zeros((stop - start, n_reactions), dtype=np.float64)
-                nonzero = totals > 0.0
-                for reaction, means in group_means.items():
-                    ri = reactions.index(reaction)
-                    if np.any(nonzero):
-                        block[nonzero, ri] = (spectra[nonzero] @ means) / totals[nonzero]
-                data[ni, start:stop, :] = block
+            for reaction, means in group_means.items():
+                data[ni, reactions.index(reaction), :] = means
     for item in hdf_inputs:
         if sha256_file(Path(item["path"])) != item["sha256"]:
             raise ValueError(f"nuclear-data file changed during bounded collapse: {item['nuclide']}")
     if output_path.stat().st_size > plan["resources"]["output_budget_bytes"]:
-        raise ValueError("bounded MicroXS HDF5 exceeds the predeclared output budget")
+        raise ValueError("bounded group-mean XS HDF5 exceeds the predeclared output budget")
     record = {
         "schema": SCHEMA,
         "status": "PASS",
@@ -542,12 +592,11 @@ def run_collapse(plan_path: Path, run_dir: Path) -> dict:
         "domains": n_domains,
         "required_nuclides": n_nuclides,
         "reactions": reactions,
-        "zero_flux_domain_count": zero_flux_count,
-        "zero_flux_behavior": "matches OpenMC MicroXS.from_multigroup_flux: returns zero one-group MicroXS for a domain with zero total declared-group flux; nuclear-data coverage is checked independently and no required nuclide/channel is omitted",
+        "zero_flux_behavior": "Per-domain MicroXS is computed during bounded activation. Zero total group flux explicitly yields all-zero one-group data, matching OpenMC MicroXS.from_multigroup_flux; full-chain coverage is checked independently.",
         "source_files": plan["inputs"],
         "required_nuclide_hdf5": hdf_inputs,
         "activation_coverage": plan["coverage"],
-        "uncertainty_scope": "No new transport or depletion uncertainty is estimated; this file is a deterministic collapse of the recorded neutron flux mean and pointwise nuclear data.",
+        "uncertainty_scope": "No new transport or depletion uncertainty is estimated; this file stores compact group-mean pointwise XS. Domain MicroXS is reconstructed from this file and separately hashed flux data per activation chunk.",
     }
     record_path = run_dir / "collapse_record.json"
     with record_path.open("x", encoding="utf-8") as stream:
@@ -557,8 +606,8 @@ def run_collapse(plan_path: Path, run_dir: Path) -> dict:
     return record
 
 
-def read_microxs_chunk(path: Path, start: int, stop: int):
-    """Read a bounded domain chunk into OpenMC MicroXS objects and flux arrays."""
+def read_microxs_chunk(path: Path, fluxes_path: Path, start: int, stop: int):
+    """Recompute a bounded chunk into OpenMC MicroXS objects and flux arrays."""
     try:
         import openmc.deplete
     except ImportError as exc:
@@ -566,13 +615,16 @@ def read_microxs_chunk(path: Path, start: int, stop: int):
     path = Path(path)
     with h5py.File(path, "r") as handle:
         if handle.attrs.get("schema") != SCHEMA:
-            raise ValueError("one-group MicroXS artifact has an unsupported schema")
+            raise ValueError("group-mean XS artifact has an unsupported schema")
         names = [v.decode() if isinstance(v, bytes) else str(v) for v in handle["nuclides"][()]]
         reactions = [v.decode() if isinstance(v, bytes) else str(v) for v in handle["reactions"][()]]
-        total = handle["microxs_barns"].shape[1]
+        means = np.asarray(handle["group_mean_xs_barns"][()], dtype=np.float64)
+        total = len(handle["domain_element"])
         if start < 0 or stop <= start or stop > total:
             raise ValueError("requested MicroXS domain chunk is outside the archive")
-        array = np.asarray(handle["microxs_barns"][:, start:stop, :], dtype=np.float64)
+    fluxes = np.load(fluxes_path, mmap_mode="r", allow_pickle=False)
+    flux = np.asarray(fluxes[start:stop], dtype=np.float64)
+    array = collapse_domain_chunk(means, flux)
     micros = [openmc.deplete.MicroXS(array[:, i, :, None], names, reactions) for i in range(stop - start)]
     return micros
 
@@ -717,26 +769,25 @@ def domain_source_slot_map(materials: np.ndarray) -> list[dict[str, int]]:
 def activation_resource_estimate(domain_count: int, chain_nuclide_count: int, microxs_nuclide_count: int,
                                 reaction_count: int, timestep_count: int, domain_chunk: int,
                                 file_overhead_bytes: int = 1024 * 1024) -> dict:
-    """Conservative bounded storage/working-set estimate for chunked depletion."""
+    """Bound temporary chunk inventories and per-chunk depletion working set."""
     values = (domain_count, chain_nuclide_count, microxs_nuclide_count, reaction_count,
               timestep_count, domain_chunk, file_overhead_bytes)
     if any(int(value) < 1 for value in values):
         raise ValueError("activation resource-estimate inputs must be positive")
-    # OpenMC depletion results store the initial state and each integrated
-    # interval. A factor of two covers HDF metadata, uncertainty arrays, and
-    # serialization overhead; one bounded chunk is live at a time.
     states = timestep_count + 1
-    result_raw = domain_count * chain_nuclide_count * states * 8
-    result_upper = 2 * result_raw + math.ceil(domain_count / domain_chunk) * file_overhead_bytes
+    result_raw = domain_chunk * chain_nuclide_count * states * 8
+    result_upper = 2 * result_raw + file_overhead_bytes
     one_group_microxs = domain_count * microxs_nuclide_count * reaction_count * 8
     working = 128 * 1024 * 1024 + domain_chunk * (
         microxs_nuclide_count * reaction_count * 8 + chain_nuclide_count * states * 8 * 4
     )
-    return {"depletion_result_raw_bytes_lower_bound": result_raw,
-            "depletion_results_bytes_upper_bound": result_upper,
-            "one_group_microxs_bytes": one_group_microxs,
+    return {"temporary_chunk_inventory_raw_bytes": result_raw,
+            "temporary_chunk_inventory_upper_bytes": result_upper,
+            "retained_source_archive_compressed_bytes": None,
+            "retained_source_archive_decompressed_bytes": None,
+            "hypothetical_dense_one_group_microxs_bytes": one_group_microxs,
             "working_bytes_estimate": working,
-            "estimate_scope": "one activation domain chunk plus 128 MiB Python/OpenMC overhead; depletion file upper bound is twice dense chain state storage plus 1 MiB per chunk"}
+            "estimate_scope": "one temporary chunk inventory plus 128 MiB Python/OpenMC overhead; inventory is converted to exact source spectra and deleted before the next chunk; source archive size is data-dependent and hard-capped during writing"}
 
 
 def _write_json_new(path: Path, value: dict) -> None:
@@ -745,6 +796,24 @@ def _write_json_new(path: Path, value: dict) -> None:
         stream.write("\n")
         stream.flush()
         os.fsync(stream.fileno())
+
+
+def collapse_domain_chunk(group_mean_xs: np.ndarray, flux_chunk: np.ndarray) -> np.ndarray:
+    """Derive exact one-group MicroXS for a bounded domain x nuclide chunk."""
+    means = np.asarray(group_mean_xs, dtype=np.float64)
+    flux = np.asarray(flux_chunk, dtype=np.float64)
+    if means.ndim != 3 or flux.ndim != 2 or means.shape[2] != flux.shape[1]:
+        raise ValueError("group-mean XS and flux chunk dimensions disagree")
+    if not np.all(np.isfinite(means)) or np.any(means < 0.0) or \
+            not np.all(np.isfinite(flux)) or np.any(flux < 0.0):
+        raise ValueError("group-mean XS and flux values must be finite and nonnegative")
+    totals = np.sum(flux, axis=1)
+    result = np.zeros((means.shape[0], flux.shape[0], means.shape[1]), dtype=np.float64)
+    active = totals > 0.0
+    for local, spectrum in enumerate(flux):
+        if active[local]:
+            result[:, local, :] = np.einsum("nrg,g->nr", means, spectrum, optimize=False) / totals[local]
+    return result
 
 
 def prepare_activation_plan(plan_path: Path, *, collapse_plan_path: Path,
@@ -776,7 +845,7 @@ def prepare_activation_plan(plan_path: Path, *, collapse_plan_path: Path,
         raise ValueError("activation requires a completed bounded-collapse record")
     microxs_path = Path(microxs_path).resolve(strict=True)
     if collapse_record.get("output", {}).get("sha256") != sha256_file(microxs_path):
-        raise ValueError("activation MicroXS HDF5 differs from its collapse record")
+        raise ValueError("activation group-mean XS HDF5 differs from its collapse record")
     if collapse_record.get("plan_sha256") != collapse_plan.get("plan_sha256"):
         raise ValueError("collapse record does not bind the selected collapse plan")
     paths = {"collapse_plan": collapse_plan_path, "collapse_record": collapse_record_path,
@@ -802,9 +871,9 @@ def prepare_activation_plan(plan_path: Path, *, collapse_plan_path: Path,
         raise ValueError("activation source rates must be finite and nonnegative")
     with h5py.File(microxs_path, "r") as micro:
         if micro.attrs.get("schema") != SCHEMA or micro.attrs.get("plan_sha256") != collapse_plan["plan_sha256"]:
-            raise ValueError("activation MicroXS archive schema/plan identity mismatch")
-        if int(micro["microxs_barns"].shape[1]) != collapse_plan["domains"]["count"]:
-            raise ValueError("activation MicroXS domain count differs from collapse plan")
+            raise ValueError("activation group-mean XS archive schema/plan identity mismatch")
+        if len(micro["domain_element"]) != collapse_plan["domains"]["count"]:
+            raise ValueError("activation group-mean XS domain count differs from collapse plan")
         micro_nuclides = len(micro["nuclides"])
         reactions = len(micro["reactions"])
     chain_nuclides = len(ET.parse(paths["chain"]).getroot().findall("nuclide"))
@@ -812,18 +881,19 @@ def prepare_activation_plan(plan_path: Path, *, collapse_plan_path: Path,
     chunk = min(int(domain_chunk), domains)
     estimate = activation_resource_estimate(domains, chain_nuclides, micro_nuclides,
                                             reactions, len(timesteps), chunk)
-    if estimate["depletion_results_bytes_upper_bound"] > output_budget_bytes:
-        raise ValueError("chunked depletion artifacts exceed the explicit output budget")
     if estimate["working_bytes_estimate"] > memory_limit_bytes:
         raise ValueError("chunked depletion working-set estimate exceeds memory budget")
     free_bytes = shutil.disk_usage(output_run_dir.parent).free
-    if free_bytes < estimate["depletion_results_bytes_upper_bound"] + disk_reserve_bytes:
-        raise ValueError("activation artifacts plus the required free-space reserve exceed available disk")
+    if free_bytes < output_budget_bytes + disk_reserve_bytes:
+        raise ValueError("full activation source-archive budget plus the required free-space reserve exceeds available disk")
     inputs = {name: _input_file(path, name) for name, path in paths.items()}
     result = {
         "schema": "faris-r3-bounded-activation-plan/v1",
         "status": "READY_FOR_CHUNKED_ACTIVATION",
         "algorithm": "openmc-independent-operator-predictor-chunked-v1",
+        "archive_runtime": {"python_version": sys.version,
+                            "zlib_version": zlib.ZLIB_VERSION,
+                            "gzip_header_policy": "mtime=0, empty filename, canonical JSONL payload"},
         "output_run_dir": str(output_run_dir),
         "inputs": inputs,
         "collapse_plan_sha256": collapse_plan["plan_sha256"],
@@ -837,6 +907,7 @@ def prepare_activation_plan(plan_path: Path, *, collapse_plan_path: Path,
         "source_rates": [float(x) for x in source_rates],
         "time_budget_s": float(time_budget_s),
         "resources": {**estimate, "output_budget_bytes": output_budget_bytes,
+                       "decompressed_output_budget_bytes": output_budget_bytes,
                        "disk_reserve_bytes": disk_reserve_bytes, "free_bytes_at_plan": free_bytes,
                        "memory_limit_bytes": memory_limit_bytes},
         "implementation": {"path": str(Path(__file__).resolve()), "sha256": sha256_file(Path(__file__))},
@@ -880,6 +951,10 @@ def run_activation_chunks(plan_path: Path) -> dict:
         raise RuntimeError("the pinned OpenMC Python environment is required for chunked depletion") from exc
     if str(openmc.__version__) != "0.15.3":
         raise ValueError(f"chunked activation protocol requires OpenMC 0.15.3, got {openmc.__version__}")
+    if plan.get("archive_runtime") != {"python_version": sys.version,
+                                      "zlib_version": zlib.ZLIB_VERSION,
+                                      "gzip_header_policy": "mtime=0, empty filename, canonical JSONL payload"}:
+        raise ValueError("Python/zlib source-archive runtime differs from the frozen activation plan")
     mats = openmc.Materials.from_xml(input_paths["materials"])
     materials_by_id = {int(mat.id): mat for mat in mats}
     with np.load(input_paths["volumes"], allow_pickle=False) as file_data:
@@ -903,11 +978,29 @@ def run_activation_chunks(plan_path: Path) -> dict:
     with h5py.File(input_paths["microxs"], "r") as collapsed:
         nuclides = [v.decode() if isinstance(v, bytes) else str(v) for v in collapsed["nuclides"][()]]
         reactions = [v.decode() if isinstance(v, bytes) else str(v) for v in collapsed["reactions"][()]]
+        group_means = np.asarray(collapsed["group_mean_xs_barns"][()], dtype=np.float64)
+        if collapsed.attrs.get("plan_sha256") != plan["collapse_plan_sha256"]:
+            raise ValueError("activation group-mean XS plan identity mismatch")
     out_dir.parent.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir()
     chunks = []
     started = __import__("time").monotonic()
     domain_chunk = int(plan["domain_chunk"])
+    source_compressed_total = 0
+    source_decompressed_total = 0
+    time_summaries = [{"time_index": index, "source_strength_photons_per_s": 0.0,
+                       "inventory_photons_per_s": 0.0, "unclipped_photons_per_s": 0.0,
+                       "power_mev_per_s_by_nuclide": {}}
+                      for index in range(len(plan["timesteps"]) + 1)]
+    chain = openmc.deplete.Chain.from_xml(str(input_paths["chain"]))
+    per_decay = {}
+    for nuclide in chain.nuclides:
+        photon = nuclide.sources.get("photon") if nuclide.sources else None
+        if photon is not None:
+            x, p = np.asarray(photon.x, dtype=float), np.asarray(photon.p, dtype=float)
+            per_decay[nuclide.name] = (float(p.sum()), float((x * p).sum()) / 1.0e6)
+    if not per_decay:
+        raise ValueError("activation chain has no decay-photon source data; full-emission source cannot be built")
     for chunk_index, start in enumerate(range(0, plan["domain_count"], domain_chunk)):
         if __import__("time").monotonic() - started >= float(plan["time_budget_s"]):
             raise TimeoutError("chunked activation reached the predeclared elapsed-time limit; output is incomplete and cannot be resumed")
@@ -928,8 +1021,8 @@ def run_activation_chunks(plan_path: Path) -> dict:
         chunk_materials = openmc.Materials(mats_chunk)
         material_xml = chunk_dir / "materials.xml"
         chunk_materials.export_to_xml(material_xml)
-        with h5py.File(input_paths["microxs"], "r") as collapsed:
-            raw = np.asarray(collapsed["microxs_barns"][:, start:stop, :], dtype=np.float64)
+        raw = collapse_domain_chunk(group_means, np.asarray(fluxes[start:stop], dtype=np.float64))
+        microxs_payload_hash = hashlib.sha256(raw.astype("<f8", copy=False).tobytes()).hexdigest()
         micro_list = [openmc.deplete.MicroXS(raw[:, local, :, None], nuclides, reactions)
                       for local in range(stop - start)]
         flux_list = [np.asarray(fluxes[i], dtype=np.float64) for i in range(start, stop)]
@@ -940,6 +1033,87 @@ def run_activation_chunks(plan_path: Path) -> dict:
             operator, plan["timesteps"], source_rates=plan["source_rates"])
         result_path = chunk_dir / "depletion_results.h5"
         integrator.integrate(final_step=False, path=result_path)
+        inventory_hash = sha256_file(result_path)
+        source_path = chunk_dir / "photon_sources.jsonl.gz"
+        uncompressed_digest = hashlib.sha256()
+        uncompressed_bytes = 0
+        row_count = 0
+        with source_path.open("xb") as raw_file:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw_file, compresslevel=6, mtime=0) as zipped:
+                results = openmc.deplete.Results(result_path)
+                if len(results) != len(plan["timesteps"]) + 1:
+                    raise ValueError("temporary activation result has an unexpected cooling-state count")
+                for time_index in range(len(plan["timesteps"]) + 1):
+                    step = results[time_index]
+                    summary = time_summaries[time_index]
+                    for local, domain_index in enumerate(range(start, stop)):
+                        activation_id = int(mats_chunk[local].id)
+                        material = step.get_material(str(activation_id))
+                        atoms_by_nuclide = material.get_nuclide_atoms()
+                        inventory_photons = 0.0
+                        local_power = {}
+                        for name, atoms in atoms_by_nuclide.items():
+                            atoms = float(atoms)
+                            if not math.isfinite(atoms) or atoms < 0.0:
+                                raise ValueError("activation result contains invalid nuclide atom inventory")
+                            if name in per_decay and atoms > 0.0:
+                                photon_rate, mev_rate = per_decay[name]
+                                inventory_photons += atoms * photon_rate
+                                local_power[name] = atoms * mev_rate
+                        clipped_energy = material.get_decay_photon_energy()
+                        unclipped_energy = material.get_decay_photon_energy(clip_tolerance=0.0)
+                        source_strength = float(clipped_energy.integral()) if clipped_energy is not None else 0.0
+                        unclipped_strength = float(unclipped_energy.integral()) if unclipped_energy is not None else 0.0
+                        if any(not math.isfinite(x) or x < 0.0 for x in
+                               (inventory_photons, source_strength, unclipped_strength)):
+                            raise ValueError("activation chunk produced invalid decay-photon strength")
+                        row = slot_map[domain_index]
+                        energy_xml = (ET.tostring(clipped_energy.to_xml_element("energy"), encoding="unicode")
+                                      if clipped_energy is not None else None)
+                        source_row = {
+                            "schema": "faris-r3-source-contribution/v1",
+                            "time_index": time_index,
+                            "domain_index": domain_index,
+                            "mesh_element": row["element"],
+                            "source_slot": row["source_slot"],
+                            "material_id": row["material_id"],
+                            "activation_material_id": activation_id,
+                            "source_strength_photons_per_s": source_strength,
+                            "inventory_photons_per_s": inventory_photons,
+                            "unclipped_photons_per_s": unclipped_strength,
+                            "power_mev_per_s_by_nuclide": local_power,
+                            "energy_distribution_xml": energy_xml,
+                        }
+                        line = (json.dumps(source_row, sort_keys=True, separators=(",", ":"),
+                                           ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+                        if len(line) > MAX_SOURCE_ROW_BYTES:
+                            raise ValueError(f"one canonical source contribution exceeds {MAX_SOURCE_ROW_BYTES} decompressed bytes")
+                        uncompressed_bytes += len(line)
+                        if source_decompressed_total + uncompressed_bytes > plan["resources"]["decompressed_output_budget_bytes"]:
+                            raise ValueError("decompressed source archive exceeds its declared hard cap")
+                        uncompressed_digest.update(line)
+                        zipped.write(line)
+                        row_count += 1
+                        summary["source_strength_photons_per_s"] += source_strength
+                        summary["inventory_photons_per_s"] += inventory_photons
+                        summary["unclipped_photons_per_s"] += unclipped_strength
+                        for name, value in local_power.items():
+                            summary["power_mev_per_s_by_nuclide"][name] = \
+                                summary["power_mev_per_s_by_nuclide"].get(name, 0.0) + value
+                del results
+        compressed_bytes = source_path.stat().st_size
+        source_compressed_total += compressed_bytes
+        source_decompressed_total += uncompressed_bytes
+        if source_compressed_total > plan["resources"]["output_budget_bytes"] or \
+                source_decompressed_total > plan["resources"]["decompressed_output_budget_bytes"]:
+            raise ValueError("compressed/decompressed source archive exceeds a declared hard cap")
+        expected_rows = (stop - start) * (len(plan["timesteps"]) + 1)
+        if row_count != expected_rows:
+            raise ValueError("source archive lacks one explicit row for every domain at every cooling state")
+        material_hash = sha256_file(material_xml)
+        del (material, step, integrator, operator, micro_list, raw, flux_list,
+             chunk_materials, mats_chunk, energy, clipped_energy, unclipped_energy,
+             atoms_by_nuclide, local_power, source_row, line)
         receipt = {
             "schema": "faris-r3-bounded-activation-chunk/v1",
             "status": "PASS",
@@ -949,19 +1123,32 @@ def run_activation_chunks(plan_path: Path) -> dict:
             "domain_indices": list(range(start, stop)),
             "domain_element_material_slot": domain_rows,
             "activation_material_ids": [int(mat.id) for mat in chunk_materials],
-            "materials_xml": {"path": material_xml.name, "sha256": sha256_file(material_xml),
-                              "size_bytes": material_xml.stat().st_size},
-            "depletion_results": {"path": result_path.name, "sha256": sha256_file(result_path),
-                                  "size_bytes": result_path.stat().st_size},
+            "temporary_materials_xml": {"path": material_xml.name, "sha256": material_hash,
+                                         "size_bytes": material_xml.stat().st_size,
+                                         "retained": False},
+            "consumed_inventory": {"path": result_path.name, "sha256": inventory_hash,
+                                   "size_bytes": result_path.stat().st_size,
+                                   "retained": False},
             "plan_sha256": plan["plan_sha256"],
             "microxs_sha256": plan["inputs"]["microxs"]["sha256"],
+            "recomputed_microxs_chunk_sha256": microxs_payload_hash,
             "chain_sha256": plan["inputs"]["chain"]["sha256"],
+            "source_archive": {"path": source_path.name, "sha256": sha256_file(source_path),
+                                "compressed_bytes": compressed_bytes,
+                                "decompressed_bytes": uncompressed_bytes,
+                                "decompressed_sha256": uncompressed_digest.hexdigest(),
+                                "rows": row_count, "max_row_bytes": MAX_SOURCE_ROW_BYTES},
         }
+        result_path.unlink()
+        material_xml.unlink()
         receipt_path = chunk_dir / "chunk_receipt.json"
         _write_json_new(receipt_path, receipt)
         chunks.append({"receipt_path": str(receipt_path.relative_to(out_dir)),
                        "receipt_sha256": sha256_file(receipt_path),
-                       "depletion_results_sha256": receipt["depletion_results"]["sha256"],
+                       "consumed_inventory_sha256": inventory_hash,
+                       "source_archive_sha256": receipt["source_archive"]["sha256"],
+                       "source_archive_compressed_bytes": compressed_bytes,
+                       "source_archive_decompressed_bytes": uncompressed_bytes,
                        "domain_start": start, "domain_stop": stop})
     record = {
         "schema": "faris-r3-bounded-activation/v1",
@@ -977,6 +1164,12 @@ def run_activation_chunks(plan_path: Path) -> dict:
         "timesteps": plan["timesteps"],
         "source_rates": plan["source_rates"],
         "chunks": chunks,
+        "time_summaries": time_summaries,
+        "retained_source_archive": {"compressed_bytes": source_compressed_total,
+                                     "decompressed_bytes": source_decompressed_total,
+                                     "compressed_budget_bytes": plan["resources"]["output_budget_bytes"],
+                                     "decompressed_budget_bytes": plan["resources"]["decompressed_output_budget_bytes"]},
+        "inventory_retention": "Temporary OpenMC depletion HDF5 is hashed and deleted after exact source spectra, source strengths, unclipped checks, and per-nuclide photon power are extracted for all cooling states. The run does not claim raw inventories are retained; deterministic recomputation requires the pinned inputs and implementation.",
         "photon_source_mapping": "every material-bearing domain is recorded in row-major MeshMaterialFilter order with its source-slot index; source assembly must include all chunks and preserve these entries",
         "uncertainty_scope": "No neutron or photon transport uncertainty is computed here; this is the deterministic depletion stage conditional on the recorded flux and collapsed MicroXS.",
     }
@@ -987,9 +1180,202 @@ def run_activation_chunks(plan_path: Path) -> dict:
     return record
 
 
+def verify_activation_microxs_receipts(activation_plan_path: Path,
+                                       activation_record_path: Path) -> dict:
+    """Independently rederive and validate every chunk-local MicroXS hash."""
+    plan_path = Path(activation_plan_path).resolve(strict=True)
+    record_path = Path(activation_record_path).resolve(strict=True)
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    declared = dict(plan)
+    digest = declared.pop("plan_sha256", None)
+    if plan.get("schema") != "faris-r3-bounded-activation-plan/v1" or digest != _canonical_sha256(declared):
+        raise ValueError("activation MicroXS receipt verification requires a valid frozen activation plan")
+    if plan["implementation"]["sha256"] != sha256_file(Path(__file__)):
+        raise ValueError("bounded MicroXS implementation changed after activation planning")
+    if record.get("status") != "PASS" or record.get("plan_sha256") != digest:
+        raise ValueError("activation results are incomplete or do not match the frozen plan")
+    for name, reference in plan["inputs"].items():
+        if sha256_file(Path(reference["path"])) != reference["sha256"]:
+            raise ValueError(f"activation verification input changed: {name}")
+    collapse_plan = json.loads(Path(plan["inputs"]["collapse_plan"]["path"]).read_text(encoding="utf-8"))
+    _check_plan(collapse_plan)
+    collapse_record_path = Path(plan["inputs"]["collapse_record"]["path"])
+    collapse_record = json.loads(collapse_record_path.read_text(encoding="utf-8"))
+    group_path = Path(plan["inputs"]["microxs"]["path"])
+    if sha256_file(group_path) != collapse_record.get("output", {}).get("sha256"):
+        raise ValueError("activation group-mean XS differs from the collapse receipt")
+    fluxes = np.load(Path(plan["inputs"]["fluxes"]["path"]), mmap_mode="r", allow_pickle=False)
+    with h5py.File(group_path, "r") as group_file:
+        means = np.asarray(group_file["group_mean_xs_barns"][()], dtype=np.float64)
+    out_dir = Path(record["output_dir"]).resolve(strict=True)
+    if out_dir != Path(plan["output_run_dir"]).resolve():
+        raise ValueError("activation source archive destination differs from its frozen plan")
+    with np.load(Path(plan["inputs"]["volumes"]["path"]), allow_pickle=False) as values:
+        source_slots = domain_source_slot_map(np.asarray(values["materials"]))
+    time_source_sums = [0.0] * (len(plan["timesteps"]) + 1)
+    time_inventory_sums = [0.0] * (len(plan["timesteps"]) + 1)
+    time_unclipped_sums = [0.0] * (len(plan["timesteps"]) + 1)
+    time_power_sums = [{} for _ in range(len(plan["timesteps"]) + 1)]
+    time_source_xml_bytes = [0] * (len(plan["timesteps"]) + 1)
+    time_source_entry_counts = [0] * (len(plan["timesteps"]) + 1)
+    expected_start = 0
+    verified = []
+    compressed_total = decompressed_total = 0
+    for item in record.get("chunks", []):
+        receipt_path = (out_dir / item["receipt_path"]).resolve(strict=True)
+        if sha256_file(receipt_path) != item["receipt_sha256"]:
+            raise ValueError("activation chunk receipt hash mismatch")
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        start, stop = int(receipt["domain_start"]), int(receipt["domain_stop"])
+        if start != expected_start or stop <= start or stop > int(plan["domain_count"]):
+            raise ValueError("activation chunk domain coverage is incomplete, duplicated, or reordered")
+        if receipt.get("plan_sha256") != digest or receipt.get("microxs_sha256") != plan["inputs"]["microxs"]["sha256"]:
+            raise ValueError("activation chunk does not bind its frozen plan and group-mean XS")
+        inventory = receipt.get("consumed_inventory", {})
+        if inventory.get("retained") is not False or not isinstance(inventory.get("sha256"), str) or \
+                len(inventory["sha256"]) != 64 or inventory.get("sha256") != item.get("consumed_inventory_sha256"):
+            raise ValueError("activation receipt does not accurately state temporary inventory retention")
+        if (receipt_path.parent / inventory.get("path", "" )).exists():
+            raise ValueError("temporary dense activation inventory was not retired after source extraction")
+        source_ref = receipt.get("source_archive", {})
+        source_path = (receipt_path.parent / source_ref.get("path", "")).resolve(strict=True)
+        if sha256_file(source_path) != source_ref.get("sha256") or \
+                source_ref.get("sha256") != item.get("source_archive_sha256"):
+            raise ValueError("activation source archive hash mismatch")
+        compressed_bytes = source_path.stat().st_size
+        if compressed_total + compressed_bytes > plan["resources"]["output_budget_bytes"]:
+            raise ValueError("compressed source archive exceeds its declared byte cap")
+        with source_path.open("rb") as header_stream:
+            gzip_header = header_stream.read(10)
+        if len(gzip_header) != 10 or gzip_header[4:8] != b"\x00\x00\x00\x00" or gzip_header[3] != 0:
+            raise ValueError("activation source archive is not in the canonical fixed-mtime gzip format")
+        decompressed_bytes = 0
+        row_count = 0
+        digest_source = hashlib.sha256()
+        source_rows_by_time = [0] * (len(plan["timesteps"]) + 1)
+        source_strength_by_time = [0.0] * (len(plan["timesteps"]) + 1)
+        with gzip.open(source_path, "rb") as source_stream:
+            while True:
+                line = source_stream.readline(MAX_SOURCE_ROW_BYTES + 1)
+                if not line:
+                    break
+                if len(line) > MAX_SOURCE_ROW_BYTES:
+                    raise ValueError("activation source row exceeds its declared decompressed-size bound")
+                decompressed_bytes += len(line)
+                if decompressed_total + decompressed_bytes > plan["resources"]["decompressed_output_budget_bytes"]:
+                    raise ValueError("decompressed source archive exceeds its declared byte cap")
+                digest_source.update(line)
+                try:
+                    row = json.loads(line)
+                except Exception as exc:
+                    raise ValueError("activation source archive contains invalid JSON") from exc
+                canonical_line = (json.dumps(row, sort_keys=True, separators=(",", ":"),
+                                             ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+                if line != canonical_line:
+                    raise ValueError("activation source archive JSON line is not canonical")
+                time_idx = int(row.get("time_index", -1))
+                domain_idx = int(row.get("domain_index", -1))
+                expected_row_number = row_count
+                expected_time = expected_row_number // (int(receipt["domain_stop"]) - int(receipt["domain_start"]))
+                expected_domain = int(receipt["domain_start"]) + expected_row_number % (
+                    int(receipt["domain_stop"]) - int(receipt["domain_start"]))
+                if row.get("schema") != "faris-r3-source-contribution/v1" or \
+                        time_idx != expected_time or domain_idx != expected_domain or \
+                        not 0 <= time_idx < len(source_rows_by_time):
+                    raise ValueError("activation source archive is missing, duplicating, or reordering a time/domain row")
+                expected_slot = source_slots[domain_idx]
+                if any(row.get(key) != expected_slot[value] for key, value in
+                       (("mesh_element", "element"), ("source_slot", "source_slot"), ("material_id", "material_id"))):
+                    raise ValueError("activation source contribution has a different mesh-material source slot")
+                strength = float(row.get("source_strength_photons_per_s", math.nan))
+                inventory_photons = float(row.get("inventory_photons_per_s", math.nan))
+                unclipped = float(row.get("unclipped_photons_per_s", math.nan))
+                powers = row.get("power_mev_per_s_by_nuclide")
+                if any(not math.isfinite(value) or value < 0.0 for value in (strength, inventory_photons, unclipped)) or \
+                        not isinstance(powers, dict) or any(not math.isfinite(float(value)) or float(value) < 0.0 for value in powers.values()):
+                    raise ValueError("activation source contribution contains invalid emission or inventory totals")
+                energy_xml = row.get("energy_distribution_xml")
+                if energy_xml is None:
+                    if strength != 0.0:
+                        raise ValueError("positive source strength has no serialized energy distribution")
+                else:
+                    if not isinstance(energy_xml, str) or ET.fromstring(energy_xml).tag != "energy":
+                        raise ValueError("activation source contribution has malformed energy distribution XML")
+                    time_source_xml_bytes[time_idx] += len(energy_xml.encode("utf-8"))
+                    time_source_entry_counts[time_idx] += 1
+                source_rows_by_time[time_idx] += 1
+                source_strength_by_time[time_idx] += strength
+                time_source_sums[time_idx] += strength
+                time_inventory_sums[time_idx] += inventory_photons
+                time_unclipped_sums[time_idx] += unclipped
+                for name, value in powers.items():
+                    target = time_power_sums[time_idx]
+                    target[str(name)] = target.get(str(name), 0.0) + float(value)
+                row_count += 1
+        expected_rows = (int(receipt["domain_stop"]) - int(receipt["domain_start"])) * len(source_rows_by_time)
+        if row_count != expected_rows or source_ref.get("rows") != expected_rows or \
+                source_ref.get("decompressed_bytes") != decompressed_bytes or \
+                source_ref.get("decompressed_sha256") != digest_source.hexdigest():
+            raise ValueError("activation source archive row count or decompressed hash mismatch")
+        for time_idx, count in enumerate(source_rows_by_time):
+            if count != int(receipt["domain_stop"]) - int(receipt["domain_start"]):
+                raise ValueError("activation source archive lacks a cooling-state entry for every chunk domain")
+        if source_ref.get("compressed_bytes") != compressed_bytes or \
+                item.get("source_archive_compressed_bytes") != compressed_bytes or \
+                item.get("source_archive_decompressed_bytes") != decompressed_bytes:
+            raise ValueError("activation source archive compressed byte count mismatch")
+        compressed_total += compressed_bytes
+        decompressed_total += decompressed_bytes
+        expected = collapse_domain_chunk(means, np.asarray(fluxes[start:stop], dtype=np.float64))
+        expected_hash = hashlib.sha256(expected.astype("<f8", copy=False).tobytes()).hexdigest()
+        if expected_hash != receipt.get("recomputed_microxs_chunk_sha256"):
+            raise ValueError("recomputed chunk MicroXS differs from the consumed activation data")
+        verified.append({"domain_start": start, "domain_stop": stop,
+                         "microxs_chunk_sha256": expected_hash,
+                         "consumed_inventory_sha256": inventory["sha256"],
+                         "source_archive_sha256": source_ref["sha256"],
+                         "source_rows": row_count})
+        expected_start = stop
+    expected_chunks = math.ceil(int(plan["domain_count"]) / int(plan["domain_chunk"]))
+    if expected_start != int(plan["domain_count"]) or len(verified) != expected_chunks:
+        raise ValueError("activation MicroXS receipts do not cover every planned domain")
+    caps = record.get("retained_source_archive", {})
+    if compressed_total != caps.get("compressed_bytes") or decompressed_total != caps.get("decompressed_bytes") or \
+            compressed_total > caps.get("compressed_budget_bytes", -1) or \
+            decompressed_total > caps.get("decompressed_budget_bytes", -1):
+        raise ValueError("activation source archive exceeds or contradicts its compressed/decompressed budgets")
+    summaries = record.get("time_summaries", [])
+    if len(summaries) != len(time_source_sums):
+        raise ValueError("activation record lacks a summary for every cooling state")
+    for index, (summary, source_sum) in enumerate(zip(summaries, time_source_sums)):
+        if int(summary.get("time_index", -1)) != index or not math.isclose(
+                float(summary.get("source_strength_photons_per_s", math.nan)), source_sum,
+                rel_tol=1.0e-12, abs_tol=1.0e-14):
+            raise ValueError("activation source archive totals differ from the activation record")
+        if not math.isclose(float(summary.get("inventory_photons_per_s", math.nan)),
+                            time_inventory_sums[index], rel_tol=1.0e-12, abs_tol=1.0e-14) or \
+                not math.isclose(float(summary.get("unclipped_photons_per_s", math.nan)),
+                                 time_unclipped_sums[index], rel_tol=1.0e-12, abs_tol=1.0e-14):
+            raise ValueError("activation source archive inventory cross-check differs from the activation record")
+        recorded_power = summary.get("power_mev_per_s_by_nuclide")
+        if not isinstance(recorded_power, dict) or set(recorded_power) != set(time_power_sums[index]):
+            raise ValueError("activation per-nuclide photon-power summary is incomplete")
+        if any(not math.isclose(float(recorded_power[name]), value, rel_tol=1.0e-12, abs_tol=1.0e-14)
+               for name, value in time_power_sums[index].items()):
+            raise ValueError("activation per-nuclide photon-power summary differs from source archive rows")
+    return {"schema": "faris-r3-bounded-microxs-revalidation/v1", "status": "PASS",
+            "activation_plan_sha256": digest, "domain_count": expected_start,
+            "chunk_count": len(verified), "chunks": verified,
+            "source_archive_bytes": {"compressed": compressed_total, "decompressed": decompressed_total},
+            "time_source_xml_bytes": time_source_xml_bytes,
+            "time_source_entry_counts": time_source_entry_counts,
+            "scope": "Revalidated exact group-mean/flux-derived MicroXS bytes consumed by every chunk, complete source contribution rows at every cooling state, deterministic archive hashes, and all pinned inputs. Temporary dense inventories were retired and are not claimed retained."}
+
+
 def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_record_path: Path,
                                       activation_mesh, time_index: int, *,
-                                      openmc_module=None, results_loader=None) -> tuple[list, dict]:
+                                      openmc_module=None) -> tuple[list, dict]:
     """Reassemble all recorded activation chunks into R2S MeshSource objects.
 
     Every material-bearing voxel domain is visited exactly once. The output
@@ -1014,12 +1400,16 @@ def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_re
     for name, ref in plan["inputs"].items():
         if sha256_file(Path(ref["path"])) != ref["sha256"]:
             raise ValueError(f"activation source input changed after planning: {name}")
+    source_revalidation = verify_activation_microxs_receipts(activation_plan_path, activation_record_path)
+    source_working_estimate = (128 * 1024 * 1024 +
+                               4 * int(source_revalidation["time_source_xml_bytes"][int(time_index)]) +
+                               int(plan["domain_count"]) * 4096)
+    memory_limit = int(plan["resources"]["memory_limit_bytes"])
+    if source_working_estimate > memory_limit:
+        raise ValueError(f"photon source reassembly working-set estimate {source_working_estimate} exceeds declared memory limit {memory_limit}")
     try:
         if openmc_module is None:
             import openmc as openmc_module
-        if results_loader is None:
-            import openmc.deplete
-            results_loader = openmc.deplete.Results
     except ImportError as exc:
         raise RuntimeError("OpenMC Python is required to assemble recorded decay-photon sources") from exc
     if str(openmc_module.__version__) != "0.15.3":
@@ -1040,8 +1430,10 @@ def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_re
     source_lists = [[null_source for _ in range(n_elements)] for _ in range(n_slots)]
     expected_domain = 0
     emitting_domains = 0
-    total_photons_per_second = 0.0
-    used_result_hashes = []
+    source_strength_by_time = [0.0] * (len(plan["timesteps"]) + 1)
+    source_entries = []
+    archive_compressed_seen = 0
+    archive_decompressed_seen = 0
     out_dir = Path(record["output_dir"]).resolve(strict=True)
     for chunk_ref in record["chunks"]:
         receipt_path = (out_dir / chunk_ref["receipt_path"]).resolve(strict=True)
@@ -1051,15 +1443,13 @@ def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_re
         if chunk.get("schema") != "faris-r3-bounded-activation-chunk/v1" or \
                 chunk.get("plan_sha256") != plan["plan_sha256"] or chunk.get("status") != "PASS":
             raise ValueError("malformed or unbound activation chunk receipt")
-        result_path = (receipt_path.parent / chunk["depletion_results"]["path"]).resolve(strict=True)
-        if sha256_file(result_path) != chunk["depletion_results"]["sha256"]:
-            raise ValueError("activation depletion result changed before photon source assembly")
+        source_ref = chunk.get("source_archive", {})
+        archive_path = (receipt_path.parent / source_ref.get("path", "")).resolve(strict=True)
+        if sha256_file(archive_path) != source_ref.get("sha256") or \
+                source_ref.get("sha256") != chunk_ref.get("source_archive_sha256"):
+            raise ValueError("activation source archive changed before MeshSource reassembly")
         if chunk["domain_start"] != expected_domain:
             raise ValueError("activation chunk domain ranges are not contiguous and ordered")
-        result = results_loader(result_path)
-        if int(time_index) >= len(result):
-            raise ValueError("cooling index is absent from a chunk depletion result")
-        step = result[int(time_index)]
         domain_indices = chunk["domain_indices"]
         activation_ids = chunk["activation_material_ids"]
         if len(domain_indices) != len(activation_ids) or domain_indices != list(
@@ -1067,29 +1457,74 @@ def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_re
             raise ValueError("activation material ID mapping is incomplete or misordered")
         if chunk.get("domain_element_material_slot") != slot_map[chunk["domain_start"]:chunk["domain_stop"]]:
             raise ValueError("activation chunk domain/material/source-slot mapping changed")
-        for domain_index, activation_id in zip(domain_indices, activation_ids):
-            row = slot_map[domain_index]
-            original = materials_by_id.get(row["material_id"])
-            if original is None:
-                raise ValueError(f"source material {row['material_id']} is absent from bound materials.xml")
-            activated = step.get_material(str(activation_id))
-            energy = activated.get_decay_photon_energy()
-            if energy is not None:
-                strength = float(energy.integral())
-                if not math.isfinite(strength) or strength < 0.0:
-                    raise ValueError("activation source has invalid photons/s strength")
-                source_lists[row["source_slot"]][row["element"]] = openmc_module.IndependentSource(
-                    energy=energy, particle="photon", strength=strength,
-                    constraints={"domains": [original]})
-                emitting_domains += 1
-                total_photons_per_second += strength
+        archive_hash = hashlib.sha256()
+        archive_bytes = 0
+        row_count = 0
+        caps = record.get("retained_source_archive", {})
+        if archive_compressed_seen + int(source_ref.get("compressed_bytes", 0)) > caps.get("compressed_budget_bytes", -1):
+            raise ValueError("compressed source archive exceeds its retained output budget")
+        expected_domains = int(chunk["domain_stop"]) - int(chunk["domain_start"])
+        expected_time = 0
+        expected_index = int(chunk["domain_start"])
+        with gzip.open(archive_path, "rb") as source_stream:
+            while True:
+                line = source_stream.readline(MAX_SOURCE_ROW_BYTES + 1)
+                if not line:
+                    break
+                if len(line) > MAX_SOURCE_ROW_BYTES:
+                    raise ValueError("source contribution exceeds the declared reassembly row limit")
+                archive_hash.update(line)
+                archive_bytes += len(line)
+                if archive_decompressed_seen + archive_bytes > caps.get("decompressed_budget_bytes", -1) or \
+                        archive_bytes > source_ref.get("decompressed_bytes", -1):
+                    raise ValueError("source archive exceeded its recorded decompressed byte count")
+                row = json.loads(line)
+                expected_time = row_count // expected_domains
+                expected_index = int(chunk["domain_start"]) + row_count % expected_domains
+                if row.get("time_index") != expected_time or row.get("domain_index") != expected_index:
+                    raise ValueError("source archive time/domain entries are incomplete or out of order")
+                if expected_time == int(time_index):
+                    domain_index = expected_index
+                    mapping = slot_map[domain_index]
+                    if row.get("mesh_element") != mapping["element"] or \
+                            row.get("source_slot") != mapping["source_slot"] or \
+                            row.get("material_id") != mapping["material_id"] or \
+                            row.get("activation_material_id") != activation_ids[domain_index - int(chunk["domain_start"])]:
+                        raise ValueError("source archive contribution maps to a different activation domain/slot")
+                    strength = float(row["source_strength_photons_per_s"])
+                    energy_xml = row.get("energy_distribution_xml")
+                    if energy_xml is not None:
+                        energy = openmc_module.stats.Univariate.from_xml_element(ET.fromstring(energy_xml))
+                        original = materials_by_id.get(mapping["material_id"])
+                        if original is None:
+                            raise ValueError(f"source material {mapping['material_id']} is absent from bound materials.xml")
+                        source_lists[mapping["source_slot"]][mapping["element"]] = openmc_module.IndependentSource(
+                            energy=energy, particle="photon", strength=strength,
+                            constraints={"domains": [original]})
+                        emitting_domains += 1
+                    elif strength != 0.0:
+                        raise ValueError("nonzero photon source lacks its serialized energy distribution")
+                    source_strength_by_time[time_index] += strength
+                row_count += 1
+        expected_rows = expected_domains * (len(plan["timesteps"]) + 1)
+        if row_count != expected_rows or source_ref.get("rows") != row_count or \
+                source_ref.get("decompressed_bytes") != archive_bytes or \
+                source_ref.get("decompressed_sha256") != archive_hash.hexdigest():
+            raise ValueError("source archive decompressed size, hash, or completeness count mismatch")
+        archive_compressed_seen += int(source_ref["compressed_bytes"])
+        archive_decompressed_seen += archive_bytes
         expected_domain = int(chunk["domain_stop"])
-        used_result_hashes.append({"path": str(result_path), "sha256": chunk["depletion_results"]["sha256"]})
-        del result
+        source_entries_ref = {"path": str(archive_path), "sha256": source_ref["sha256"],
+                              "consumed_inventory_sha256": chunk["consumed_inventory"]["sha256"]}
+        source_entries.append(source_entries_ref)
     if expected_domain != domain_count:
         raise ValueError("photon source assembly did not visit every activation domain")
     if emitting_domains == 0:
         raise ValueError("no activation domain produced a decay-photon source")
+    expected_source_strength = float(record["time_summaries"][int(time_index)]["source_strength_photons_per_s"])
+    if not math.isclose(source_strength_by_time[int(time_index)], expected_source_strength,
+                        rel_tol=1.0e-12, abs_tol=1.0e-14):
+        raise ValueError("reassembled source strength differs from the complete activation source summary")
     sources = [openmc_module.MeshSource(activation_mesh, slot) for slot in source_lists]
     summary = {
         "schema": "faris-r3-bounded-photon-source-summary/v1",
@@ -1099,14 +1534,52 @@ def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_re
         "time_index": int(time_index),
         "domain_count": domain_count,
         "source_slot_count": n_slots,
+        "source_reassembly_working_bytes_estimate": source_working_estimate,
         "emitting_domain_count": emitting_domains,
         "zero_or_no_photon_domain_count": domain_count - emitting_domains,
-        "total_photons_per_second": total_photons_per_second,
-        "depletion_result_files": used_result_hashes,
+        "total_photons_per_second": source_strength_by_time[time_index],
+        "source_contributions": source_entries,
         "source_domain_order": "row-major MeshMaterialVolumes.materials > -1; source slots retain every non-padding -2 slot in each voxel row",
-        "source_normalization": "each source strength is Material.get_decay_photon_energy().integral() in photons/s; OpenMC MeshSource sampling preserves per-bin strengths",
+        "source_normalization": "each serialized source strength is the original OpenMC Material.get_decay_photon_energy().integral() in photons/s; the exact energy distribution XML is restored and MeshSource sampling preserves per-bin strengths",
         "source_model_xml_sha256": None,
-        "note": "Record the photon model XML hash after assigning these sources; source assembly contains all activation domains and does not validate the scientific completeness of the decay data.",
+        "note": "Record the photon model XML hash after assigning these sources. Dense activation inventories are temporary and deleted; the compressed source archive retains every domain/time contribution including explicit zero-emission rows.",
     }
     return sources, summary
+
+
+def _cli() -> int:
+    parser = argparse.ArgumentParser(description="Bounded R3 MicroXS protocol utilities")
+    sub = parser.add_subparsers(dest="command", required=True)
+    compare = sub.add_parser("compare-capi", help="compare three bounded offline collapses to OpenMC 0.15.3 CAPI")
+    compare.add_argument("--cross-sections", required=True, type=Path)
+    compare.add_argument("--fluxes", required=True, type=Path)
+    compare.add_argument("--domain-index", type=int,
+                         help="MeshMaterialFilter row (defaults to the first positive-flux row)")
+    compare.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    if args.output.exists():
+        raise FileExistsError(f"refusing to overwrite CAPI comparison record: {args.output}")
+    fluxes = np.load(args.fluxes, mmap_mode="r", allow_pickle=False)
+    domain = args.domain_index
+    if domain is None:
+        totals = np.sum(fluxes, axis=1)
+        valid = np.flatnonzero(np.isfinite(totals) & (totals > 0.0))
+        if not len(valid):
+            raise ValueError("no positive-flux domain is available for CAPI sample comparison")
+        domain = int(valid[0])
+    checks = [
+        {"nuclide": "Fe56", "reaction": "(n,gamma)", "domain_index": domain},
+        {"nuclide": "Fe56", "reaction": "(n,2n)", "domain_index": domain},
+        {"nuclide": "Ni58", "reaction": "(n,gamma)", "domain_index": domain},
+    ]
+    result = compare_capi_reference(args.cross_sections, args.fluxes,
+                                    VITAMIN_J_42_EDGES_E_V, checks)
+    _write_json_new(args.output, result)
+    print(json.dumps({"status": result["status"], "record": str(args.output),
+                      "checks": result["checks"]}, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_cli())
 

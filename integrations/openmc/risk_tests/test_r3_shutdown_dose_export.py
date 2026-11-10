@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import zipfile
 from types import SimpleNamespace
 import unittest
 
@@ -208,6 +209,70 @@ def _fixture(root: Path, method: str, basis_hashes=None):
 
 @unittest.skipUnless(h5py is not None, "exporter tests require h5py to inspect actual H5M coordinates")
 class R3ShutdownDoseExportTest(unittest.TestCase):
+    def test_bounded_evidence_bundle_is_content_addressed_and_reopens_all_chunk_sources(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            root, export = base / "r2s", base / "export"
+            root.mkdir()
+
+            def write(rel, data):
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                return {"path": rel, "sha256": hashlib.sha256(data).hexdigest()}
+
+            plan = write("activation/plan.json", b'{"plan":1}')
+            source_data = b'{"domain":0,"energy":"fixture"}\n'
+            source_path = root / "activation/chunk_00000/photon_sources.jsonl.gz"
+            source_path.parent.mkdir(parents=True)
+            source_path.write_bytes(source_data)
+            source_ref = {"path": source_path.name, "sha256": hashlib.sha256(source_data).hexdigest()}
+            receipt_value = {"source_archive": source_ref}
+            receipt_bytes = json.dumps(receipt_value).encode()
+            receipt = write("activation/chunk_00000/chunk_receipt.json", receipt_bytes)
+            activation_record_value = {
+                "output_dir": str(root / "activation"),
+                "chunks": [{"receipt_path": "chunk_00000/chunk_receipt.json",
+                            "receipt_sha256": receipt["sha256"]}],
+                "inventory_retention": "temporary inventory deleted",
+            }
+            activation_record_bytes = json.dumps(activation_record_value).encode()
+            activation_record = write("activation/record.json", activation_record_bytes)
+            collapse_plan = write("collapse/plan.json", b'{"collapse_plan":1}')
+            collapse_record = write("collapse/record.json", b'{"collapse_record":1}')
+            micro = write("collapse/group_mean_xs.h5", b"compact group means")
+            flux = write("neutron_transport/fluxes.npy", b"flux")
+            flux_std = write("neutron_transport/fluxes_std_dev.npy", b"flux uncertainty")
+            volumes = write("neutron_transport/mesh_material_volumes.npz", b"mesh volumes")
+            protocol = write("neutron_transport/protocol-plan.json", b'{"protocol":1}')
+            capi = write("neutron_transport/capi-check.json", b'{"capi":1}')
+            source_summary = write("photon_transport/source-summary-1d.json", b'{"source_summary":1}')
+            record = {
+                "bounded_activation": {"plan_path": plan["path"], "plan_sha256": plan["sha256"],
+                                       "record_path": activation_record["path"],
+                                       "record_sha256": activation_record["sha256"]},
+                "activation_microxs": {"collapse_plan_path": collapse_plan["path"],
+                                        "collapse_plan_sha256": collapse_plan["sha256"],
+                                        "collapse_record_path": collapse_record["path"],
+                                        "collapse_record_sha256": collapse_record["sha256"],
+                                        "path": micro["path"], "sha256": micro["sha256"]},
+                "neutron_transport_integrity": {
+                    "flux_mean_sha256": flux["sha256"], "flux_std_dev_sha256": flux_std["sha256"],
+                    "mesh_material_volumes": volumes},
+                "bounded_protocol_plan": protocol, "bounded_capi_check": capi,
+                "bounded_photon_source_summaries": {"1d": source_summary},
+            }
+            bundle_ref = EX._write_bounded_r2s_evidence_bundle(export, root, record)
+            bundle_path = export / bundle_ref["path"]
+            self.assertTrue(bundle_path.is_file())
+            self.assertEqual(hashlib.sha256(bundle_path.read_bytes()).hexdigest(), bundle_ref["sha256"])
+            with zipfile.ZipFile(bundle_path) as bundle:
+                names = set(bundle.namelist())
+                self.assertIn("manifest.json", names)
+                self.assertIn("activation/chunk_00000/photon_sources.jsonl.gz", names)
+                self.assertIn("collapse/group_mean_xs.h5", names)
+                self.assertEqual(bundle.read("activation/chunk_00000/photon_sources.jsonl.gz"), source_data)
+
     def test_synthetic_batch_outputs_generate_all_cooling_point_records(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)

@@ -24,6 +24,7 @@ import zipfile
 import r3_scenario as sc
 import r3_activation_coverage as AC
 import r3_dose_statistics as DS
+import r3_bounded_microxs as BM
 
 REQUEST_SCHEMA = "faris-shutdown-dose-compare-request/v0.1"
 ESTIMATE_SCHEMA = "faris-shutdown-dose-estimate/v0.1"
@@ -37,6 +38,7 @@ MAX_BATCH_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_BATCHES = 250_000
 MAX_BASIS_ARTIFACT_BYTES = 256 * 1024 * 1024
 MAX_MICROXS_ARTIFACT_BYTES = 4 * 1024 * 1024 * 1024
+MAX_BOUNDED_EVIDENCE_BUNDLE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_H5M_VERTEX_NODES = 20_000_000
 MAX_H5M_VERTEX_DATA_BYTES = 256 * 1024 * 1024
 MAX_H5M_VERTEX_CHUNK_BYTES = 64 * 1024 * 1024
@@ -247,6 +249,29 @@ def write_r2s_source_artifact(out: Path, time_index: int, sources) -> dict:
     return {"path": path.relative_to(out).as_posix(), "sha256": sha256_bytes(data)}
 
 
+def write_r2s_bounded_source_artifact(out: Path, time_index: int, source_summary: dict,
+                                     source_summary_ref: dict, model_xml: Path) -> dict:
+    """Write a compact manifest for exact serialized per-domain source rows."""
+    model_xml = Path(model_xml).resolve(strict=True)
+    data = _json_bytes({
+        "kind": "R2S bounded mesh photon-source manifest",
+        "time_index": int(time_index),
+        "source_summary": source_summary_ref,
+        "activation_plan_sha256": source_summary["activation_plan_sha256"],
+        "activation_record_sha256": source_summary["activation_record_sha256"],
+        "domain_count": int(source_summary["domain_count"]),
+        "source_slot_count": int(source_summary["source_slot_count"]),
+        "emitting_domain_count": int(source_summary["emitting_domain_count"]),
+        "total_photons_per_second": float(source_summary["total_photons_per_second"]),
+        "source_contributions": source_summary["source_contributions"],
+        "source_model_xml": {"path": str(model_xml), "sha256": _sha256_file(model_xml)},
+        "normalization": source_summary["source_normalization"],
+    })
+    path = out / "photon_transport" / f"time_{time_index}" / "decay-photon-source.json"
+    _write_bytes(path, data)
+    return {"path": path.relative_to(out).as_posix(), "sha256": sha256_bytes(data)}
+
+
 def _file_ref(export_dir: Path, source_dir: Path, ref: dict, target_name: str | None = None) -> dict:
     src = source_dir / ref["path"]
     digest = _sha256_file(src)
@@ -274,6 +299,94 @@ def _file_ref(export_dir: Path, source_dir: Path, ref: dict, target_name: str | 
     if copied["sha256"].lower() != digest.lower():
         raise ValueError(f"basis artifact changed while being copied: {src}")
     return {"path": copied["path"], "sha256": digest}
+
+
+def _write_bounded_r2s_evidence_bundle(export_dir: Path, run_root: Path, record: dict) -> dict:
+    """Package source archives and bounded activation/collapse receipts for revalidation."""
+    root = Path(run_root).resolve(strict=True)
+    activation = record.get("bounded_activation")
+    micro = record.get("activation_microxs")
+    protocol = record.get("bounded_protocol_plan")
+    capi = record.get("bounded_capi_check")
+    if not all(isinstance(value, dict) for value in (activation, micro, protocol, capi)):
+        raise ValueError("bounded R2S evidence bundle is missing activation, collapse, protocol, or CAPI records")
+    members = []
+
+    def add(name: str, path_value, digest: str):
+        path = Path(path_value)
+        if not path.is_absolute():
+            path = root / path
+        path = path.resolve(strict=True)
+        if root not in path.parents or not path.is_file():
+            raise ValueError(f"bounded R2S evidence member is outside its run directory: {path}")
+        actual = _sha256_file(path)
+        if actual.lower() != str(digest).lower():
+            raise ValueError(f"bounded R2S evidence member hash mismatch: {path}")
+        members.append({"archive_name": name, "source_path": str(path),
+                        "sha256": actual, "size_bytes": path.stat().st_size})
+
+    add("activation/plan.json", activation["plan_path"], activation["plan_sha256"])
+    add("activation/record.json", activation["record_path"], activation["record_sha256"])
+    add("collapse/plan.json", micro["collapse_plan_path"], micro["collapse_plan_sha256"])
+    add("collapse/record.json", micro["collapse_record_path"], micro["collapse_record_sha256"])
+    add("collapse/group_mean_xs.h5", micro["path"], micro["sha256"])
+    add("neutron/fluxes.npy", root / "neutron_transport" / "fluxes.npy",
+        record["neutron_transport_integrity"]["flux_mean_sha256"])
+    add("neutron/fluxes_std_dev.npy", root / "neutron_transport" / "fluxes_std_dev.npy",
+        record["neutron_transport_integrity"]["flux_std_dev_sha256"])
+    volume_ref = record["neutron_transport_integrity"]["mesh_material_volumes"]
+    add("neutron/mesh_material_volumes.npz", volume_ref["path"], volume_ref["sha256"])
+    add("neutron/protocol-plan.json", protocol["path"], protocol["sha256"])
+    add("neutron/capi-check.json", capi["path"], capi["sha256"])
+    source_summaries = record.get("bounded_photon_source_summaries", {})
+    for label, ref in sorted(source_summaries.items()):
+        add(f"photon/source-summary-{label}.json", ref["path"], ref["sha256"])
+    activation_record = json.loads((root / activation["record_path"]).read_text(encoding="utf-8"))
+    activation_output = Path(activation_record["output_dir"]).resolve(strict=True)
+    if root not in activation_output.parents:
+        raise ValueError("bounded activation output directory is outside the R2S run root")
+    for item in activation_record.get("chunks", []):
+        receipt_path = (activation_output / item["receipt_path"]).resolve(strict=True)
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        prefix = f"activation/{Path(item['receipt_path']).parent.name}"
+        add(f"{prefix}/receipt.json", receipt_path, item["receipt_sha256"])
+        source_path = (receipt_path.parent / receipt["source_archive"]["path"]).resolve(strict=True)
+        add(f"{prefix}/photon_sources.jsonl.gz", source_path,
+            receipt["source_archive"]["sha256"])
+    total = sum(item["size_bytes"] for item in members)
+    manifest_bytes = _json_bytes({"schema": "faris-r3-bounded-evidence-bundle/v1",
+                                  "members": members,
+                                  "inventory_retention": activation_record.get("inventory_retention")})
+    if total + len(manifest_bytes) > MAX_BOUNDED_EVIDENCE_BUNDLE_BYTES:
+        raise ValueError("bounded R2S evidence bundle exceeds its explicit 8 GiB cap")
+    target = Path(export_dir) / "artifacts" / "r2s-bounded-evidence.zip"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        raise FileExistsError(f"refusing to overwrite bounded R2S evidence bundle: {target}")
+    if shutil.disk_usage(target.parent).free < total + len(manifest_bytes) + 512 * 1024 * 1024:
+        raise ValueError("bounded R2S evidence bundle and 512 MiB output reserve exceed available disk")
+    with zipfile.ZipFile(target, mode="x", compression=zipfile.ZIP_STORED, allowZip64=True) as bundle:
+        for item in members:
+            info = zipfile.ZipInfo(item["archive_name"], date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_STORED
+            info.create_system = 3
+            digest = hashlib.sha256()
+            with _open_regular(Path(item["source_path"])) as source, bundle.open(info, "w", force_zip64=True) as dest:
+                for block in iter(lambda: source.read(1 << 20), b""):
+                    digest.update(block)
+                    dest.write(block)
+            if digest.hexdigest() != item["sha256"]:
+                raise ValueError(f"bounded R2S source changed while bundling: {item['source_path']}")
+        manifest_info = zipfile.ZipInfo("manifest.json", date_time=(1980, 1, 1, 0, 0, 0))
+        manifest_info.compress_type = zipfile.ZIP_STORED
+        manifest_info.create_system = 3
+        bundle.writestr(manifest_info, manifest_bytes)
+    if target.stat().st_size > MAX_BOUNDED_EVIDENCE_BUNDLE_BYTES:
+        raise ValueError("bounded R2S evidence bundle exceeded its explicit 8 GiB cap")
+    return {"path": target.relative_to(export_dir).as_posix(),
+            "sha256": _sha256_file(target), "size_bytes": target.stat().st_size,
+            "member_count": len(members), "uncompressed_member_bytes": total,
+            "maximum_bytes": MAX_BOUNDED_EVIDENCE_BUNDLE_BYTES}
 
 
 def _verify_basis_files(root: Path, basis: dict) -> None:
@@ -321,14 +434,62 @@ def _verify_r2s_activation_coverage(root: Path, record: dict, basis: dict, chain
         raise ValueError("R2S actual MicroXS artifact identity is missing")
     _validate_ref("R2S MicroXS", micro)
     micro_path = root / micro["path"]
-    if micro_path.stat().st_size > MAX_MICROXS_ARTIFACT_BYTES:
-        raise ValueError("R2S MicroXS artifact exceeds the bounded inspection size")
     if _sha256_file(micro_path).lower() != micro["sha256"].lower():
         raise ValueError("R2S MicroXS artifact hash does not match the run record")
-    observed = AC.inspect_microxs(micro_path, actual["required_microxs_nuclides"])
-    for key, value in observed.items():
-        if micro.get(key) != value:
-            raise ValueError(f"R2S recorded MicroXS {key} differs from the actual HDF5 artifact")
+    if micro_path.stat().st_size > MAX_MICROXS_ARTIFACT_BYTES:
+        raise ValueError("R2S MicroXS evidence artifact exceeds the bounded inspection size")
+    if micro.get("kind") == "bounded group-mean XS plus per-chunk reconstructed MicroXS":
+        if micro.get("required_nuclides") != actual["required_microxs_nuclides"]:
+            raise ValueError("bounded R2S MicroXS archive omits independently required nuclides")
+        if micro.get("path") != micro.get("group_mean_xs_path") or micro.get("sha256") != micro.get("group_mean_xs_sha256"):
+            raise ValueError("bounded R2S MicroXS record has inconsistent group-mean artifact identity")
+        plan_ref = record.get("bounded_activation")
+        if not isinstance(plan_ref, dict):
+            raise ValueError("bounded R2S activation plan/record identity is missing")
+        plan_rel = plan_ref.get("plan_path")
+        act_record_rel = plan_ref.get("record_path")
+        if not isinstance(plan_rel, str) or not isinstance(act_record_rel, str):
+            raise ValueError("bounded R2S activation plan/record paths are invalid")
+        activation_plan_path, activation_record_path = root / plan_rel, root / act_record_rel
+        _verify_file_identity("R2S bounded activation plan", {
+            "path": str(activation_plan_path), "sha256": plan_ref.get("plan_sha256")})
+        _verify_file_identity("R2S bounded activation record", {
+            "path": str(activation_record_path), "sha256": plan_ref.get("record_sha256")})
+        if _sha256_file(activation_plan_path).lower() != str(plan_ref.get("plan_sha256", "")).lower():
+            raise ValueError("bounded R2S activation plan hash differs from its run record")
+        verified = BM.verify_activation_microxs_receipts(activation_plan_path, activation_record_path)
+        if verified.get("status") != "PASS" or verified.get("domain_count") != micro.get("domain_count"):
+            raise ValueError("bounded R2S reconstructed MicroXS failed independent chunk revalidation")
+        capi_ref = record.get("bounded_capi_check")
+        if not isinstance(capi_ref, dict) or capi_ref.get("status") != "PASS_NUMERICAL_SAMPLE_CHECK":
+            raise ValueError("bounded R2S reference lacks its required pinned-CAPI collapse sample")
+        _validate_ref("bounded R2S CAPI sample", capi_ref)
+        capi_path = root / capi_ref.get("path", "")
+        if _sha256_file(capi_path).lower() != str(capi_ref.get("sha256", "")).lower():
+            raise ValueError("bounded R2S CAPI sample report hash mismatch")
+        capi_record = json.loads(capi_path.read_text(encoding="utf-8"))
+        if capi_record.get("status") != "PASS_NUMERICAL_SAMPLE_CHECK" or capi_record.get("openmc_version") != "0.15.3":
+            raise ValueError("bounded R2S CAPI sample did not pass on the pinned OpenMC version")
+        capi_checks = {(item.get("nuclide"), item.get("reaction")) for item in capi_record.get("checks", [])}
+        if capi_checks != {("Fe56", "(n,gamma)"), ("Fe56", "(n,2n)"), ("Ni58", "(n,gamma)")} or \
+                any(item.get("relative_difference", math.inf) > item.get("tolerance", -1.0)
+                    for item in capi_record.get("checks", [])):
+            raise ValueError("bounded R2S CAPI report lacks the fixed capture/threshold reference checks")
+        _verify_file_identity("bounded R2S OpenMC CAPI library", capi_record.get("openmc_c_api_library"))
+        if micro.get("collapse_plan_sha256") != json.loads(
+                (root / micro["collapse_plan_path"]).read_text(encoding="utf-8")).get("plan_sha256"):
+            raise ValueError("bounded R2S group-mean XS plan identity mismatch")
+        expected_collapse_record = root / micro["collapse_record_path"]
+        if _sha256_file(expected_collapse_record).lower() != str(micro.get("collapse_record_sha256", "")).lower():
+            raise ValueError("bounded R2S collapse record hash mismatch")
+        record["activation_microxs_revalidation"] = verified
+    else:
+        if micro_path.stat().st_size > MAX_MICROXS_ARTIFACT_BYTES:
+            raise ValueError("R2S MicroXS artifact exceeds the bounded inspection size")
+        observed = AC.inspect_microxs(micro_path, actual["required_microxs_nuclides"])
+        for key, value in observed.items():
+            if micro.get(key) != value:
+                raise ValueError(f"R2S recorded MicroXS {key} differs from the actual HDF5 artifact")
 
 
 def _verify_shared_activation_library(d1s: dict, r2s: dict) -> None:
@@ -636,6 +797,9 @@ def _export_records_into(d1s_dir: Path, r2s_dir: Path, out_dir: Path) -> dict:
                           "activation-decay-chain.xml")
     r2s_domain = r2s["_activation_domain_data"]
     r2s_domain_ref = _file_ref(out_dir, r2s_dir, r2s["activation_domain"], "r2s-full-activation-domain.json")
+    r2s_bounded_evidence = None
+    if r2s.get("activation_backend") == "bounded":
+        r2s_bounded_evidence = _write_bounded_r2s_evidence_bundle(out_dir, r2s_dir, r2s)
     r2s_h5m_ref = _file_ref(out_dir, r2s_dir,
                             {"path": r2s_domain["geometry"]["h5m_path"],
                              "sha256": r2s_domain["geometry"]["h5m_sha256"]},
@@ -675,6 +839,42 @@ def _export_records_into(d1s_dir: Path, r2s_dir: Path, out_dir: Path) -> dict:
             method_model_path = root / "run" / "model.xml" if method == "d1s" else root / "photon_transport" / f"time_{idx}" / "model.xml"
             if not method_model_path.is_file():
                 raise ValueError(f"{method} {label} has no method-specific solver model: {method_model_path}")
+            if method == "r2s" and run.get("activation_backend") == "bounded":
+                source_artifact_path = root / method_source["path"]
+                manifest = json.loads(source_artifact_path.read_text(encoding="utf-8"))
+                source_summary_ref = run.get("bounded_photon_source_summaries", {}).get(label)
+                if manifest.get("kind") != "R2S bounded mesh photon-source manifest" or \
+                        manifest.get("time_index") != idx or manifest.get("source_summary") != source_summary_ref:
+                    raise ValueError("R2S bounded source manifest does not bind its cooling-state contribution summary")
+                if not isinstance(source_summary_ref, dict):
+                    raise ValueError("R2S bounded source summary identity is missing")
+                summary_path = root / source_summary_ref["path"]
+                if _sha256_file(summary_path).lower() != source_summary_ref["sha256"].lower():
+                    raise ValueError("R2S bounded source summary hash mismatch")
+                source_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                plan_ref = run.get("bounded_activation", {})
+                if manifest.get("activation_plan_sha256") != plan_ref.get("plan_sha256") or \
+                        manifest.get("activation_record_sha256") != plan_ref.get("record_sha256") or \
+                        manifest.get("domain_count") != source_summary.get("domain_count") or \
+                        manifest.get("total_photons_per_second") != source_summary.get("total_photons_per_second"):
+                    raise ValueError("R2S bounded source manifest disagrees with its activation/source records")
+                activation_record_path = root / plan_ref["record_path"]
+                activation_record = json.loads(activation_record_path.read_text(encoding="utf-8"))
+                activation_output = Path(activation_record["output_dir"])
+                expected_sources = []
+                for chunk in activation_record["chunks"]:
+                    receipt = json.loads((activation_output / chunk["receipt_path"]).read_text(encoding="utf-8"))
+                    archive = (activation_output / chunk["receipt_path"]).parent / receipt["source_archive"]["path"]
+                    expected_sources.append({"path": str(archive.resolve()),
+                                             "sha256": receipt["source_archive"]["sha256"],
+                                             "consumed_inventory_sha256": receipt["consumed_inventory"]["sha256"]})
+                if manifest.get("source_contributions") != expected_sources or \
+                        source_summary.get("source_contributions") != expected_sources:
+                    raise ValueError("R2S bounded source manifest has incomplete chunk contribution references")
+                model_ref = manifest.get("source_model_xml", {})
+                if Path(model_ref.get("path", "")).resolve() != method_model_path.resolve() or \
+                        _sha256_file(method_model_path).lower() != str(model_ref.get("sha256", "")).lower():
+                    raise ValueError("R2S bounded source manifest model XML identity mismatch")
             run_details = run.get("run", {}) if method == "d1s" else run.get("photon", {}).get(label, {})
             particles_per_batch = (run.get("particles_per_batch") if method == "d1s" else
                                    run.get("settings", {}).get("photon_particles_per_batch"))
@@ -694,6 +894,12 @@ def _export_records_into(d1s_dir: Path, r2s_dir: Path, out_dir: Path) -> dict:
                 "random_streams": streams, "estimate": {"value": value, "standard_error": standard_error},
                 "response": {"quantity": QUANTITY, "unit": UNIT, "normalization": NORMALIZATION},
                 "artifacts": {f"{key}_sha256": ref["sha256"] for key, ref in refs.items()},
+                "bounded_r2s_evidence_bundle_sha256": (
+                    r2s_bounded_evidence["sha256"] if method == "r2s" and r2s_bounded_evidence else None),
+                "bounded_r2s_evidence_bundle": (
+                    {"path": r2s_bounded_evidence["path"], "sha256": r2s_bounded_evidence["sha256"],
+                     "size_bytes": r2s_bounded_evidence["size_bytes"]}
+                    if method == "r2s" and r2s_bounded_evidence else None),
                 "source_run_record": source_run_refs[method],
                 "activation_decay_chain": chain_ref,
                 "r2s_full_geometry_activation_domain": {
