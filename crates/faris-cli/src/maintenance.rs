@@ -227,6 +227,8 @@ fn run_dose_prepare(
     Ok(())
 }
 
+// Keep the explicit tool setting alongside the independently authored file inputs.
+#[allow(clippy::too_many_arguments)]
 fn run_dose_designs(
     designs: PathBuf,
     assumptions: PathBuf,
