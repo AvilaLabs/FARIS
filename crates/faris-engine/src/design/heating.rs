@@ -1585,13 +1585,7 @@ fn write_history_energy_rates(
     if bytes.len() as u64 > MAX_JSON_BYTES {
         return Err("combined history-energy receipt exceeds the JSON size limit".into());
     }
-    use std::io::Write;
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(output_path)
-        .map_err(|e| format!("{}: {e}", output_path.display()))?;
-    file.write_all(&bytes)
+    crate::atomic_file::write_new(output_path, &bytes)
         .map_err(|e| format!("{}: {e}", output_path.display()))?;
     Ok(())
 }
