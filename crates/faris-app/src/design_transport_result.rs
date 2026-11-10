@@ -316,6 +316,7 @@ pub(crate) mod tests {
                 sha256: "0".into(),
                 id: Some("test-design".into()),
             },
+            history_rates_artifact: None,
             check_report_sha256: "0".into(),
             h5m_sha256: "0".into(),
             cross_sections_sha256: "0".into(),
