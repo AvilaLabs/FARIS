@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -33,6 +34,26 @@ class BluemiraWorkerMetricTests(unittest.TestCase):
         self.assertNotEqual(metrics["full_power_years"], metrics["continuous_damage_budget_fpy_input"])
         self.assertAlmostEqual(metrics["overall_availability"], 5.0598 / 5.22544)
         self.assertIn("Timeline.ft[-1]", metrics["timeline_metrics_basis"])
+
+
+@unittest.skipIf(importlib.util.find_spec("numpy") is None, "NumPy is not installed")
+class NativeTimelineJSONEncoderTests(unittest.TestCase):
+    def test_numpy_scalar_and_array_values_are_preserved_as_json_numbers(self):
+        import numpy as np
+
+        payload = {"blanket_change_index": np.int64(612),
+                   "calendar_time": np.float64(5.25),
+                   "fusion_time": np.array([0.0, 1.5, 2.25])}
+        decoded = json.loads(json.dumps(payload, cls=worker.NativeTimelineJSONEncoder,
+                                        allow_nan=False))
+        self.assertEqual(decoded["blanket_change_index"], 612)
+        self.assertEqual(decoded["calendar_time"], 5.25)
+        self.assertEqual(decoded["fusion_time"], [0.0, 1.5, 2.25])
+        self.assertIs(type(decoded["blanket_change_index"]), int)
+
+    def test_unsupported_values_still_fail_closed(self):
+        with self.assertRaises(TypeError):
+            json.dumps({"unsupported": object()}, cls=worker.NativeTimelineJSONEncoder)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,26 @@ def json_safe(value: Any) -> Any:
     return value
 
 
+class NativeTimelineJSONEncoder(json.JSONEncoder):
+    """Serialize the native timeline without changing its numerical values.
+
+    Bluemira's v2.14.0 ``NumpyJSONEncoder`` handles ndarray values, but its
+    fallback does not handle NumPy scalar values (for example ``np.int64`` in
+    ``blanket_change_index``). ``LifeCycle.write`` forwards ``cls`` to its
+    documented ``json_writer`` boundary, so normalize only NumPy containers at
+    serialization time and leave the upstream timeline/model untouched.
+    """
+
+    def default(self, value: Any):
+        import numpy as np
+
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, np.generic):
+            return value.item()
+        return super().default(value)
+
+
 def make_learning(spec: dict[str, Any]):
     from bluemira.fuel_cycle.timeline_tools import (
         GompertzLearningStrategy,
@@ -149,7 +169,7 @@ def main() -> int:
                           make_availability(config["availability_strategy"], seed_text_to_int(seed_text)),
                           config["inputs"], rng_seed=seed_text_to_int(seed_text))
     timeline = lifecycle.make_timeline()
-    lifecycle.write(str(output_path))
+    lifecycle.write(str(output_path), cls=NativeTimelineJSONEncoder)
     native_metrics = native_timeline_metrics(lifecycle, actual, seed_text_to_int(seed_text))
     print(json.dumps(native_metrics, allow_nan=False))
     return 0
