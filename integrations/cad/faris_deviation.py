@@ -430,7 +430,11 @@ def _arc_distance(x, y, cx, cy, radius, a0, a1):
     """Distance from points (x, y), shape (n, m), to arcs of the given radius about (cx, cy) between angles a0 and a1."""
     angle = np.arctan2(y - cy, x - cx)
     span = np.mod(a1 - a0, TWO_PI)
-    inside = (np.mod(angle - a0, TWO_PI) <= span) & (span > 0.0)
+    # A full-period surface has identical start and end angles. Modulo therefore
+    # turns its sweep into zero; treat that as the full circle so points are not
+    # incorrectly bounded by the seam endpoint.
+    full_period = np.abs(a1 - a0) >= TWO_PI - 1.0e-10
+    inside = full_period | ((np.mod(angle - a0, TWO_PI) <= span) & (span > 0.0))
     on_circle = np.abs(np.hypot(x - cx, y - cy) - radius)
     ends = np.minimum(
         np.hypot(x - (cx + radius * np.cos(a0)), y - (cy + radius * np.sin(a0))),

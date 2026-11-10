@@ -41,6 +41,45 @@ except ImportError:
 
 
 if 'np' in globals():
+    class ArcBounds(unittest.TestCase):
+        def test_full_torus_period_keeps_actual_first_wall_point_on_circle(self):
+            # Point at the GEO-032 worst sample for the synthetic FW shell. Its
+            # torus meridian radius is 335.0110998575 mm, about 0.0111 mm from
+            # the 335 mm torus, so a full-period strip bound must stay tiny.
+            point = np.array([211.65011620904295, 131.612499811874, -222.1460905106671])
+            rho = np.hypot(point[0], point[1])
+            meridian = np.hypot(rho - 500.0, point[2])
+            bound = fd._arc_distance(
+                np.array([rho]), np.array([point[2]]), np.array([500.0]),
+                np.array([0.0]), np.array([335.0]), np.array([0.0]),
+                np.array([2.0 * math.pi]),
+            )
+            self.assertAlmostEqual(float(bound[0]), abs(meridian - 335.0), places=9)
+            self.assertLess(float(bound[0]), 0.02)
+
+        @unittest.skipUnless(HAVE_CAD, "OpenCASCADE is unavailable")
+        def test_reach_keeps_the_nearest_face_for_the_actual_first_wall_point(self):
+            solid = fd.SolidFaces(cq.Solid.makeTorus(500.0, 335.0).wrapped)
+            point = np.array([[211.65011620904295, 131.612499811874, -222.1460905106671]])
+            candidates = solid.reach(point)
+            all_faces, all_exact = solid.bounds(point)
+            pruned_faces, pruned_exact = solid.bounds(point, candidates)
+            self.assertEqual(candidates.tolist(), [0])
+            self.assertTrue(all_exact[0])
+            self.assertTrue(pruned_exact[0])
+            self.assertAlmostEqual(pruned_faces[0], all_faces[0], places=9)
+            self.assertLess(pruned_faces[0], 0.02)
+
+        def test_partial_arc_still_bounds_from_nearest_endpoint(self):
+            # The point lies opposite a 0..pi/2 arc; its nearest point is the
+            # arc endpoint at pi/2, at distance sqrt(8).
+            bound = fd._arc_distance(
+                np.array([-2.0]), np.array([0.0]), np.array([0.0]),
+                np.array([0.0]), np.array([2.0]), np.array([0.0]),
+                np.array([math.pi / 2.0]),
+            )
+            self.assertAlmostEqual(float(bound[0]), math.sqrt(8.0), places=12)
+
     class ConvexPlanarBounds(unittest.TestCase):
         def test_coplanar_triangle_uses_zero_subdivision_queries(self):
             face = (np.zeros(3), np.array([0., 0., 1.]),
