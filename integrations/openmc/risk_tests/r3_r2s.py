@@ -362,6 +362,23 @@ def material_volume_sampling_model(openmc, transport_model, dag, mesh, clearance
     }
 
 
+def _update_reused_elapsed_summary(record: dict) -> None:
+    """Keep imported transport cost visible and count it once in the stage total."""
+    original = record.get("reused_neutron_original_elapsed_seconds")
+    if not isinstance(original, (int, float)) or not math.isfinite(original) or original <= 0.0:
+        return
+    steps = record.get("steps", {})
+    validation_collapse = steps.get("neutron_transport", {}).get("seconds")
+    record["reused_neutron_validation_and_collapse_elapsed_seconds"] = validation_collapse
+    completed_seconds = [float(step["seconds"]) for step in steps.values()
+                         if isinstance(step, dict) and isinstance(step.get("seconds"), (int, float))
+                         and math.isfinite(step["seconds"]) and step["seconds"] >= 0.0]
+    record["method_elapsed_seconds_including_reused_neutron"] = float(original) + sum(completed_seconds)
+    record["method_elapsed_scope"] = (
+        "sum of recorded R2S step wall times plus original neutron transport wall time exactly once; "
+        "reused-neutron step time covers validation and new collapse only")
+
+
 def timed(record, name, fn):
     t0 = time.time()
     entry = {"ok": False, "seconds": None, "peak_rss_mb": None, "error": None}
@@ -471,6 +488,158 @@ def sampling_settings(args) -> dict:
     }
 
 
+def _resolve_record_ref(ref: dict, base: Path, label: str) -> tuple[Path, str]:
+    if not isinstance(ref, dict) or not isinstance(ref.get("path"), str) or not isinstance(ref.get("sha256"), str):
+        raise ValueError(f"reused neutron receipt lacks a valid {label} path/hash")
+    raw = Path(ref["path"])
+    path = raw.resolve() if raw.is_absolute() else (base / raw).resolve()
+    if not path.is_file() or RM.sha256(path) != ref["sha256"]:
+        raise ValueError(f"reused neutron {label} is missing or its SHA-256 changed: {path}")
+    return path, ref["sha256"]
+
+
+def _validate_neutron_reuse_source(record_path: Path, *, expected_settings: dict,
+                                   expected_groups: dict, expected_chain: Path,
+                                   expected_cross_sections: Path, current_basis: dict,
+                                   current_materials_sha256: str, expected_runtime: dict,
+                                   expected_threads: int, expected_resource_limits: dict) -> dict:
+    """Validate a failed R2S record's neutron-stage inputs for explicit reuse.
+
+    This imports only neutron transport evidence. It deliberately ignores any
+    partial MicroXS file and requires a new collapse plan/output directory.
+    """
+    record_path = Path(record_path).resolve(strict=True)
+    source_run = record_path.parent
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    if record.get("kind") != "r3-r2s" or record.get("source_problem_protocol") != sc.FULL_EMISSION_PROTOCOL:
+        raise ValueError("reuse source is not the same full-emission R2S protocol")
+    if record.get("settings") != expected_settings:
+        raise ValueError("reused neutron settings differ from the requested R2S settings")
+    if record.get("activation_group_basis", {}).get("energy_edges_eV") != expected_groups.get("energy_edges_eV") or \
+            record.get("settings", {}).get("activation_groups") != expected_settings.get("activation_groups"):
+        raise ValueError("reused neutron activation group structure differs from the request")
+    if record.get("runtime_identity") != expected_runtime or record.get("threads") != expected_threads:
+        raise ValueError("reused neutron OpenMC runtime identity or thread count differs from the current run")
+    if record.get("library", {}).get("cross_sections_xml") != str(expected_cross_sections.resolve()) or \
+            record.get("library", {}).get("sha256") != RM.sha256(expected_cross_sections):
+        raise ValueError("reused neutron cross-section library identity differs from the current library")
+    if record.get("chain") != str(expected_chain.resolve()) or record.get("chain_sha256") != RM.sha256(expected_chain):
+        raise ValueError("reused neutron depletion chain differs from the current chain")
+    if record.get("steps", {}).get("neutron_transport", {}).get("ok") is not False:
+        raise ValueError("reuse source must be an incomplete R2S run with no completed MicroXS/activation")
+    if "bounded_activation" in record or record.get("photon"):
+        raise ValueError("reuse source already contains downstream activation or photon results")
+    if record.get("activation_microxs", {}).get("status") not in (None, "NOT_RUN"):
+        raise ValueError("reuse source contains a MicroXS result; only neutron transport may be imported")
+
+    # The source must have failed after neutron transport, at the old collapse.
+    error = record["steps"]["neutron_transport"].get("error") or ""
+    if "collapsed group means are invalid" not in error:
+        raise ValueError("reuse source did not fail at the known bounded-collapse stage")
+    integrity = record.get("neutron_transport_integrity", {})
+    assessment = integrity.get("lost_particle_assessment", {})
+    original_elapsed = integrity.get("elapsed_s")
+    if (integrity.get("status") != "PASS" or assessment.get("status") != "PASS" or
+            assessment.get("lost_particles") != 0 or assessment.get("histories", 0) <= 0 or
+            integrity.get("histories") != assessment.get("histories") or
+            not isinstance(original_elapsed, (int, float)) or not math.isfinite(original_elapsed) or original_elapsed <= 0.0):
+        raise ValueError("reused neutron transport lacks a passing, zero-loss integrity receipt")
+    if integrity.get("model_xml_sha256") != integrity.get("solver_model", {}).get("sha256"):
+        raise ValueError("neutron model XML hash is not bound consistently in the integrity receipt")
+
+    basis = record.get("shutdown_dose_basis", {})
+    for name, current_ref in current_basis.items():
+        old_ref = basis.get(name)
+        if not isinstance(old_ref, dict) or old_ref.get("sha256") != current_ref.get("sha256"):
+            raise ValueError(f"reused neutron physical source basis differs: {name}")
+        _resolve_record_ref(old_ref, source_run, f"source basis {name}")
+
+    plan_ref = record.get("bounded_protocol_plan", {})
+    protocol_path, protocol_file_sha = _resolve_record_ref(plan_ref, source_run, "bounded protocol plan")
+    protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
+    protocol_body = dict(protocol)
+    protocol_digest = protocol_body.pop("protocol_sha256", None)
+    if (protocol.get("schema") != "faris-r3-bounded-campaign-protocol/v1" or
+            protocol_digest != BM._canonical_sha256(protocol_body) or
+            protocol_digest != plan_ref.get("protocol_sha256") or
+            protocol.get("sampling_settings") != expected_settings):
+        raise ValueError("reused neutron protocol plan does not match its recorded settings/hash")
+    mesh_ref = protocol.get("activation_mesh", {})
+    mesh_path, mesh_sha = _resolve_record_ref(mesh_ref, source_run, "activation mesh")
+    if (mesh_sha != record.get("activation_domain", {}).get("sha256") or
+            mesh_path != (source_run / record.get("activation_domain", {}).get("path", "")).resolve()):
+        raise ValueError("reused neutron activation mesh path/hash is inconsistent")
+    input_refs = protocol.get("inputs", {})
+    model_path, model_sha = _resolve_record_ref(input_refs.get("model_xml", {}), protocol_path.parent, "model XML")
+    if model_sha != integrity["model_xml_sha256"]:
+        raise ValueError("reused neutron model XML does not match transport integrity")
+    materials_path, materials_sha = _resolve_record_ref(input_refs.get("materials_xml", {}), protocol_path.parent, "materials XML")
+    record_materials_path, record_materials_sha = _resolve_record_ref(
+        record.get("neutron_materials_xml", {}), source_run, "recorded materials XML")
+    if record_materials_path != materials_path or record_materials_sha != materials_sha:
+        raise ValueError("neutron materials XML does not match the R2S record receipt")
+    if materials_sha != current_materials_sha256:
+        raise ValueError("reused neutron materials differ from the freshly built model")
+    volume_path, volume_sha = _resolve_record_ref(input_refs.get("mesh_material_volumes", {}), source_run, "mesh-material volumes")
+    volume_receipt = integrity.get("mesh_material_volumes", {})
+    if volume_sha != volume_receipt.get("sha256"):
+        raise ValueError("reused neutron volume map is not bound to the integrity receipt")
+    flux_path = (protocol_path.parent / "fluxes.npy").resolve()
+    flux_std_path = (protocol_path.parent / "fluxes_std_dev.npy").resolve()
+    if (not flux_path.is_file() or RM.sha256(flux_path) != integrity.get("flux_mean_sha256") or
+            not flux_std_path.is_file() or RM.sha256(flux_std_path) != integrity.get("flux_std_dev_sha256")):
+        raise ValueError("reused neutron mean/std-dev flux arrays are missing or changed")
+    for label, expected in (("chain", expected_chain), ("cross_sections_xml", expected_cross_sections)):
+        path, digest = _resolve_record_ref(input_refs.get(label, {}), protocol_path.parent, label)
+        if path != expected.resolve() or digest != RM.sha256(expected):
+            raise ValueError(f"reused neutron {label} data differ from the current run")
+    if protocol.get("fixed_protocol", {}).get("energy_edges_eV") != expected_groups.get("energy_edges_eV"):
+        raise ValueError("reused neutron energy group edges differ from the current run")
+
+    # Bind the obsolete collapse plan as evidence only; its HDF output is never read.
+    old_plan_path = protocol_path.parent / "bounded-collapse-plan.json"
+    old_plan = json.loads(old_plan_path.read_text(encoding="utf-8"))
+    old_plan_digest = old_plan.get("plan_sha256")
+    old_plan_body = dict(old_plan)
+    old_plan_body.pop("plan_sha256", None)
+    if old_plan_digest != BM._canonical_sha256(old_plan_body):
+        raise ValueError("reused neutron source's original collapse plan checksum is invalid")
+    old_plan_inputs = old_plan.get("inputs", {})
+    for name, path, digest in (("fluxes", flux_path, integrity["flux_mean_sha256"]),
+                               ("volumes", volume_path, volume_sha),
+                               ("materials", materials_path, materials_sha)):
+        ref = old_plan_inputs.get(name, {})
+        plan_path, plan_sha = _resolve_record_ref(ref, protocol_path.parent, f"original collapse {name}")
+        if plan_path != path or plan_sha != digest:
+            raise ValueError(f"original collapse plan has different neutron-stage {name} input")
+    coverage = record.get("activation_chain_coverage", {})
+    if coverage.get("status") != "READY_FOR_R2S_TRANSPORT" or coverage.get("chain_xml_sha256") != RM.sha256(expected_chain):
+        raise ValueError("reused neutron coverage receipt is not complete for the pinned chain")
+    if old_plan.get("required_nuclide_hdf5") != coverage.get("indexed_data_files"):
+        raise ValueError("original collapse plan HDF5 manifest differs from the neutron run's coverage receipt")
+    preflight = record.get("bounded_resource_preflight", {})
+    if record.get("bounded_resources") != expected_resource_limits:
+        raise ValueError("reused neutron activation/collapse resource settings differ from the current request")
+    preflight_limits = {
+        "output_budget_bytes": expected_resource_limits.get("collapse_activation_output_budget_bytes"),
+        "disk_reserve_bytes": expected_resource_limits.get("disk_reserve_bytes"),
+        "memory_budget_bytes": expected_resource_limits.get("working_memory_budget_bytes"),
+    }
+    for key, value in preflight_limits.items():
+        if preflight.get(key) != value:
+            raise ValueError(f"reused neutron bounded resource preflight differs: {key}")
+    return {"record_path": str(record_path), "record_sha256": RM.sha256(record_path),
+            "protocol_path": str(protocol_path), "protocol_sha256": protocol_file_sha,
+            "protocol_identity_sha256": protocol["protocol_sha256"],
+            "old_collapse_plan_path": str(old_plan_path), "old_collapse_plan_sha256": old_plan_digest,
+            "old_collapse_partial_output_ignored": True, "model_xml": model_path,
+            "materials_xml": materials_path, "volume_path": volume_path, "flux_path": flux_path,
+            "flux_std_path": flux_std_path, "volume_sha256": volume_sha,
+            "coverage_indexed_data_files": coverage.get("indexed_data_files", []),
+            "resource_preflight": preflight, "integrity": integrity,
+            "original_neutron_elapsed_seconds": float(original_elapsed)}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--model-dir", required=True, type=Path)
@@ -488,6 +657,8 @@ def main() -> int:
                     help="pinned activation energy basis; historical VITAMIN-J-42 remains the default")
     ap.add_argument("--below-data-edge-diagnostic", action="store_true", default=False,
                     help="add same-solve 0-1e-5 eV material flux and per-nuclide MT102 capture tallies to bounded neutron transport")
+    ap.add_argument("--reuse-neutron-from", type=Path, default=None,
+                    help="validated failed R2S record whose unchanged neutron transport feeds a fresh collapse/activation run")
     ap.add_argument("--stop-after-neutron", action="store_true", default=False,
                     help="stop after saving the bounded neutron flux, diagnostic, and protocol artifacts; do not run activation or photon dose")
     ap.add_argument("--activation-backend", choices=("bounded", "direct"), default="bounded",
@@ -512,6 +683,8 @@ def main() -> int:
     args = ap.parse_args()
     args.model_dir = args.model_dir.resolve()
     args.out_dir = args.out_dir.resolve()
+    if args.reuse_neutron_from is not None:
+        args.reuse_neutron_from = args.reuse_neutron_from.resolve()
     import openmc
     import openmc.deplete
     import numpy as np
@@ -524,6 +697,8 @@ def main() -> int:
         raise ValueError("below-data-edge diagnostic currently requires the bounded backend")
     if args.stop_after_neutron and args.activation_backend != "bounded":
         raise ValueError("--stop-after-neutron currently requires the bounded backend")
+    if args.reuse_neutron_from is not None and (args.activation_backend != "bounded" or args.stop_after_neutron):
+        raise ValueError("--reuse-neutron-from requires bounded backend and a full downstream run")
 
     os.environ["OMP_NUM_THREADS"] = str(args.threads)
     os.environ["PATH"] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
@@ -575,6 +750,7 @@ def main() -> int:
     jpath = out / "r2s_record.json"
 
     def save():
+        _update_reused_elapsed_summary(record)
         jpath.write_text(json.dumps(record, indent=1, sort_keys=True, default=str) + "\n", encoding="utf-8")
 
     if coverage["status"] != "READY_FOR_R2S_TRANSPORT":
@@ -605,7 +781,137 @@ def main() -> int:
         if args.activation_backend == "direct" else None
     bounded_paths = {}
 
+    def step1_reusing_neutron():
+        source_run = args.reuse_neutron_from.resolve().parent
+        if out == source_run or source_run in out.parents:
+            raise ValueError("reuse output must be a separate fresh directory, not inside the source run")
+        source = _validate_neutron_reuse_source(
+            args.reuse_neutron_from, expected_settings=record["settings"],
+            expected_groups=record["activation_group_basis"], expected_chain=CHAIN,
+            expected_cross_sections=RM.FARIS_XS,
+            current_basis=record["shutdown_dose_basis"],
+            current_materials_sha256=record["neutron_materials_xml"]["sha256"],
+            expected_runtime=record["runtime_identity"], expected_threads=args.threads,
+            expected_resource_limits=record["bounded_resources"])
+        source_record = json.loads(Path(source["record_path"]).read_text(encoding="utf-8"))
+        if source_record.get("activation_domain", {}).get("sha256") != record["activation_domain"]["sha256"]:
+            raise ValueError("reused neutron activation mesh differs from the current generated mesh")
+        if source["resource_preflight"].get("status") != "PASS_WITHIN_DECLARED_BUDGETS":
+            raise ValueError("reused neutron run lacks a passing bounded resource preflight")
+        record["bounded_resource_preflight"] = dict(source["resource_preflight"])
+        record["bounded_resource_preflight"]["available_disk_bytes"] = shutil.disk_usage(neutron_dir).free
+        record["reused_neutron_original_elapsed_seconds"] = source["original_neutron_elapsed_seconds"]
+        inherited_integrity = dict(source["integrity"])
+        inherited_integrity.pop("elapsed_s", None)
+        inherited_integrity["mesh_material_volumes"] = dict(inherited_integrity["mesh_material_volumes"])
+        inherited_integrity["mesh_material_volumes"]["path"] = str(source["volume_path"])
+        inherited_integrity["reused_from_record"] = source["record_path"]
+        inherited_integrity["neutron_transport_reused"] = True
+        inherited_integrity["reused_from_record_sha256"] = source["record_sha256"]
+        record["neutron_transport_integrity"] = inherited_integrity
+        record["activation_regions"] = int(source["integrity"]["mesh_material_volumes"]["domain_count"])
+        record["bounded_protocol_plan"] = {
+            "path": source["protocol_path"], "sha256": source["protocol_sha256"],
+            "protocol_sha256": source["protocol_identity_sha256"],
+            "status": "REUSED_NEUTRON_INPUT_PROTOCOL"}
+        record["reused_neutron_stage"] = {
+            "source_record_path": source["record_path"], "source_record_sha256": source["record_sha256"],
+            "source_protocol_path": source["protocol_path"],
+            "source_protocol_file_sha256": source["protocol_sha256"],
+            "source_protocol_identity_sha256": source["protocol_identity_sha256"],
+            "original_collapse_plan_path": source["old_collapse_plan_path"],
+            "original_collapse_plan_sha256": source["old_collapse_plan_sha256"],
+            "original_partial_collapse_output_used": False,
+            "neutron_transport_executed_again": False,
+            "validated_artifacts": {
+                "model_xml": {"path": str(source["model_xml"]), "sha256": source["integrity"]["model_xml_sha256"]},
+                "materials_xml": {"path": str(source["materials_xml"]), "sha256": record["neutron_materials_xml"]["sha256"]},
+                "mesh_material_volumes": {"path": str(source["volume_path"]), "sha256": source["volume_sha256"]},
+                "fluxes": {"path": str(source["flux_path"]), "sha256": source["integrity"]["flux_mean_sha256"]},
+                "fluxes_std_dev": {"path": str(source["flux_std_path"]), "sha256": source["integrity"]["flux_std_dev_sha256"]}},
+            "indexed_data_files_to_revalidate_in_new_collapse_plan": len(source["coverage_indexed_data_files"])}
+        provenance_path = neutron_dir / "reused-neutron-stage.json"
+        BM._write_json_new(provenance_path, record["reused_neutron_stage"])
+        volume_path, flux_path, flux_std_path = source["volume_path"], source["flux_path"], source["flux_std_path"]
+        volume_layout = BM.mesh_material_volumes_preflight(volume_path)
+        with np.load(volume_path, allow_pickle=False) as saved:
+            material_array = np.asarray(saved["materials"])
+            actual_domains = int(np.count_nonzero(material_array > -1))
+        flux_mean = np.load(flux_path, mmap_mode="r", allow_pickle=False)
+        if (actual_domains != record["activation_regions"] or flux_mean.shape != (actual_domains, group_count) or
+                flux_mean.dtype != np.dtype(np.float64)):
+            raise ValueError("reused neutron flux/volume array shapes differ from the frozen activation domain")
+        if volume_layout["domain_count"] != actual_domains:
+            raise ValueError("reused neutron volume-domain count changed after validation")
+        memory_budget = int(args.microxs_memory_budget_mib * 1024 ** 2)
+        output_budget = int(args.microxs_output_budget_gib * BM.GIB)
+        disk_reserve = int(args.disk_reserve_gib * BM.GIB)
+        if shutil.disk_usage(neutron_dir).free < disk_reserve:
+            raise ValueError("current free space is below the declared reserve before reused-stage collapse")
+
+        plan_path = neutron_dir / "bounded-collapse-plan.json"
+        collapse_dir = neutron_dir / "bounded-collapse"
+        collapse_plan = BM.prepare_plan(plan_path, fluxes_path=flux_path, volumes_path=volume_path,
+            chain_path=CHAIN, cross_sections_xml=RM.FARIS_XS, materials_xml=neutron_materials_xml,
+            energy_edges_eV=group_edges, output_run_dir=collapse_dir,
+            domain_chunk=args.activation_chunk_domains, output_budget_bytes=output_budget,
+            disk_reserve_bytes=disk_reserve, memory_limit_bytes=memory_budget,
+            energy_group_structure=args.activation_groups)
+        old_assets = source["coverage_indexed_data_files"]
+        new_assets = collapse_plan.get("required_nuclide_hdf5", [])
+        if old_assets != new_assets:
+            raise ValueError("current nuclide HDF5 paths/hashes differ from the neutron source's pinned coverage manifest")
+        expected_inputs = {
+            "fluxes": (source["flux_path"], source["integrity"]["flux_mean_sha256"]),
+            "volumes": (source["volume_path"], source["volume_sha256"]),
+            "materials": (neutron_materials_xml, record["neutron_materials_xml"]["sha256"]),
+            "chain": (CHAIN.resolve(), RM.sha256(CHAIN)),
+            "cross_sections": (RM.FARIS_XS.resolve(), RM.sha256(RM.FARIS_XS)),
+        }
+        for name, (expected_path, expected_sha) in expected_inputs.items():
+            planned = collapse_plan.get("inputs", {}).get(name, {})
+            if (Path(planned.get("path", "")).resolve() != Path(expected_path).resolve() or
+                    planned.get("sha256") != expected_sha):
+                raise ValueError(f"fresh collapse plan input changed during neutron reuse validation: {name}")
+        collapse_record = BM.run_collapse(plan_path, collapse_dir)
+        bounded_paths.update({"volume": volume_path, "flux": flux_path, "flux_std": flux_std_path,
+                              "plan": plan_path, "collapse_dir": collapse_dir,
+                              "group_mean": Path(collapse_record["output"]["path"]),
+                              "collapse_record": collapse_dir / "collapse_record.json"})
+        if not args.skip_capi_check:
+            capi_domain = args.capi_domain_index
+            if capi_domain is None:
+                positive = np.flatnonzero(np.sum(flux_mean, axis=1) > 0.0)
+                if not len(positive):
+                    raise ValueError("no positive-flux activation domain is available for the CAPI sample")
+                capi_domain = int(positive[0])
+            if capi_domain < 0 or capi_domain >= actual_domains or float(flux_mean[capi_domain].sum()) <= 0.0:
+                raise ValueError("selected CAPI sample domain has no positive flux spectrum")
+            checks_capi = [{"nuclide": "Fe56", "reaction": "(n,gamma)", "domain_index": capi_domain},
+                           {"nuclide": "Fe56", "reaction": "(n,2n)", "domain_index": capi_domain},
+                           {"nuclide": "Ni58", "reaction": "(n,gamma)", "domain_index": capi_domain}]
+            capi = BM.compare_capi_reference(RM.FARIS_XS, flux_path, group_edges, checks_capi,
+                                               energy_group_structure=args.activation_groups)
+            BM._write_json_new(neutron_dir / "bounded-capi-check.json", capi)
+            record["bounded_capi_check"] = {"path": "neutron_transport/bounded-capi-check.json",
+                                            "sha256": RM.sha256(neutron_dir / "bounded-capi-check.json"), **capi}
+        group_mean_rel = bounded_paths["group_mean"].relative_to(out).as_posix()
+        record["activation_microxs"] = {"kind": "bounded group-mean XS plus per-chunk reconstructed MicroXS",
+            "path": group_mean_rel, "sha256": collapse_record["output"]["sha256"],
+            "collapse_plan_path": plan_path.relative_to(out).as_posix(),
+            "collapse_plan_sha256": collapse_plan["plan_sha256"],
+            "collapse_record_path": (collapse_dir / "collapse_record.json").relative_to(out).as_posix(),
+            "collapse_record_sha256": RM.sha256(collapse_dir / "collapse_record.json"),
+            "required_nuclides": coverage["required_microxs_nuclides"],
+            "domain_count": actual_domains, "reaction_count": len(chain.reactions),
+            "group_mean_xs_path": group_mean_rel, "group_mean_xs_sha256": collapse_record["output"]["sha256"],
+            "coverage_revalidation": "full exact chain/material-root/reaction coverage is independently recomputed by the exporter; each activation chunk also records hash of reconstructed domain MicroXS bytes"}
+        return
+
     def step1():
+        if args.reuse_neutron_from is not None:
+            step1_reusing_neutron()
+            return
         if args.activation_backend == "direct":
             estimate_volumes = activation_mesh.material_volumes(
                 material_volume_model, n_samples=args.mat_vol_samples, output=False)
@@ -900,6 +1206,10 @@ def main() -> int:
     if not timed(record, "neutron_transport", step1):
         save()
         return 1
+    if args.reuse_neutron_from is not None:
+        record["steps"]["neutron_transport"].update({
+            "neutron_transport_reused": True, "collapse_recomputed": True,
+            "elapsed_scope": "source validation and new collapse only; original neutron elapsed time is excluded"})
     save()
     if args.stop_after_neutron:
         mark_neutron_only_complete(record)

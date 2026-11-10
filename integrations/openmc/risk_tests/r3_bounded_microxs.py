@@ -215,30 +215,34 @@ def _validate_nuclide_hdf(path: Path, nuclide: str, reaction_names: list[str],
                 "largest_hdf_chunk_bytes": max_chunk}
 
 
-def _integral_at(grid: np.ndarray, xs: np.ndarray, query: np.ndarray) -> np.ndarray:
-    """Integrate a threshold-trimmed, linearly interpolated XS from grid[0] to query."""
-    if xs.size != grid.size:
-        raise ValueError("threshold-trimmed XS and energy grid lengths differ")
-    if xs.size == 1:
-        return np.zeros_like(query, dtype=np.float64)
-    dx = np.diff(grid)
-    area = 0.5 * (xs[:-1] + xs[1:]) * dx
-    cumulative = np.empty(grid.size, dtype=np.float64)
-    cumulative[0] = 0.0
-    np.cumsum(area, out=cumulative[1:])
-    result = np.zeros_like(query, dtype=np.float64)
-    active = query > grid[0]
-    above = query >= grid[-1]
-    result[above] = cumulative[-1]
-    inside = active & ~above
-    if np.any(inside):
-        q = query[inside]
-        index = np.searchsorted(grid, q, side="right") - 1
-        index = np.clip(index, 0, grid.size - 2)
-        offset = q - grid[index]
-        slope = (xs[index + 1] - xs[index]) / (grid[index + 1] - grid[index])
-        result[inside] = cumulative[index] + xs[index] * offset + 0.5 * slope * offset * offset
-    return result
+def _integral_between(grid: np.ndarray, xs: np.ndarray, low: float, high: float) -> float:
+    """Integrate local linear segments without subtracting large global prefixes."""
+    if high <= low or grid.size < 2:
+        return 0.0
+    # The side choices match the collapse loop's zero-width treatment at exact
+    # grid points (including repeated energies). Any repeated point selected
+    # here has zero width and is discarded below.
+    first = max(0, int(np.searchsorted(grid, low, side="right")) - 1)
+    stop = min(grid.size - 1, int(np.searchsorted(grid, high, side="left")))
+    if stop <= first:
+        return 0.0
+    index = np.arange(first, stop, dtype=np.intp)
+    segment_low = np.maximum(low, grid[index])
+    segment_high = np.minimum(high, grid[index + 1])
+    widths = segment_high - segment_low
+    active = widths > 0.0
+    if not np.any(active):
+        return 0.0
+    index = index[active]
+    widths = widths[active]
+    dx = grid[index + 1] - grid[index]
+    t0 = (segment_low[active] - grid[index]) / dx
+    t1 = (segment_high[active] - grid[index]) / dx
+    # Convex interpolation stays nonnegative for validated nonnegative XS,
+    # unlike slope/offset arithmetic near a large accumulated prefix.
+    value0 = (1.0 - t0) * xs[index] + t0 * xs[index + 1]
+    value1 = (1.0 - t1) * xs[index] + t1 * xs[index + 1]
+    return float(np.sum(0.5 * (value0 + value1) * widths, dtype=np.float64))
 
 
 def group_mean_xs(energy_grid: np.ndarray, xs_values: np.ndarray, threshold_idx: int,
@@ -268,10 +272,9 @@ def group_mean_xs(energy_grid: np.ndarray, xs_values: np.ndarray, threshold_idx:
     hi = np.minimum(edges[1:], threshold_grid[-1])
     valid = hi > lo
     means = np.zeros(edges.size - 1, dtype=np.float64)
-    if np.any(valid):
-        cdf = _integral_at(threshold_grid, values, hi[valid]) - \
-              _integral_at(threshold_grid, values, lo[valid])
-        means[valid] = cdf / np.diff(edges)[valid]
+    for group in np.flatnonzero(valid):
+        area = _integral_between(threshold_grid, values, float(lo[group]), float(hi[group]))
+        means[group] = area / (edges[group + 1] - edges[group])
     if not np.all(np.isfinite(means)) or np.any(means < 0.0):
         raise ValueError("collapsed group means are invalid")
     return means

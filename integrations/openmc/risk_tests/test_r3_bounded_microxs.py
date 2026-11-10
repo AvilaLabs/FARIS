@@ -66,6 +66,26 @@ class CollapseMathTests(unittest.TestCase):
         linear = BC.group_mean_xs(grid, np.array([1.0, 3.0, 5.0, 9.0]), 0, edges)
         np.testing.assert_allclose(linear, [2.0, 4.0, 7.0], rtol=0.0, atol=1e-14)
 
+    def test_small_local_integral_survives_large_global_prefix(self):
+        # The first segment contributes a large prefix. Subtracting two global
+        # CDF values for the tiny final groups loses their local areas to
+        # floating-point cancellation.
+        tiny = 1.0e-15
+        grid = np.array([0.0, 1.0, 2.0, 3.0])
+        xs = np.array([3404.9657389814466, 0.0, tiny, tiny])
+        edges = np.array([0.0, 2.5, 2.75, 3.0])
+        means = BC.group_mean_xs(grid, xs, 0, edges)
+        self.assertGreater(means[1], 0.0)
+        np.testing.assert_allclose(means[1:], [tiny, tiny], rtol=2e-15, atol=0.0)
+
+    def test_local_piecewise_linear_integral_matches_analytic_segments(self):
+        grid = np.array([0.0, 1.0, 3.0, 4.0])
+        xs = np.array([2.0, 4.0, 8.0, 10.0])
+        # [0.5, 2.0] integrates a linear rise from 3 to 6; [2, 3.5]
+        # integrates from 6 to 9, so both group means are the midpoint 4.5/7.5.
+        means = BC.group_mean_xs(grid, xs, 0, np.array([0.5, 2.0, 3.5]))
+        np.testing.assert_allclose(means, [4.5, 7.5], rtol=0.0, atol=1e-14)
+
     def test_threshold_and_grid_clipping_are_zero_outside_evaluated_range(self):
         edges = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
         grid = np.array([0.5, 1.5, 2.5, 3.5])
