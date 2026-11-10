@@ -341,6 +341,14 @@ pub struct ActivationRequest {
     pub photon: PhotonOptions,
     #[serde(default)]
     pub mode: SolverMode,
+    /// Track neutron-produced H and He isotopes as ACTINV inventory nuclides.
+    /// This is inventory accounting, not a gas escape or retention model.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub track_light_charged_products: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 impl ActivationRequest {
@@ -363,6 +371,7 @@ impl ActivationRequest {
             cooling_s,
             photon,
             mode: SolverMode::Auto,
+            track_light_charged_products: false,
         })
     }
 
@@ -853,7 +862,7 @@ pub fn build_problem(
     if let Some((p, _)) = &data.decay_fallback {
         decay["fallback"] = json!(p);
     }
-    json!({
+    let mut problem = json!({
         "spec": "actinv-spec-1",
         "title": format!("FARIS activation zone {}", zone.id),
         "projectile": "neutron",
@@ -875,7 +884,11 @@ pub fn build_problem(
             "outputs": ["inventory", "activity", "heat", "photons", "pathways"],
         },
         "photon": photon,
-    })
+    });
+    if request.track_light_charged_products {
+        problem["options"]["gas"] = json!(true);
+    }
+    problem
 }
 
 // -------------------------------------------------------------- result reader --

@@ -997,7 +997,7 @@ fn report_does_not_present_sample_maximum_as_a_certified_bound_when_all_bounds_a
     let report = run_with(&design(Vec::new()), &b);
     let readable = super::super::render_text(&report);
     assert!(
-        readable.contains("no overall global upper bound certified"),
+        readable.contains("no overall global upper bound established"),
         "{readable}"
     );
     assert!(
@@ -1006,7 +1006,7 @@ fn report_does_not_present_sample_maximum_as_a_certified_bound_when_all_bounds_a
     );
     assert!(readable.contains("(not a global bound)"), "{readable}");
     assert!(
-        !readable.contains("largest certified upper bound"),
+        !readable.contains("largest proven global upper bound"),
         "{readable}"
     );
 }
@@ -1018,7 +1018,7 @@ fn a_capped_deviation_says_it_measured_a_stride() {
     b.deviation.as_mut().unwrap()[0].points = 50;
     let report = run_with(&design(Vec::new()), &b);
     let record = report.geometry.deviation.as_ref().unwrap();
-    assert!(record.statement.contains("certified upper bound"));
+    assert!(record.statement.contains("proven upper bound"));
     assert_eq!(record.solids[0].points_available, 100);
     assert!(!record.solids[0].complete && record.solids[1].complete);
     let row_json = serde_json::to_value(&record.solids[0]).unwrap();
@@ -1026,10 +1026,7 @@ fn a_capped_deviation_says_it_measured_a_stride() {
     assert!(row_json.get("max_distance_m").is_none());
     let plain = run_with(&design(Vec::new()), &geo());
     let statement = &plain.geometry.deviation.as_ref().unwrap().statement;
-    assert!(
-        statement.starts_with("certified upper bound"),
-        "{statement}"
-    );
+    assert!(statement.starts_with("proven upper bound"), "{statement}");
     assert_eq!(record.solids[0].global_bound_status, "certified");
 }
 

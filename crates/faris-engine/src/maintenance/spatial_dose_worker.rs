@@ -94,6 +94,9 @@ pub struct DoseActinvBackend {
     pub decay_fallback: Option<ArtifactRef>,
     pub photon_group_boundaries_ev: Vec<f64>,
     pub timeout_s: f64,
+    /// Track neutron-produced light charged products as inventory nuclides; no gas transport or escape model.
+    #[serde(default)]
+    pub track_light_charged_products: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -104,6 +107,9 @@ pub struct DoseActinvPrepareConfig {
     pub cache_dir: PathBuf,
     pub photon_groups: usize,
     pub timeout_s: f64,
+    /// Explicit opt-in to ACTINV H/He product inventory tracking. Defaults off for older configs.
+    #[serde(default)]
+    pub track_light_charged_products: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -251,6 +257,7 @@ pub fn prepare_dose_cad(
             actinv_prepare.photon_groups,
         )?,
         timeout_s: actinv_prepare.timeout_s,
+        track_light_charged_products: actinv_prepare.track_light_charged_products,
     };
     let worker_script = worker_script.canonicalize().map_err(|e| e.to_string())?;
     let helper = worker_script.with_file_name("design_transport.py");
@@ -505,6 +512,14 @@ fn run_actinv_event_batches(
             return Err("ACTINV event batches have an empty or repeated history component".into());
         }
         batch.activation_request.validate()?;
+        if batch.activation_request.track_light_charged_products
+            != backend.track_light_charged_products
+        {
+            return Err(format!(
+                "ACTINV component {} light charged-product tracking differs from the prepared dose manifest",
+                batch.component
+            ));
+        }
         if batch.activation_request.cooling_s != cooling_s {
             return Err(format!(
                 "ACTINV component {} cooling grid differs from the authored event",
@@ -2278,7 +2293,7 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
         let response_mesh = json!({"artifact": location_ref, "lower_left_cm": lower, "upper_right_cm": upper, "dimension": dimension});
         let sampling =
             serde_json::to_value(&context.manifest.sampling).map_err(|e| e.to_string())?;
-        let request = if let Some(backend) = actinv_backend {
+        let mut request = if let Some(backend) = actinv_backend {
             json!({
                 "schema": "faris-maintenance-709-neutron-request/v0.1",
                 "request_id": run_id, "stage": "neutron",
@@ -2323,6 +2338,9 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                 "sampling": sampling,
             })
         };
+        if actinv_backend.is_some_and(|backend| backend.track_light_charged_products) {
+            request["track_light_charged_products"] = json!(true);
+        }
         let request_bytes = serde_json::to_vec_pretty(&request).map_err(|e| e.to_string())?;
         if request_bytes.len() > MAX_WORKER_REQUEST_BYTES {
             return Err("event-dose worker request exceeds 4 MiB".into());

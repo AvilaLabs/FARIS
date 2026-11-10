@@ -743,6 +743,7 @@ pub fn impurity_sensitivity(
         cooling_s: request.cooling_s.clone(),
         photon: PhotonOptions::default(),
         mode: SolverMode::Auto,
+        track_light_charged_products: false,
     };
     let (result, _) = run_activation(&act, config, cancel)?;
     let by_id: BTreeMap<&str, (&ZoneInput, &ZoneResult)> = zones

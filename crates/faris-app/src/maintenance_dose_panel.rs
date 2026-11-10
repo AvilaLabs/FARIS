@@ -480,6 +480,7 @@ impl MaintenanceDosePanel {
             if !crate::browser::IS_BROWSER {
                 ui.collapsing("Run dose-governed maintenance", |ui| {
                     ui.label("Prepare dose physics from a passing checked CAD Design and ImportReport. The preparation config authors the solid-to-history-component map and spatial inputs; FARIS clones materials per solid and builds the full-geometry model.");
+                    ui.weak("In the preparation config, actinv.track_light_charged_products defaults to false. Set it true to track neutron-produced H and He isotopes in ACTINV inventories; this does not model gas escape or retention.");
                     ui.add_enabled_ui(!self.is_pending(), |ui| {
                         path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog, &mut self.dialog_error);
                     });

@@ -1553,10 +1553,10 @@ fn render_geometry(g: &GeometryRecords) -> String {
             let scope = if unresolved_count == 0 {
                 "overall"
             } else {
-                "among certified solids only; no overall global bound"
+                "among solids with resolved bounds only; no overall global bound"
             };
             format!(
-                "largest certified global upper bound {:.3e} m in {} ({scope}; {certified_count}/{} solids certified, {unresolved_count} unresolved); tolerance {:.3e} m",
+                "largest proven global upper bound {:.3e} m in {} ({scope}; {certified_count}/{} solids have a resolved bound, {unresolved_count} unresolved); tolerance {:.3e} m",
                 w.global_upper_bound_m.unwrap(),
                 w.solid_id,
                 d.solids.len(),
@@ -1564,7 +1564,7 @@ fn render_geometry(g: &GeometryRecords) -> String {
             )
         } else {
             format!(
-                "no overall global upper bound certified; {} of {} solid(s) unresolved; largest diagnostic sampled distance {:.3e} m in {} (not a global bound); tolerance {:.3e} m",
+                "no overall global upper bound established; {} of {} solid(s) unresolved; largest diagnostic sampled distance {:.3e} m in {} (not a global bound); tolerance {:.3e} m",
                 unresolved_count,
                 d.solids.len(),
                 sampled.map_or(0.0, |s| s.max_distance_m),

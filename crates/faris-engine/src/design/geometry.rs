@@ -1223,8 +1223,9 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                             reason: (!reasons.is_empty()).then(|| reasons.join("; ")).or_else(
                                 || {
                                     deviation_exceeded.then(|| {
-                                    "certified whole-facet deviation exceeds requested chord".into()
-                                })
+                                        "proven whole-facet deviation exceeds requested chord"
+                                            .into()
+                                    })
                                 },
                             ),
                         });
@@ -1741,7 +1742,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                             "the facets deviate from the CAD surface by {:.3e} m ({}), \
                              above the declared faceting tolerance of {chord_m:.3e} m",
                             row.global_upper_bound_m.unwrap_or(row.max_distance_m),
-                            "certified global upper bound"
+                            "proven global upper bound"
                         ),
                         "Set cad.faceting_tolerance_m smaller so the facets follow the surfaces \
                          more closely, then convert again.",
@@ -1796,7 +1797,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 chord_tolerance_m: chord_m,
                 seconds: out.seconds,
                 statement: if unresolved_bounds == 0 {
-                    "certified upper bound over every point of every facet triangle by 1-Lipschitz \
+                    "proven upper bound over every point of every facet triangle by 1-Lipschitz \
                      subdivision; triangle distance queries were measured against the CAD boundary"
                         .to_string()
                 } else {

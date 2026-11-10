@@ -103,6 +103,14 @@ When whole-model heating is available, `faris design heating --history-rates <ca
 
 `dose_physics` must be the native, hash-bound CAD preparation manifest for the same design and checked import report. On a synthetic four-solid control, the CAD is a void plasma, first wall, Li-6 blanket, and TF winding pack; the three material solids are each mapped exactly once in `faris design transport`. The dose run then uses those CAD rates and the native spatial photon worker. It does not consume reactor CSG physics or a reactor 709-group spectrum file. CAD prompt/deposited heating and net-energy accounting remain unavailable unless a separate identity-bound whole-model heating receipt is supplied.
 
+To track neutron-produced hydrogen and helium isotopes, set
+`actinv.track_light_charged_products` to `true` in the CAD dose preparation
+config before preparing the physics manifest. It defaults to `false` for
+existing configs. This choice adds the products to ACTINV's inventory accounting;
+it does not model gas escape or retention. The selected reaction library must
+contain the production channels. Enabling the option does not resolve missing
+nuclear data or establish that the dose result is complete.
+
 ### The maintenance assumptions file
 
 One entry per replacement class: the replaced component, its governing components, the work time and the threshold.
@@ -245,7 +253,7 @@ is absent, with the reason, when the history lacks its energy inputs.
 
 - **Only spatial photon effective dose at a task location governs in the native dose route.** Contact dose and ACTINV
   Gamma-air proxy are not accepted. The earlier five-file validation designs did not evaluate dose-governed duration;
-  the CAD-backed route now computes event-specific spatial photon fields but remains a separate, not-yet-qualified
+  the CAD-backed route now computes event-specific spatial photon fields but remains a separate, not-yet-validated
   physical validation path. Its estimates and assumptions must not be read as an operational release decision.
 - **Screening, not a maintenance plan.** Work times, governing sets and thresholds are your assumptions. FARIS does not
   model crews, spare parts, queues or remote-handling equipment.

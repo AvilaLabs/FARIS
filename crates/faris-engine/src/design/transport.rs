@@ -3134,7 +3134,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     if let Some(artifact) = &report.history_rates_artifact {
         let _ = writeln!(
             out,
-            "  CAD operating-history rates: {} (hash-verified inputs; transport sampling covariance only, physical dose/material response qualification remains unvalidated).",
+            "  CAD operating-history rates: {} (hash-verified inputs; transport sampling covariance only, physical dose/material response remains unvalidated).",
             artifact.path
         );
     }

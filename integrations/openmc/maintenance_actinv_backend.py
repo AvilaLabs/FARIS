@@ -258,8 +258,13 @@ def activation_batches_from_artifacts(request: dict) -> dict:
     expected = {"schema", "model", "geometry", "component_material_map", "response_npz",
                 "neutron_response_receipt", "cross_sections", "activation_library_npz", "activation_library_index", "activation_mesh",
                 "source_groups", "event", "base_source_rate_n_s", "photon_energy_edges_ev"}
-    if set(request) != expected or request.get("schema") != "faris-maintenance-709-response-request/v0.1":
+    optional = {"track_light_charged_products"}
+    if (not expected.issubset(request) or set(request) - expected - optional
+            or request.get("schema") != "faris-maintenance-709-response-request/v0.1"):
         raise ValueError("request fields/schema do not match faris-maintenance-709-response-request/v0.1")
+    track_light_charged_products = request.get("track_light_charged_products", False)
+    if not isinstance(track_light_charged_products, bool):
+        raise ValueError("track_light_charged_products must be boolean when provided")
     model_path = checked_ref(request["model"], "OpenMC model XML")
     geometry_path = checked_ref(request["geometry"], "DAGMC H5M")
     map_path = checked_ref(request["component_material_map"], "component/material map")
@@ -345,6 +350,7 @@ def activation_batches_from_artifacts(request: dict) -> dict:
         base_source_rate_n_s=request["base_source_rate_n_s"],
         neutron_energy_edges_ev=energy_edges,
         photon_energy_edges_ev=request["photon_energy_edges_ev"],
+        track_light_charged_products=track_light_charged_products,
     )
     result["provenance"] = {
         "model_sha256": request["model"]["sha256"],
@@ -481,6 +487,7 @@ def build_activation_batches(
     base_source_rate_n_s: float,
     neutron_energy_edges_ev: list[float],
     photon_energy_edges_ev: list[float],
+    track_light_charged_products: bool = False,
 ) -> dict:
     """Create one FARIS ActivationRequest JSON per exact component history schedule.
 
@@ -489,6 +496,8 @@ def build_activation_batches(
     divide by material-in-voxel volume first, then apply the fixed base neutron rate.
     """
     base_rate = _finite(base_source_rate_n_s, "base neutron source rate", minimum=0)
+    if not isinstance(track_light_charged_products, bool):
+        raise ValueError("track_light_charged_products must be boolean")
     if base_rate <= 0:
         raise ValueError("base neutron source rate must be positive")
     edges = [_finite(x, "neutron energy edge", minimum=0) for x in neutron_energy_edges_ev]
@@ -572,17 +581,20 @@ def build_activation_batches(
                          "material_volume_cm3": zone.pop("material_volume_cm3")}
             for zone in domains[component]
         }
+        activation_request = {
+            "zones": domains[component],
+            "steps": steps,
+            "schedule_input_sha256": None,
+            "cooling_s": cooling_s,
+            "photon": {"group_boundaries_ev": photon_edges},
+            "mode": "auto",
+        }
+        if track_light_charged_products:
+            activation_request["track_light_charged_products"] = True
         batches.append({
             "component": component,
             "zone_metadata": zone_metadata,
-            "activation_request": {
-                "zones": domains[component],
-                "steps": steps,
-                "schedule_input_sha256": None,
-                "cooling_s": cooling_s,
-                "photon": {"group_boundaries_ev": photon_edges},
-                "mode": "auto",
-            },
+            "activation_request": activation_request,
         })
     return {
         "schema": "faris-maintenance-actinv-event-batches/v0.1",

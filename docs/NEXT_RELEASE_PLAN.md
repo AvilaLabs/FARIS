@@ -14,7 +14,11 @@ At this baseline, the requirement tables record 14 of the 44 release-gate IDs
 as Met. That count describes recorded evidence, not a fresh release-gate pass.
 SRC-002 source-power bookkeeping is now Met after native checks, bringing the
 recorded count to 15 of 44. VAL-023 remains No/NOT_EVALUATED; its approved access
-outcome is checked separately and does not establish physical validation.
+outcome is checked separately and does not establish physical validation. The
+2026-11-10 RM-M v3 acceptance control is recorded at
+[references/rm-m-v3-acceptance-control-20261110.json](../references/rm-m-v3-acceptance-control-20261110.json);
+this execution evidence does not change the recorded Met count or qualify the
+composite physical coverage.
 Code already includes CAD import/check/transport, native design windows,
 activation, replacement groups and remote-handling calculations. Research
 results count toward product completion only when the required product path
@@ -23,9 +27,9 @@ and its checks exist.
 | Stage | Current boundary | Remaining exit work |
 | --- | --- | --- |
 | S0 | Feasibility and streaming controls recorded; inboard transport gain has only a pilot | Replicate the inboard fast-flux performance measurement, retain uncertainty and bias checks, and settle version/data prerequisites |
-| S1 | The synthetic four-torus CAD control passes all nine native import checks, including certified whole-facet bounds at 0.1 mm; a fresh native three-torus conversion passes all nine checks at 1 mm; RM-M v3 conversion and strict mesh audit completed, with all 30 faceted volumes within 0.009% of CAD | Finish the default-tolerance corpus and RM-M particle-loss/source acceptance; qualify integrated volume and bounded refinement across the required cases; retain the original corpus conversion's genuine 1.18 mm deviation failure |
+| S1 | The synthetic four-torus CAD control passes all nine native import checks, including proven whole-facet bounds at 0.1 mm; a fresh native three-torus conversion passes all nine checks at 1 mm; RM-M v3 conversion and strict mesh audit are complete. Its 2026-11-10 acceptance control passes all 30 volume checks (worst 0.008524%), 0/1,000,000 particle losses and 200,000/200,000 source sites both free and plasma-cell constrained; see [the acceptance receipt](../references/rm-m-v3-acceptance-control-20261110.json). This remains unqualified composite physical coverage. | Finish the default-tolerance corpus (16 conversion cases complete; 8 port cases have not started); establish integrated volume and bounded refinement across the required cases; retain the original corpus conversion's genuine 1.18 mm deviation failure |
 | S2 | Sources, target-error runs, windows and peak-flux paths implemented in part; coupled winding-pack heating is integrated for native checks | Qualify heating, complete product integration and seed/void controls, and obtain replicated RM-M performance evidence |
-| S3 | Actual checked-CAD transport completed 30,000 histories and native invalid-map Run refusal passes; dose preparation and the 709-group neutron stage succeed, but ACTINV reports incomplete activation data and the whole-plant source is refused; a 50,000-history heating run remains INCONCLUSIVE on energy closure | Resolve and retain the activation data-gap evidence; complete the actual CAD transport-to-dose control, heat-to-energy qualification and native interaction checks; qualify the event-dose worker and its data, source-resolution convergence and D1S/R2S comparison |
+| S3 | Actual checked-CAD transport completed 30,000 histories and native invalid-map Run refusal passes; dose preparation and the 709-group neutron stage succeed, but ACTINV reports incomplete activation data and the whole-plant source is refused; a 50,000-history heating run remains INCONCLUSIVE on energy closure | Resolve and retain the activation data-gap evidence; complete the actual CAD transport-to-dose control, heat-to-energy validation and native interaction checks; validate the event-dose worker and its data, source-resolution convergence and D1S/R2S comparison |
 | S4 | Validation registry, scoring and report generation implemented; FNS iron decay heat retains all 20 points, INCONCLUSIVE with unknown covariance; the twelve-response AIM vacuum control passes verification; the actual native FARIS lifecycle control passes all seven control checks, while PROCESS and bluemira retain a pulse-discretization disagreement | Produce the remaining sealed case runs; retain the unresolved Fe-5 source-support limit and peer agreement failure; complete validation-state presentation and remaining benchmark translations |
 | S5 | Quality checks and packaging tools implemented in part | Complete the outstanding product requirements and run the final tests, performance, accessibility, fuzz, reproducibility, documentation and release gates on the candidate |
 

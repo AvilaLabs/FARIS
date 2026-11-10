@@ -120,6 +120,15 @@
       "reason": "States the copyright licence of the FARIS software itself, not a regulatory licensing claim."
     },
     {
+      "rule": "LEG-041",
+      "text": "certified",
+      "paths": [
+        "crates/faris-engine/src/design.rs",
+        "crates/faris-engine/src/design/geometry.rs"
+      ],
+      "reason": "Internal status literal for a mathematically established global bound; it does not claim regulatory or safety certification."
+    },
+    {
       "rule": "LEG-042",
       "text": "It is not a digital twin.",
       "reason": "States that FARIS is not a digital twin."

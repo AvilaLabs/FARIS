@@ -66,6 +66,7 @@ fn fixture_request(flux_total: f64) -> ActivationRequest {
         cooling_s: vec![1.0, 3600.0, 86_400.0, 31_557_600.0],
         photon: PhotonOptions::default(),
         mode: SolverMode::Auto,
+        track_light_charged_products: false,
     }
 }
 
@@ -505,6 +506,48 @@ fn any_changed_input_or_data_file_changes_the_receipt() {
     // A changed library file changes the hash in the receipt and the cache key.
     std::fs::write(&rig.config.data.library, "another library").unwrap();
     assert_ne!(hash(&base, &rig.config), reference, "library file");
+}
+
+#[test]
+#[cfg(unix)]
+fn light_charged_product_tracking_is_explicit_and_uses_a_distinct_cache_identity() {
+    let mut rig = rig(RECORDED);
+    rig.config.cache_dir = Some(rig.scratch.path().join("cache"));
+    let off = fixture_request(1.0e8);
+    let serialized_off = serde_json::to_value(&off).unwrap();
+    assert!(serialized_off.get("track_light_charged_products").is_none());
+    let old_request: ActivationRequest = serde_json::from_value(serde_json::json!({
+        "zones": off.zones.clone(),
+        "steps": off.steps.clone(),
+        "schedule_input_sha256": null,
+        "cooling_s": off.cooling_s.clone(),
+        "photon": off.photon.clone(),
+        "mode": "auto"
+    }))
+    .unwrap();
+    assert!(!old_request.track_light_charged_products);
+
+    let off_problem = build_problem(&off.zones[0], &off, &rig.config.data, "ab");
+    assert!(off_problem["options"].get("gas").is_none());
+    let mut on = off.clone();
+    on.track_light_charged_products = true;
+    let on_problem = build_problem(&on.zones[0], &on, &rig.config.data, "ab");
+    assert_eq!(on_problem["options"]["gas"], json!(true));
+
+    let (off_result, off_stats) =
+        run_activation(&off, &rig.config, &Cancellation::default()).unwrap();
+    let (on_result, on_stats) = run_activation(&on, &rig.config, &Cancellation::default()).unwrap();
+    assert_ne!(
+        off_result.zones[0].run.problem_sha256,
+        on_result.zones[0].run.problem_sha256
+    );
+    assert_eq!((off_stats.actinv_runs, on_stats.actinv_runs), (1, 1));
+    assert_eq!(calls(rig.scratch.path()), 2);
+    let (_, on_cached_stats) = run_activation(&on, &rig.config, &Cancellation::default()).unwrap();
+    assert_eq!(
+        (on_cached_stats.actinv_runs, on_cached_stats.cache_hits),
+        (0, 1)
+    );
 }
 
 #[test]

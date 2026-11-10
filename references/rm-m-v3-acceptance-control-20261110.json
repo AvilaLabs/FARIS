@@ -1,0 +1,91 @@
+{
+  "schema": "faris-rm-m-v3-acceptance-control/v1",
+  "completed_utc": "2026-11-10T09:57:30.415367+00:00",
+  "accepted": true,
+  "scope": "RM-M v3 geometry, source-site, and particle-loss model acceptance controls only; unqualified composite physical coverage",
+  "raw_record": {
+    "path": "runs/continuation/rm-m-v3-acceptance-20261110-v1/acceptance.json",
+    "sha256": "e88d9f60602b449c962f3802e0c95850e8877071c586e86c0cb5ffb9c0a8735c"
+  },
+  "model": {
+    "id": "RM-M v3",
+    "input_lock_sha256": "fc4b619c3fb2b9730802fa797ffabab28847f78d0c92ae940d3ffde0d71ba026",
+    "acceptance_script_sha256": "e8961717fe130eaa2b2f0a49a0e885395181a5167cdde4c9fc14790713b28043",
+    "openmc_version": "0.15.3",
+    "openmc_cli_sha256": "01493915fc795da2973d55d5fca680ccbfb067f4e415c0842b67e8589829d06f",
+    "h5m_sha256": "25d125f609293bbbce37482984eb9144de851d53c23b42a227d00ad762ce979d",
+    "roles_sha256": "06e642de4acc78d4abb63b459597fdd7e8f81951ef6b7dee6dd1833d5c2b8353",
+    "model_card_sha256": "6a4d977bcca288ec2589730c751d77b05a73d1886f9484634aa6a4a4fdc307cb"
+  },
+  "bounded_launch": {
+    "launcher_state_path": "runs/continuation/rm-m-v3-acceptance-20261110-v1/launcher-state.json",
+    "launcher_state_sha256": "dd50cb2ab8494cba82d09fa697b45fa09da6bc059a11ce4b0b0fc9a4001a1024",
+    "memory_max_bytes": 6442450944,
+    "swap_max_bytes": 0,
+    "address_space_limit_bytes": 17179869184,
+    "wall_limit_seconds": 14400,
+    "elapsed_seconds": 387.4818330649978,
+    "cpu_quota_percent": 400
+  },
+  "geometry_volume_control": {
+    "pass": true,
+    "solids": 30,
+    "relative_error_limit": 0.005,
+    "worst_solid": "vv_inner_wall",
+    "worst_signed_relative_error": -8.523727441012152e-05,
+    "total_triangles": 2700732
+  },
+  "particle_loss_control": {
+    "pass": true,
+    "histories": 1000000,
+    "lost": 0,
+    "lost_per_history": 0.0,
+    "batches": 100,
+    "particles_per_batch": 10000,
+    "threads": 4,
+    "seed": 20261009,
+    "retained_statepoints": 100
+  },
+  "source_site_control": {
+    "pass": true,
+    "seed": 20261009,
+    "unconstrained_sites": 200000,
+    "unconstrained_inside": 200000,
+    "plasma_cell_constrained_sites": 200000,
+    "plasma_cell_constrained_inside": 200000,
+    "analytic_polygon_inside_per_sample": 200000
+  },
+  "thermal_activation_diagnostic": {
+    "status": "DESCRIPTIVE_ONLY",
+    "material": "structure",
+    "nuclide": "Fe56",
+    "reaction": "MT102 capture",
+    "below_1_kev_fraction": 0.9585984582462672,
+    "batch_sampling_standard_error_fraction": 0.00020979634162177256,
+    "interpretation": "About 95.86% +/- 0.02098 percentage points at 1 SE for this capture diagnostic only. Existing 42-group R2S basis excludes neutron energies below 1 keV from activation; its thermal basis and convergence need prospective work.",
+    "scope_limit": "Does not establish a dose ratio, full activation result, shutdown dose, or activation-grid convergence."
+  },
+  "data_identity": {
+    "cross_sections_sha256": "d5f82bba9f91aa5c2a643134a9a2a8462ef081b316feea0149fb6073336dd08f",
+    "audited_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "matches_audit": false,
+    "usable_for_qualification": false,
+    "legacy_runtime_library_label": "FENDL-3.2 neutron (294 K) + ENDF/B-VII.1 photon overlay (FARIS audited)",
+    "selected_library": "Conditional composite v2 (unqualified; identity given by cross_sections_sha256)",
+    "legacy_label_is_selected_provenance": false
+  },
+  "remaining_s1_work": {
+    "default_tolerance_corpus_cases": 24,
+    "conversion_cases_remaining": 8,
+    "port_cases_not_started": 8,
+    "original_corpus_conversion_deviation_failure_retained": "1.18 mm",
+    "completed_conversion_cases": 16
+  },
+  "not_established": [
+    "qualified physical coverage",
+    "full activation or dose qualification",
+    "figure of merit",
+    "R3 completion",
+    "overall release-gate pass or any change to the recorded Met count"
+  ]
+}

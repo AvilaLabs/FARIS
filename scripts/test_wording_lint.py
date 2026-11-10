@@ -50,6 +50,21 @@ class ClaimTests(unittest.TestCase):
             findings = lint.run(Path(tmp), terms)
         self.assertEqual([f.rule for f in findings], ["ALLOW-LIST"])
 
+    def test_path_scoped_allow_list_does_not_exempt_other_files(self):
+        terms = copy.deepcopy(TERMS)
+        terms["allow_list"] = [{
+            "rule": "LEG-041", "text": "certified", "paths": ["crates/faris-engine/src/design.rs"],
+            "reason": "Internal mathematical status literal.",
+        }]
+        self.assertEqual(lint.lint_text("crates/faris-engine/src/design.rs", [("certified", 1)], terms), [])
+        self.assertEqual([f.rule for f in lint.lint_text("crates/faris-app/src/main.rs", [("certified", 1)], terms)],
+                         ["LEG-041"])
+
+    def test_path_scopes_reject_absolute_and_parent_paths(self):
+        for path in ["/tmp/source.rs", "../source.rs"]:
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                lint.validate_terms({"allow_list": [{"rule": "LEG-041", "text": "certified", "paths": [path]}]})
+
 
 class TwinTests(unittest.TestCase):
     # Verifies: LEG-042

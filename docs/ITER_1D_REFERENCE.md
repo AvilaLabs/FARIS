@@ -160,7 +160,7 @@ produces `particle/cm2 per source neutron`; the same factor is applied to the
 published statistical standard uncertainty. Geometry and normalisation
 mapping are therefore explicit, while the score remains blocked per detector.
 
-The source spectrum remains a qualification gap. The pinned MCNP deck uses
+The source spectrum remains an unresolved validation gap. The pinned MCNP deck uses
 `SP1 -6`, the MCNP Muir velocity-Gaussian spectrum. The [MCNP 6.2 manual](https://mcnp.lanl.gov/pdf_files/TechReport_2024_LANL_LA-UR-24-24602Rev.1_KuleszaAdamsEtAl.pdf)
 defines its energy density in terms of the square root of energy and documents
 the default `a = -0.01 MeV`, `b = -1` for DT fusion at 10 keV. The benchmark's
@@ -170,7 +170,7 @@ OpenMC's [`stats.muir`](https://docs.openmc.org/en/stable/_modules/openmc/stats/
 also defines its Muir helper as a normal distribution; the benchmark's source
 parameters are not shown equivalent to MCNP's `-6` defaults. This is an
 approximation and parameterisation question, not evidence of an automatically
-identical spectrum. It requires source sensitivity qualification or
+identical spectrum. It requires source sensitivity analysis or
 documented parameter equivalence before scoring. JADE's
 result metadata also does not bind output to hashes of the executable,
 processed nuclear data, or run settings. Cross-code covariance remains

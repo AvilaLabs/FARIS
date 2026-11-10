@@ -226,6 +226,31 @@ Notes:
 - `rel_max_lost_particles` was set to 0.5, because OpenMC rejects 1.0, so a
   run with losses still completes and is counted.
 
+### RM-M v3 acceptance continuation (2026-11-10)
+
+The RM-M v3 conversion and strict mesh audit completed its geometry, source-site,
+and particle-loss acceptance control. All 30 volumes passed the 0.5% rule; the
+worst absolute difference was 0.008524% (`vv_inner_wall`) across 2,700,732
+triangles. The bounded 1,000,000-history run lost 0 particles in 100 batches
+with 4 threads and seed 20261009; all 100 statepoints were retained. Both the
+200,000 unconstrained source sites and 200,000 plasma-cell-constrained sites
+were inside the plasma, also matching the analytic polygon. The run used a 6 GiB
+memory cap, no swap, a 16 GiB address-space cap, a 400% CPU quota, and a
+4 h wall limit; the acceptance report recorded 385.832 s. Auditable input,
+runner, tool, geometry, raw-result, and launcher hashes are in the
+[compact acceptance receipt](../../references/rm-m-v3-acceptance-control-20261110.json).
+
+The same run's Fe-56 structure MT102 diagnostic put 95.8598% of captures below
+1 keV (batch-sampling SE 0.02098 percentage points). This is descriptive only:
+the audited cross-section identity did not match the selected data file, and the
+existing 42-group R2S basis excludes all neutron energies below 1 keV from
+activation. It cannot establish a dose ratio, full activation result, or
+activation-grid convergence; thermal basis and convergence work remain. The
+acceptance result is unqualified composite physical coverage and does not
+change the overall release-gate Met count. The default-tolerance corpus remains incomplete (16 conversion cases are
+complete; 8 port cases have not started), and the original 1.18 mm corpus
+conversion failure remains retained. No FOM or R3 completion is claimed.
+
 ### R6: OpenMC version: 0.15.3
 
 - **Rule 1 fails on 0.16.0:**

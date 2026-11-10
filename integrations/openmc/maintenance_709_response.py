@@ -314,8 +314,12 @@ def _validate_stage_request(request: dict, schema: str) -> dict:
                      "base_source_rate_n_s", "photon_energy_edges_ev", "response_location_artifacts"} if schema == NEUTRON_REQUEST_SCHEMA else
                     {"stage", "neutron_response_receipt", "activation_results",
                      "response_mesh", "emitters_by_cooling"})
-    if set(request) != base_fields | stage_fields:
+    optional_fields = {"track_light_charged_products"} if schema == NEUTRON_REQUEST_SCHEMA else set()
+    required_fields = base_fields | stage_fields
+    if not required_fields.issubset(request) or set(request) - required_fields - optional_fields:
         raise ValueError(f"request fields do not exactly match {schema}")
+    if "track_light_charged_products" in request and not isinstance(request["track_light_charged_products"], bool):
+        raise ValueError("track_light_charged_products must be boolean when provided")
     expected_stage = "neutron" if schema == NEUTRON_REQUEST_SCHEMA else "photon"
     if request["stage"] != expected_stage:
         raise ValueError(f"request stage must be {expected_stage}")
@@ -743,6 +747,8 @@ def run_neutron_stage(request: dict, out: Path, openmc=None, request_sha256: str
         "base_source_rate_n_s": request["base_source_rate_n_s"],
         "photon_energy_edges_ev": request["photon_energy_edges_ev"],
     }
+    if request.get("track_light_charged_products", False):
+        helper_request["track_light_charged_products"] = True
     activation_batches = activation_batches_from_artifacts(helper_request)
     if activation_batches.get("schema") != ACTIVATION_BATCHES_SCHEMA:
         raise ValueError("ACTINV helper returned an unsupported event-batches schema")

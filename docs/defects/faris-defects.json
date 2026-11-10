@@ -610,7 +610,7 @@
     },
     {
       "id": "FARIS-047",
-      "title": "CAD deviation report called a sampled maximum a certified bound when all bounds were unresolved",
+      "title": "CAD deviation report treated a sampled maximum as a proven bound when all bounds were unresolved",
       "severity": "S3",
       "status": "fixed",
       "found": "2026-11-10",
@@ -763,6 +763,32 @@
       "fixed_in": "8eccd63",
       "disposition": "ACTINV reaction-ledger values for products lacking decay data are rates per target atom, not atoms per gram in the zone; library and decay-chain diagnostics also do not establish that a product is populated in the zone. FARIS summed those values into amount_atoms_per_g and described some ledger notices as zone-level omissions. Ledger notices now carry no atom amount, while directly quantified leakage remains in atoms per gram; counts, lower-bound status and refusal behavior are unchanged. The typed cache schema is now v0.2 so old entries with mislabeled units are recomputed. Activation and cache regressions cover the unit distinction and old-cache refresh. This correction does not produce a physical gate or dose PASS.",
       "regression_test": "crates/faris-engine/src/activation/tests.rs::nuclides_lacking_data_are_listed_and_make_the_totals_a_lower_bound"
+    },
+    {
+      "id": "FARIS-059",
+      "title": "Heating receipt verification refused a valid run-directory path alias",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "d8f3418",
+      "disposition": "Production heating compared the expected run directory directly with the canonical absolute path recorded in runtime and execution receipts. On platforms where a valid run directory is reached through a symlink alias, such as /var resolving to /private/var, verification could refuse otherwise valid receipts. Verification now canonicalizes the expected path before comparison; receipt file paths must still be canonical and absolute, and the named files are still rehashed. The symlinked expected-run-directory regression covers this compatibility case. This was a receipt refusal, not a change to heating execution or a physical result.",
+      "regression_test": "crates/faris-engine/src/design/heating.rs::runtime_and_execution_receipts_rehash_the_files_actually_named"
+    },
+    {
+      "id": "FARIS-060",
+      "title": "Stochastic-slab MGXS startup did not bind the model cross-section index",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "6170c4d",
+      "disposition": "OpenMC 0.16 stochastic-slab conversion creates a materials collection that does not inherit model.materials.cross_sections. An actual RM-M FOM prepare attempt stopped after 4.513 s with a missing-cross-sections RuntimeError, before MGXS measurement; the run directory and log are retained. The shared window generator now requires the model index, resolves it before changing directories, binds it temporarily through OPENMC_CROSS_SECTIONS, and restores the prior environment on success or failure. Missing model indexes are refused even when an ambient index exists. This was a tool startup refusal, not a physics result.",
+      "regression_test": "integrations/openmc/test_window_generator_library_binding.py::test_conversion_binds_model_index_and_restores_environment"
     }
   ]
 }

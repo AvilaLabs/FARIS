@@ -11,8 +11,8 @@ creates a separate transport H5M with `FACETING_TOL`, sparse class `1`, root
 handle `0`, and the exact declared mesher input tolerance in centimeters.
 The report includes both file hashes and semantic hashes for every unchanged
 HDF5 dataset. This records the requested tessellation input; it does not claim
-that the input is a certified upper bound on geometric deviation. Deviation
-qualification remains a separate CAD evidence check.
+that the input is a proven upper bound on geometric deviation. Deviation
+assessment remains a separate CAD evidence check.
 
 The representation is confirmed by the installed MOAB enum in
 `Types.hpp` (`MB_TAG_SPARSE = 1 << 0`) and DAGMC's `finish_loading` lookup,

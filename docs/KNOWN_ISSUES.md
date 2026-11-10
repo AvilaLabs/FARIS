@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 56 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 58 fixed before they reached a release.
 
 ## Open
 
@@ -75,7 +75,7 @@ These were found in development and never shipped.
 | FARIS-044 | S3 | CAD deviation report assembly raised a NameError on a small native run | eda7a59 |
 | FARIS-045 | S3 | Process audit missed launches in inline tests and the prepared-cache path | 3cff2d5 |
 | FARIS-046 | S3 | Full-period torus face pruning produced an incorrect distance | 757d9fe |
-| FARIS-047 | S3 | CAD deviation report called a sampled maximum a certified bound when all bounds were unresolved | 34e9c9a |
+| FARIS-047 | S3 | CAD deviation report treated a sampled maximum as a proven bound when all bounds were unresolved | 34e9c9a |
 | FARIS-048 | S3 | CAD driving-rate artifact used bare SHA-256 values where identity validation required tagged digests | bf1cce3 |
 | FARIS-049 | S3 | Native peer calibration targeted a design ID the runner never generated | 30aeeef |
 | FARIS-050 | S3 | Fresh-process heating preflight failed because openmc.lib was not imported | 957cf4e |
@@ -87,4 +87,6 @@ These were found in development and never shipped.
 | FARIS-056 | S3 | Web build could not compile native dialog calls and OS-string audit metadata | c177076 |
 | FARIS-057 | S3 | Random-ray retagging rejected disjoint explicit void groups in real DAGMC geometry | 76a56e7 |
 | FARIS-058 | S3 | ACTINV reaction-ledger rates were reported as zone atom amounts | 8eccd63 |
+| FARIS-059 | S3 | Heating receipt verification refused a valid run-directory path alias | d8f3418 |
+| FARIS-060 | S3 | Stochastic-slab MGXS startup did not bind the model cross-section index | 6170c4d |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

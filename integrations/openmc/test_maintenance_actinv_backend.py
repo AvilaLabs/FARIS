@@ -45,7 +45,7 @@ class ActinvBackendContracts(unittest.TestCase):
                               {"duration_s": 6.0, "source_rate_n_s": 2.0},
                               {"duration_s": 5.0, "source_rate_n_s": 0.0}]}]
 
-    def build(self, response=None):
+    def build(self, response=None, *, track_light_charged_products=False):
         return backend.build_activation_batches(
             response_arrays=response or self.response(),
             activation_mesh={"lower_left_cm": [0, 0, 0], "upper_right_cm": [10, 10, 10],
@@ -56,6 +56,7 @@ class ActinvBackendContracts(unittest.TestCase):
             base_source_rate_n_s=2.0,
             neutron_energy_edges_ev=[float(i) for i in range(710)],
             photon_energy_edges_ev=[0.0, 100.0, 200.0],
+            track_light_charged_products=track_light_charged_products,
         )
 
     def test_volume_normalization_and_physical_rate_are_applied_once(self):
@@ -67,6 +68,12 @@ class ActinvBackendContracts(unittest.TestCase):
         self.assertEqual(zone["spectrum"]["flux_per_cm2_s"], [0.04] * 709)
         self.assertEqual(req["steps"], [{"duration_s": 4.0, "flux_scale": 1.0},
                                         {"duration_s": 6.0, "flux_scale": 1.0}])
+
+    def test_light_charged_product_tracking_is_opt_in_in_the_event_batch(self):
+        off = self.build()["batches"][0]["activation_request"]
+        on = self.build(track_light_charged_products=True)["batches"][0]["activation_request"]
+        self.assertNotIn("track_light_charged_products", off)
+        self.assertIs(on["track_light_charged_products"], True)
 
     def test_material_volume_cannot_exceed_mesh_voxel(self):
         with self.assertRaisesRegex(ValueError, "exceeds voxel"):

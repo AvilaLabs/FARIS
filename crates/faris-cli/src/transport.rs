@@ -243,11 +243,11 @@ pub fn run(command: TransportCommand) -> Result<(), Box<dyn std::error::Error>> 
             "lost_particle_check": lost_particle_check,
             "lost_particle_accounting": artifact.lost_particle_accounting,
             "values_trusted_under_loss_gate": values_trusted_under_loss_gate,
-            "scope": "Checked identities, response definitions, dimensions, arithmetic, and the strict lost-particle limit when an exact count is present. Legacy records without that count remain readable but their numerical result is not trusted; scientific qualification is not established. Solver/data identities and raw values are adapter assertions."
+            "scope": "Checked identities, response definitions, dimensions, arithmetic, and the strict lost-particle limit when an exact count is present. Legacy records without that count remain readable but their numerical result is not trusted; scientific validation is not established. Solver/data identities and raw values are adapter assertions."
         });
         write_new_json(&output, &record)?;
         println!(
-            "Normalized {} responses to {}. Lost-particle check: {}. Scientific qualification: NOT_EVALUATED.",
+            "Normalized {} responses to {}. Lost-particle check: {}. Scientific validation: NOT_EVALUATED.",
             result.results.len(),
             output.display(),
             lost_particle_check

@@ -66,7 +66,22 @@ class Finding:
 
 
 def load_terms(path: Path = TERMS) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    terms = json.loads(path.read_text(encoding="utf-8"))
+    validate_terms(terms)
+    return terms
+
+
+def validate_terms(terms: dict) -> None:
+    """Validate optional allow-list path scopes and basic entry shape."""
+    for index, entry in enumerate(terms.get("allow_list", [])):
+        if not isinstance(entry, dict) or not isinstance(entry.get("rule"), str) or not isinstance(entry.get("text"), str):
+            raise ValueError(f"allow_list[{index}] must contain string rule and text fields")
+        if "paths" in entry:
+            paths = entry["paths"]
+            if (not isinstance(paths, list) or not paths or
+                    any(not isinstance(path, str) or not path or Path(path).is_absolute() or ".." in Path(path).parts
+                        for path in paths)):
+                raise ValueError(f"allow_list[{index}].paths must be a non-empty list of relative repository paths")
 
 
 # --- text extraction -------------------------------------------------------
@@ -263,7 +278,7 @@ def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | 
               code_spans: bool = False) -> list[Finding]:
     """Findings in `units`. With `code_spans` (Markdown), a verdict-word variant or synonym inside a `code span`
     is a verbatim identifier (a status id, a solver status) and is not reported; LEG-043 still applies to prose."""
-    allow = {(a["rule"], normalise(a["text"])) for a in terms["allow_list"]}
+    allow = [a for a in terms["allow_list"] if "paths" not in a or path in a["paths"]]
     findings: list[Finding] = []
     claim = re.compile(r"\b(?:" + "|".join(terms["forbidden_claims"]) + r")\b", re.I)
     twin = re.compile(r"\b(?:" + "|".join(terms["twin_terms"]) + r")\b", re.I)
@@ -285,7 +300,7 @@ def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | 
                 continue
 
             def report(rule: str, match: re.Match, honour_allow: bool = True):
-                if honour_allow and (rule, norm) in allow:
+                if honour_allow and any((a["rule"], normalise(a["text"])) == (rule, norm) for a in allow):
                     if used is not None:
                         used.add((rule, norm))
                     return
@@ -379,6 +394,7 @@ def lint_names(root: Path, terms: dict) -> list[Finding]:
 def run(root: Path = ROOT, terms: dict | None = None, extra_dirs: list[str] | None = None,
         listings: list[str] | None = None) -> list[Finding]:
     terms = terms or load_terms()
+    validate_terms(terms)
     used: set = set()
     findings: list[Finding] = []
     for pattern in RUST_DIRS:
