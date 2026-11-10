@@ -25,7 +25,7 @@ patch handoff. The compiled patch and control script are still pending the
 coordinator-owned build and live control. Current hashes:
 
 - AIM patch: `8a72af3a15891f5b1972b26427ad4fd414cd6e491fc42db8a0e9262ecbc89dcc`
-- MCNP importance-zero patch: `477bd0b0cb9e1c801c9895da44cbe0a4075426a7ea19eb48232c61e71aea7156`
+- MCNP importance-zero patch: `a8d590734a94b531fd58db7f46185eebcaea15a0b206300987cb450563fd45e0`
 
 Ordinary reactor and maintenance runs must not contain the opt-in attribute;
 they remain supported by stock OpenMC. For each benchmark whose reviewed

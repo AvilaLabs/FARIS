@@ -115,12 +115,14 @@ index 60c600f..344516d 100644
 +}
 +
 diff --git a/src/state_point.cpp b/src/state_point.cpp
-index 47296da..b58a122 100644
+index 47296da..5080bce 100644
 --- a/src/state_point.cpp
 +++ b/src/state_point.cpp
 @@ -4,0 +5 @@
 +#include <limits>
-@@ -115,0 +117,13 @@ extern "C" int openmc_statepoint_write(const char* filename, bool* write_source)
+@@ -13,0 +15 @@
++#include "openmc/cell.h"
+@@ -115,0 +118,13 @@ extern "C" int openmc_statepoint_write(const char* filename, bool* write_source)
 +    // Record the FARIS benchmark-only MCNP imp:n=0 diagnostics in the solver
 +    // child that produced this statepoint, not in its parent process.
 +    write_dataset(file_id, "faris_mcnp_imp0_patch_version",
@@ -134,7 +136,7 @@ index 47296da..b58a122 100644
 +    write_dataset(file_id, "faris_openmc_n_lost_particles",
 +      simulation::n_lost_particles);
 +
-@@ -446,0 +461,51 @@ extern "C" int openmc_statepoint_load(const char* filename)
+@@ -446,0 +462,51 @@ extern "C" int openmc_statepoint_load(const char* filename)
 +  // Preserve the child process's intentional-kill and geometry-loss counts
 +  // across patch-aware restarts. A model with an opt-in marker must not
 +  // restart from a statepoint that predates this accounting.

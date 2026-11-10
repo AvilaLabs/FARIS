@@ -43,6 +43,14 @@ constexpr const char* VERSION_COMMIT_HASH = "{BUILDER.SOURCE_HEAD}";
         with self.assertRaisesRegex(RuntimeError, "commit differs"):
             BUILDER.verify_generated_version_header(header, "0" * 40)
 
+    def test_patch_digest_and_cell_declaration_include_are_pinned(self) -> None:
+        self.assertEqual(
+            BUILDER.sha256_file(BUILDER.IMP0_PATCH),
+            BUILDER.IMP0_PATCH_SHA256,
+        )
+        patch = BUILDER.IMP0_PATCH.read_text(encoding="utf-8")
+        self.assertIn('+#include "openmc/cell.h"', patch)
+
     def test_rejects_non_full_commit_identity(self) -> None:
         for invalid in ("27e38e894", "g" * 40, "27e38e894697bb32a1dac7848d2618818b6b8daf\n"):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):

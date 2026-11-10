@@ -28,7 +28,7 @@ PATCH_DEV_BASE = "0feb9f335b645988f118db264243eb0896b5b75e"
 AIM_PATCH = ROOT / "integrations/openmc/patches/faris-openmc-0.15.3-aim.patch"
 AIM_PATCH_SHA256 = "8a72af3a15891f5b1972b26427ad4fd414cd6e491fc42db8a0e9262ecbc89dcc"
 IMP0_PATCH = ROOT / "integrations/openmc/patches/faris-openmc-0.15.3-mcnp-imp0.patch"
-IMP0_PATCH_SHA256 = "477bd0b0cb9e1c801c9895da44cbe0a4075426a7ea19eb48232c61e71aea7156"
+IMP0_PATCH_SHA256 = "a8d590734a94b531fd58db7f46185eebcaea15a0b206300987cb450563fd45e0"
 AIM_DIRTY_PATHS = {
     "include/openmc/distribution.h",
     "include/openmc/distribution_angle.h",
