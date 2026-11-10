@@ -2150,7 +2150,8 @@ fn build_history_rates_artifact(
         &worker.openmc,
         &worker.openmc_library_sha256,
         cross_sections_path,
-    )?;
+    )
+    .map_err(tool)?;
     let normalized = NormalizedTransportResult {
         schema_version: "faris-normalized-transport/v0.1".into(),
         scenario_id,
@@ -2273,7 +2274,10 @@ fn history_tool_identities(
         TransportToolIdentity {
             name: "cross_sections.xml".into(),
             version: "sha256-pinned".into(),
-            digest: sha256_identity(&sha256_file(cross_sections_path)?, "cross_sections.xml")?,
+            digest: sha256_identity(
+                &sha256_file(cross_sections_path).map_err(|error| error.to_string())?,
+                "cross_sections.xml",
+            )?,
         },
     ))
 }

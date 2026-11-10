@@ -539,7 +539,7 @@
         "unreleased"
       ],
       "fixed_in": "714f4fe",
-      "disposition": "The peer runner routed Bluemira timeline metrics from the wrong JSON source, causing an actual v2 parent-process crash. The runner now reads the worker\u2019s final JSON stdout line and cross-checks its timeline against saved native arrays; absent or non-finite metrics leave comparison incomplete. The 23 pure checks pass; native v3 rerun is pending, and no native control PASS or physical qualification is claimed.",
+      "disposition": "The peer runner routed Bluemira timeline metrics from the wrong JSON source, causing an actual v2 parent-process crash. The runner now reads the worker’s final JSON stdout line and cross-checks its timeline against saved native arrays; absent or non-finite metrics leave comparison incomplete. The 23 pure checks pass; native v3 rerun is pending, and no native control PASS or physical qualification is claimed.",
       "regression_test": "integrations/lifecycle_peer/test_controlled_case.py::test_bluemira_metrics_are_routed_from_worker_stdout_and_checked_against_native_timeline"
     },
     {
@@ -579,7 +579,7 @@
         "unreleased"
       ],
       "fixed_in": "eda7a59",
-      "disposition": "A small native CAD deviation run failed during DeviationReportAssembly with a NameError after 105.9 seconds. The report assembly now keeps each solid\u2019s certification bound to that solid. A regression covers separate per-solid global certifications. This was a tool failure, not a geometric qualification result.",
+      "disposition": "A small native CAD deviation run failed during DeviationReportAssembly with a NameError after 105.9 seconds. The report assembly now keeps each solid’s certification bound to that solid. A regression covers separate per-solid global certifications. This was a tool failure, not a geometric qualification result.",
       "regression_test": "integrations/cad/test_faris_deviation.py::test_each_solid_gets_its_own_global_certification"
     },
     {
@@ -594,6 +594,58 @@
       "fixed_in": "3cff2d5",
       "disposition": "The process audit stopped scanning a Rust file at the first inline test module and did not account for the prepared-cache launch path, leaving some launches outside its reviewed inventory. The scanner now excludes inline test blocks without ending the file scan and audits prepared-cache launches. Its synthetic regression places production launches after inline tests and checks both launch forms. This was an audit coverage gap; no process exploit or incident is claimed.",
       "regression_test": "crates/faris-engine/tests/process_audit.rs::the_scanner_sees_a_new_spawn_in_a_synthetic_file"
+    },
+    {
+      "id": "FARIS-046",
+      "title": "Full-period torus face pruning produced an incorrect distance",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "757d9fe",
+      "disposition": "A full-period torus face has identical start and end angles, which modulo arithmetic reduced to a zero sweep. The deviation checker could then prune the actual nearest face, giving an incorrect distance and preventing certification. Full-period sweeps now cover the full circle; regressions check the actual first-wall point distance and nearest-face pruning. This corrects the bound calculation and does not qualify a geometry or transport result.",
+      "regression_test": "integrations/cad/test_faris_deviation.py::test_reach_keeps_the_nearest_face_for_the_actual_first_wall_point"
+    },
+    {
+      "id": "FARIS-047",
+      "title": "CAD deviation report called a sampled maximum a certified bound when all bounds were unresolved",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "34e9c9a",
+      "disposition": "When every solid had an unresolved global bound, report assembly fell back to the largest sampled distance and described it as a certified upper bound. The report now states that no overall global bound is certified and labels the largest sample as diagnostic only. A report regression covers the all-unresolved case; the change does not certify the geometry.",
+      "regression_test": "crates/faris-engine/src/design/geometry/tests.rs::report_does_not_present_sample_maximum_as_a_certified_bound_when_all_bounds_are_unresolved"
+    },
+    {
+      "id": "FARIS-048",
+      "title": "CAD driving-rate artifact used bare SHA-256 values where identity validation required tagged digests",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "bf1cce3",
+      "disposition": "The CAD history-rate artifact builder recorded solver-library and nuclear-data hashes without the required sha256: identity prefix, so the normalized rates failed strict identity validation and could not be consumed. The builder now validates measured 64-hex hashes and writes tagged SHA-256 identities. A regression checks the artifact identities against the driving-rate validation boundary. This is an identity-format correction; it does not qualify transport results.",
+      "regression_test": "crates/faris-engine/src/design/transport.rs::history_tool_identities_pass_the_driving_rate_sha256_validation_boundary"
+    },
+    {
+      "id": "FARIS-049",
+      "title": "Native peer calibration targeted a design ID the runner never generated",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "30aeeef",
+      "disposition": "The controlled native peer case authored a calibration threshold for a design ID different from the generated case ID, so the requested calibration could not bind to the run. The fixture now targets the generated design, and preflight rejects calibration references outside the runner generated design set. The regression checks rejection of a stale ID; this corrects fixture binding and does not establish physical qualification.",
+      "regression_test": "integrations/lifecycle_peer/test_faris_native_case.py::test_preflight_rejects_calibration_target_not_generated_by_runner"
     }
   ]
 }
