@@ -63,7 +63,7 @@ faris design transport design.faris-design.json \\
 
 This single analog run scores unrestricted-energy component flux, whole-model H3 production, and breeder-only H3 production in the same batch histories. Whole-model and breeder H3 remain separate responses; the operating-history tritium-production input continues to use the breeder-only response. Every response must meet the requested Monte Carlo relative-error target, the checked CAD source power must exactly match the scenario, and each mapped material solid must occur once. The run writes `history-driving-rates.json`; its hashes bind the design, check report, H5M, cross sections, every referenced neutron table for the model's material nuclides, source model, OpenMC library, component map and response definitions. Changing or removing a referenced table invalidates the sidecar. Its covariance is same-run sampling covariance only. CAD-volume, nuclear-data, model-form and source-profile uncertainties are not propagated, and these rates are not evidence of physical validation. CAD heating/deposited energy and the whole-plant net-energy ledger remain unavailable through this route; no heating value is inferred from neutron flux or H3. Missing H3 data or an unconverged response fails closed. The existing fluence-only response remains separately thresholded.
 
-Set `history_run` in the designs file to `runs/cad-history/history-driving-rates.json`. `faris maintenance dose-run` verifies and uses this sidecar with the existing operating-history engine; its reactor `physics` and 709-group `spectrum_run` inputs keep their existing roles. Existing `faris-reactor-run` history records continue to work unchanged.
+Set `history_run` in the designs file to `runs/cad-history/history-driving-rates.json`. `faris maintenance dose-run` verifies and uses this sidecar with the existing operating-history engine. Existing `faris-reactor-run` history records continue to work unchanged.
 
 ### The designs file
 
@@ -83,6 +83,24 @@ A designs file names each design and its five files. Paths are relative to the f
   }
 }
 ```
+
+For a CAD-native dose run, use the separate `faris-maintenance-cad-dose-designs/v0.1` format. It names only the files this route consumes: scenario, verified CAD history-rate sidecar, operating-history assumptions, and the native `dose_physics` manifest. The ordinary five-file `faris-maintenance-designs/v0.1` format remains supported for existing heat and dose runs. The CAD-only schema refuses `physics` or `spectrum_run` fields rather than asking for unused placeholders.
+
+```json
+{
+  "schema_version": "faris-maintenance-cad-dose-designs/v0.1",
+  "designs": {
+    "synthetic-tiny-tokamak-control": {
+      "scenario": "synthetic-tiny-tokamak.scenario.json",
+      "history_run": "runs/cad-history/history-driving-rates.json",
+      "history_assumptions": "synthetic-tiny-tokamak.operating-history.json",
+      "dose_physics": "runs/cad-dose/dose-physics.json"
+    }
+  }
+}
+```
+
+The scenario's `operating_plan.fusion_power_mw` must exactly match the checked CAD design source power. `dose_physics` must be the native, hash-bound CAD preparation manifest for that same design and its checked import report. On a synthetic four-solid control, the CAD is a void plasma, first wall, Li-6 blanket, and TF winding pack; the three material solids are each mapped exactly once in `faris design transport`. The dose run then uses those CAD rates and the native spatial photon worker. It does not consume reactor CSG physics or a reactor 709-group spectrum file. CAD prompt/deposited heating and net-energy accounting remain unavailable.
 
 ### The maintenance assumptions file
 
@@ -224,10 +242,10 @@ is absent, with the reason, when the history lacks its energy inputs.
 
 ## Limits
 
-- **Decay heat governs; contact dose does not.** With dose as the governing quantity and a threshold fixed at the
-  first outage, the never-replaced first wall kept the dose above it for more than a year at later replacements in the
-  validation designs. FARIS therefore refuses `"governing_quantity": "dose"` for now. Testing a remote-handling dose
-  rule needs its own validation.
+- **Only spatial photon effective dose at a task location governs in the native dose route.** Contact dose and ACTINV
+  Gamma-air proxy are not accepted. The earlier five-file validation designs did not evaluate dose-governed duration;
+  the CAD-backed route now computes event-specific spatial photon fields but remains a separate, not-yet-qualified
+  physical validation path. Its estimates and assumptions must not be read as an operational release decision.
 - **Screening, not a maintenance plan.** Work times, governing sets and thresholds are your assumptions. FARIS does not
   model crews, spare parts, queues or remote-handling equipment.
 - **Run time.** The calculation runs ACTINV once per replacement and governing component, and again on each pass. A

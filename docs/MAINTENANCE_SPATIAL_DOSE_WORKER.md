@@ -2,7 +2,8 @@
 
 The native dose-maintenance path can ask the bounded OpenMC worker for a curve when an exact
 history/event/location key is missing. A design may name one `dose_physics` file in its existing
-`faris-maintenance-designs/v0.1` entry. This file is a physical adapter manifest, not an estimate.
+`faris-maintenance-designs/v0.1` entry or in the minimal
+`faris-maintenance-cad-dose-designs/v0.1` entry. This file is a physical adapter manifest, not an estimate.
 If it is absent, the event remains `NOT_EVALUATED`.
 
 The manifest schema is `faris-maintenance-dose-physics/v0.1` and has these fields. Existing
@@ -99,7 +100,7 @@ cache and result processing. Paths are explicit user configuration, not study-pr
 
 Run `faris maintenance dose-prepare --config dose-cad-config.json --python /path/to/openmc-python`.
 This separate, cancellable bounded step writes `dose-physics.json`; add that file as the design's
-`dose_physics` entry in `faris-maintenance-designs/v0.1`, then run the ordinary
+`dose_physics` entry in either maintenance designs format, then run the ordinary
 `faris maintenance dose-run` command. The desktop dose-maintenance window exposes the same
 preparation action. `dose-prepare` reopens its generated manifest through the same immutable-hash
 validator that `dose-run` uses before it reports success.

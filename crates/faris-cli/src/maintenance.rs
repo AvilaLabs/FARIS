@@ -89,9 +89,10 @@ pub enum MaintenanceCommand {
         builder: Option<PathBuf>,
     },
     /// Compute replacement outages from event-specific spatial photon dose-rate curves.
-    /// Curves must contain matched D1S and R2S estimates for every history iteration.
+    /// D1S/R2S comparison is available when both methods can share the event's history basis;
+    /// otherwise the result keeps D1S explicitly NOT_EVALUATED.
     DoseRun {
-        /// faris-maintenance-designs/v0.1 design inputs.
+        /// faris-maintenance-designs/v0.1 inputs or faris-maintenance-cad-dose-designs/v0.1 with only the scenario, CAD history-rate record, history assumptions, and dose_physics manifest.
         #[arg(long)]
         designs: PathBuf,
         /// faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes.

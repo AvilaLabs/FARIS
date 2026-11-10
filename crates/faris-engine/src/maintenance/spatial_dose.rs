@@ -28,6 +28,32 @@ pub const MAX_POINTS_PER_EVENT: usize = 512;
 const D1S_R2S_RATIO_MIN: f64 = 0.85;
 const D1S_R2S_RATIO_MAX: f64 = 1.15;
 
+fn valid_design_input_sha256_keys(schema: &str, actual: &BTreeSet<&str>) -> bool {
+    let legacy: BTreeSet<&str> = [
+        "scenario",
+        "physics",
+        "history_run",
+        "spectrum_run",
+        "history_assumptions",
+    ]
+    .into_iter()
+    .collect();
+    if schema == CURVES_SCHEMA_V1 {
+        return actual == &legacy;
+    }
+    let mut legacy_with_dose = legacy.clone();
+    legacy_with_dose.insert("dose_physics");
+    let cad_dose: BTreeSet<&str> = [
+        "scenario",
+        "history_run",
+        "history_assumptions",
+        "dose_physics",
+    ]
+    .into_iter()
+    .collect();
+    actual == &legacy || actual == &legacy_with_dose || actual == &cad_dose
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactRef {
@@ -771,35 +797,23 @@ impl CurveBundle {
             {
                 return Err("event curve needs named, valid design input hashes".into());
             }
-            let expected_design_inputs: BTreeSet<&str> = [
-                "scenario",
-                "physics",
-                "history_run",
-                "spectrum_run",
-                "history_assumptions",
-            ]
-            .into_iter()
-            .collect();
             let actual_design_inputs: BTreeSet<&str> = curve
                 .design_input_sha256
                 .keys()
                 .map(String::as_str)
                 .collect();
-            let mut with_physics = expected_design_inputs.clone();
-            with_physics.insert("dose_physics");
-            if actual_design_inputs != expected_design_inputs
-                && actual_design_inputs != with_physics
-            {
-                return Err("event curve must bind the five design inputs and, when present, the dose-physics manifest".into());
+            if !valid_design_input_sha256_keys(&self.schema, &actual_design_inputs) {
+                return Err("event curve must bind either the five legacy design inputs (optionally with dose_physics) or the four consumed CAD dose inputs".into());
             }
-            if self.schema == CURVES_SCHEMA_V1 && actual_design_inputs != expected_design_inputs {
+            let has_dose_physics = actual_design_inputs.contains("dose_physics");
+            if self.schema == CURVES_SCHEMA_V1 && has_dose_physics {
                 return Err(
                     "legacy v0.1 event curves bind exactly the five original design inputs".into(),
                 );
             }
             if self.schema == CURVES_SCHEMA
                 && curve.points.iter().any(|point| point.d1s.is_none())
-                && !actual_design_inputs.contains("dose_physics")
+                && !has_dose_physics
             {
                 return Err(
                     "R2S-only v0.2 curves must bind the explicit dose-physics manifest".into(),
@@ -1069,6 +1083,34 @@ mod tests {
 
     fn sha(bytes: &[u8]) -> String {
         format!("{:x}", Sha256::digest(bytes))
+    }
+
+    #[test]
+    fn cad_dose_curve_identity_uses_only_the_four_consumed_design_inputs() {
+        let cad: BTreeSet<&str> = [
+            "scenario",
+            "history_run",
+            "history_assumptions",
+            "dose_physics",
+        ]
+        .into_iter()
+        .collect();
+        assert!(valid_design_input_sha256_keys(CURVES_SCHEMA, &cad));
+        assert!(!valid_design_input_sha256_keys(CURVES_SCHEMA_V1, &cad));
+        let mut missing = cad.clone();
+        missing.remove("dose_physics");
+        assert!(!valid_design_input_sha256_keys(CURVES_SCHEMA, &missing));
+        let legacy: BTreeSet<&str> = [
+            "scenario",
+            "physics",
+            "history_run",
+            "spectrum_run",
+            "history_assumptions",
+        ]
+        .into_iter()
+        .collect();
+        assert!(valid_design_input_sha256_keys(CURVES_SCHEMA_V1, &legacy));
+        assert!(valid_design_input_sha256_keys(CURVES_SCHEMA, &legacy));
     }
 
     #[test]

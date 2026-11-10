@@ -39,6 +39,10 @@ basis.
   design/check/H5M/source/runtime provenance. Its `history-driving-rates.json` sidecar can feed the existing
   maintenance history run; it carries sampling uncertainty only and makes no physical-qualification claim.
   The design transport report schema is now v0.5.
+- `faris maintenance dose-run` accepts `faris-maintenance-cad-dose-designs/v0.1`, which names only
+  the scenario, hash-verified CAD history-rate sidecar, history assumptions and native dose-physics
+  manifest. It no longer requires unused reactor physics or spectrum files for this CAD route; the
+  existing five-file maintenance designs format remains unchanged for legacy and heat runs.
 - `faris shutdown-dose compare` imports hash-bound spatial D1S/R2S estimates and checks their central ratio
   against the declared comparison band. It records matched input identities and validation states, and retains
   INCONCLUSIVE when covariance is unknown. It runs no solver; see the handbook's shutdown-dose comparison page.

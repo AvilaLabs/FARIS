@@ -185,6 +185,13 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
                     parse_designs(&bytes, base)
                         .map_err(|e| format!("The designs file is not usable: {e}."))
                 }) {
+                Ok(designs) if designs.values().any(|design| design.cad_dose_only) => {
+                    problems.push(Problem::new(
+                        Field::Designs,
+                        "This is a CAD-dose designs file, which does not contain the physics and 709-group spectrum required by the heat-governed run.",
+                        "use it with `faris maintenance dose-run`, or choose a faris-maintenance-designs/v0.1 file for decay-heat maintenance.",
+                    ));
+                }
                 Ok(designs) => design_names = Some(designs.into_keys().collect::<Vec<_>>()),
                 Err(why) => problems.push(Problem::new(
                     Field::Designs,

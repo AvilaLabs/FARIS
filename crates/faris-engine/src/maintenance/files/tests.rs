@@ -29,6 +29,217 @@ fn cad_history_rate_sidecar_is_dispatched_to_its_bound_reader_without_changing_r
     assert!(error.contains("CAD history rates artifact JSON"), "{error}");
 }
 
+#[test]
+fn cad_dose_design_format_requires_only_consumed_provenance_files() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in [
+        "scenario.json",
+        "history.json",
+        "assumptions.json",
+        "dose-physics.json",
+    ] {
+        std::fs::write(dir.path().join(name), b"{}").unwrap();
+    }
+    let entry = serde_json::json!({
+        "scenario": "scenario.json",
+        "history_run": "history.json",
+        "history_assumptions": "assumptions.json",
+        "dose_physics": "dose-physics.json"
+    });
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "schema_version": CAD_DOSE_DESIGNS_VERSION,
+        "designs": {"synthetic-cad": entry}
+    }))
+    .unwrap();
+    let parsed = parse_designs(&bytes, dir.path()).unwrap();
+    let design = &parsed["synthetic-cad"];
+    assert!(design.cad_dose_only);
+    assert!(design.physics.is_none());
+    assert!(design.spectrum_run.is_none());
+    assert_eq!(
+        design
+            .files()
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>(),
+        vec!["scenario", "history_run", "history_assumptions"]
+    );
+    assert!(
+        design
+            .dose_physics
+            .as_deref()
+            .is_some_and(|path| path.ends_with("dose-physics.json"))
+    );
+
+    let with_unused = serde_json::json!({
+        "schema_version": CAD_DOSE_DESIGNS_VERSION,
+        "designs": {"synthetic-cad": {
+            "scenario": "scenario.json", "history_run": "history.json",
+            "history_assumptions": "assumptions.json", "dose_physics": "dose-physics.json",
+            "physics": "no-physics-file.json"
+        }}
+    });
+    let error = parse_designs(&serde_json::to_vec(&with_unused).unwrap(), dir.path()).unwrap_err();
+    assert!(error.contains("omit physics and spectrum_run"), "{error}");
+
+    let without_manifest = serde_json::json!({
+        "schema_version": CAD_DOSE_DESIGNS_VERSION,
+        "designs": {"synthetic-cad": {
+            "scenario": "scenario.json", "history_run": "history.json",
+            "history_assumptions": "assumptions.json"
+        }}
+    });
+    let error =
+        parse_designs(&serde_json::to_vec(&without_manifest).unwrap(), dir.path()).unwrap_err();
+    assert!(error.contains("requires dose_physics"), "{error}");
+}
+
+#[test]
+fn legacy_design_format_still_requires_and_resolves_all_five_inputs() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in [
+        "scenario.json",
+        "physics.json",
+        "history.json",
+        "spectrum.json",
+        "assumptions.json",
+    ] {
+        std::fs::write(dir.path().join(name), b"{}").unwrap();
+    }
+    let entry = serde_json::json!({
+        "scenario": "scenario.json", "physics": "physics.json", "history_run": "history.json",
+        "spectrum_run": "spectrum.json", "history_assumptions": "assumptions.json"
+    });
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "schema_version": DESIGNS_VERSION,
+        "designs": {"legacy": entry}
+    }))
+    .unwrap();
+    let parsed = parse_designs(&bytes, dir.path()).unwrap();
+    let design = &parsed["legacy"];
+    assert!(!design.cad_dose_only);
+    assert_eq!(
+        design
+            .files()
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>(),
+        vec![
+            "scenario",
+            "physics",
+            "history_run",
+            "spectrum_run",
+            "history_assumptions"
+        ]
+    );
+    let missing = serde_json::json!({
+        "schema_version": DESIGNS_VERSION,
+        "designs": {"legacy": {
+            "scenario": "scenario.json", "history_run": "history.json",
+            "history_assumptions": "assumptions.json"
+        }}
+    });
+    let error = parse_designs(&serde_json::to_vec(&missing).unwrap(), dir.path()).unwrap_err();
+    assert!(
+        error.contains("requires physics and spectrum_run"),
+        "{error}"
+    );
+}
+
+#[test]
+fn heat_maintenance_rejects_cad_dose_only_designs_before_actinv_setup() {
+    let t = tree();
+    std::fs::write(t.path("dose-physics.json"), b"{}").unwrap();
+    let entry = serde_json::json!({
+        "scenario": "scenario.json",
+        "history_run": "run.json",
+        "history_assumptions": "history.json",
+        "dose_physics": "dose-physics.json"
+    });
+    std::fs::write(
+        t.path("designs.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": CAD_DOSE_DESIGNS_VERSION,
+            "designs": {"ref": entry}
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let (progress, _) = collector();
+    let error =
+        run_from_files_with(&t.config(), &rates, &Cancellation::default(), progress).unwrap_err();
+    assert!(
+        error.contains("only supported by `faris maintenance dose-run`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn dose_run_dispatches_minimal_cad_design_to_the_history_sidecar_reader() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("scenario.json"), SCENARIO).unwrap();
+    std::fs::write(
+        dir.path().join("history.json"),
+        serde_json::to_vec(&fixtures::assumptions()).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("dose-physics.json"), b"{}").unwrap();
+    std::fs::write(
+        dir.path().join("history-driving-rates.json"),
+        br#"{"schema_version":"faris-cad-history-driving-rates/v0.1"}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("designs.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": CAD_DOSE_DESIGNS_VERSION,
+            "designs": {"cad": {
+                "scenario": "scenario.json",
+                "history_run": "history-driving-rates.json",
+                "history_assumptions": "history.json",
+                "dose_physics": "dose-physics.json"
+            }}
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("dose-assumptions.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": "faris-maintenance-assumptions/v0.2",
+            "governing_quantity": "dose",
+            "classes": {"blanket": {
+                "component_id": "blanket", "governing": ["blanket"], "work_s": 10.0,
+                "threshold": {
+                    "kind": "dose_rate_limit", "value_sv_h": 1.0e-6,
+                    "quantity": "icrp116_ap_effective_dose_rate", "method": "r2s",
+                    "source": "synthetic parser dispatch fixture", "location_id": "test-location",
+                    "location_sha256": "a".repeat(64)
+                }
+            }},
+            "cooling": {"min_s": 1.0, "max_s": 100.0, "points": 2},
+            "max_iterations": 2,
+            "convergence_s": 1.0
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let error = run_dose_from_files(
+        &DoseRunConfig {
+            designs: dir.path().join("designs.json"),
+            assumptions: dir.path().join("dose-assumptions.json"),
+            spatial_dose_curves: None,
+            python: PathBuf::from("python3"),
+            worker_script: dir.path().join("worker.py"),
+            work_dir: dir.path().join("work"),
+        },
+        &Cancellation::default(),
+        Arc::new(|_| {}),
+    )
+    .unwrap_err();
+    assert!(error.contains("CAD history rates artifact JSON"), "{error}");
+}
+
 /// Writes, for every continuation asked for, a spec, its provenance and the result the fake
 /// ACTINV returns: one irradiation step and the cooling grid, heat falling as 1/(1 + t).
 const BUILDER: &str = r#"

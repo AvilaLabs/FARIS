@@ -387,7 +387,7 @@ Usage: faris maintenance dose-run [OPTIONS] --designs <DESIGNS> --assumptions <A
 
 Options:
       --designs <DESIGNS>
-          faris-maintenance-designs/v0.1 design inputs
+          faris-maintenance-designs/v0.1 inputs, or faris-maintenance-cad-dose-designs/v0.1 with scenario, CAD history-rate record, history assumptions and dose_physics (paths relative to the file)
       --assumptions <ASSUMPTIONS>
           faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes
       --spatial-dose-curves <SPATIAL_DOSE_CURVES>

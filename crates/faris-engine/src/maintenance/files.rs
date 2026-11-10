@@ -27,6 +27,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 pub const DESIGNS_VERSION: &str = "faris-maintenance-designs/v0.1";
+pub const CAD_DOSE_DESIGNS_VERSION: &str = "faris-maintenance-cad-dose-designs/v0.1";
 
 // ------------------------------------------------------------------ builder --
 
@@ -95,9 +96,11 @@ struct DesignsFile {
 #[serde(deny_unknown_fields)]
 struct DesignEntry {
     scenario: PathBuf,
-    physics: PathBuf,
+    #[serde(default)]
+    physics: Option<PathBuf>,
     history_run: PathBuf,
-    spectrum_run: PathBuf,
+    #[serde(default)]
+    spectrum_run: Option<PathBuf>,
     history_assumptions: PathBuf,
     #[serde(default)]
     dose_physics: Option<PathBuf>,
@@ -107,23 +110,27 @@ struct DesignEntry {
 #[derive(Debug, PartialEq)]
 pub struct ResolvedDesign {
     pub scenario: PathBuf,
-    pub physics: PathBuf,
+    pub physics: Option<PathBuf>,
     pub history_run: PathBuf,
-    pub spectrum_run: PathBuf,
+    pub spectrum_run: Option<PathBuf>,
     pub history_assumptions: PathBuf,
     /// Optional native OpenMC event-dose adapter manifest; absent means dose NOT_EVALUATED.
     pub dose_physics: Option<PathBuf>,
+    pub cad_dose_only: bool,
 }
 
 impl ResolvedDesign {
-    pub fn files(&self) -> [(&'static str, &Path); 5] {
-        [
-            ("scenario", &self.scenario),
-            ("physics", &self.physics),
-            ("history_run", &self.history_run),
-            ("spectrum_run", &self.spectrum_run),
-            ("history_assumptions", &self.history_assumptions),
-        ]
+    pub fn files(&self) -> Vec<(&'static str, &Path)> {
+        let mut files = vec![("scenario", self.scenario.as_path())];
+        if let Some(path) = &self.physics {
+            files.push(("physics", path));
+        }
+        files.push(("history_run", self.history_run.as_path()));
+        if let Some(path) = &self.spectrum_run {
+            files.push(("spectrum_run", path));
+        }
+        files.push(("history_assumptions", self.history_assumptions.as_path()));
+        files
     }
 }
 
@@ -133,11 +140,15 @@ pub fn parse_designs(
     base: &Path,
 ) -> Result<BTreeMap<String, ResolvedDesign>, String> {
     let file: DesignsFile = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-    if file.schema_version != DESIGNS_VERSION {
-        return Err(format!(
-            "designs file schema_version must be {DESIGNS_VERSION}"
-        ));
-    }
+    let cad_dose_only = match file.schema_version.as_str() {
+        DESIGNS_VERSION => false,
+        CAD_DOSE_DESIGNS_VERSION => true,
+        _ => {
+            return Err(format!(
+                "designs file schema_version must be {DESIGNS_VERSION} or {CAD_DOSE_DESIGNS_VERSION}"
+            ));
+        }
+    };
     if file.designs.is_empty() {
         return Err("designs file names no design".into());
     }
@@ -146,13 +157,29 @@ pub fn parse_designs(
         if name.trim().is_empty() {
             return Err("design names must be nonempty".into());
         }
+        if cad_dose_only && (entry.physics.is_some() || entry.spectrum_run.is_some()) {
+            return Err(format!(
+                "design {name}: {CAD_DOSE_DESIGNS_VERSION} takes only inputs used by the CAD dose path; omit physics and spectrum_run"
+            ));
+        }
+        if !cad_dose_only && (entry.physics.is_none() || entry.spectrum_run.is_none()) {
+            return Err(format!(
+                "design {name}: {DESIGNS_VERSION} requires physics and spectrum_run"
+            ));
+        }
+        if cad_dose_only && entry.dose_physics.is_none() {
+            return Err(format!(
+                "design {name}: {CAD_DOSE_DESIGNS_VERSION} requires dose_physics"
+            ));
+        }
         let resolved = ResolvedDesign {
             scenario: base.join(entry.scenario),
-            physics: base.join(entry.physics),
+            physics: entry.physics.map(|path| base.join(path)),
             history_run: base.join(entry.history_run),
-            spectrum_run: base.join(entry.spectrum_run),
+            spectrum_run: entry.spectrum_run.map(|path| base.join(path)),
             history_assumptions: base.join(entry.history_assumptions),
             dose_physics: entry.dose_physics.map(|path| base.join(path)),
+            cad_dose_only,
         };
         for (what, path) in resolved.files() {
             if !path.is_file() {
@@ -348,6 +375,11 @@ pub fn run_from_files_with(
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let designs = parse_designs(&read_bounded(&config.designs)?, designs_base)?;
+    if designs.values().any(|design| design.cad_dose_only) {
+        return Err(format!(
+            "{CAD_DOSE_DESIGNS_VERSION} is only supported by `faris maintenance dose-run`; heat-governed `maintenance run` still requires {DESIGNS_VERSION} with physics and spectrum_run"
+        ));
+    }
     for spec in assumptions.classes.values() {
         if let Threshold::Calibrate { design, .. } = &spec.threshold
             && !designs.contains_key(design)
@@ -388,9 +420,15 @@ pub fn run_from_files_with(
             name.clone(),
             DesignFiles {
                 scenario: design.scenario.clone(),
-                physics: design.physics.clone(),
+                physics: design
+                    .physics
+                    .clone()
+                    .ok_or_else(|| format!("design {name} has no physics file"))?,
                 history_run: design.history_run.clone(),
-                spectrum_run: design.spectrum_run.clone(),
+                spectrum_run: design
+                    .spectrum_run
+                    .clone()
+                    .ok_or_else(|| format!("design {name} has no spectrum_run file"))?,
             },
         );
     }
