@@ -391,8 +391,11 @@ def main() -> int:
         volume_path = neutron_dir / "mesh_material_volumes.npz"
         mmv = activation_mesh.material_volumes(neutron, n_samples=args.mat_vol_samples, output=False)
         mmv.save(volume_path)
+        volume_layout = BM.mesh_material_volumes_preflight(volume_path)
         with np.load(volume_path, allow_pickle=False) as saved:
-            actual_domains = int(np.count_nonzero(np.asarray(saved["materials"]) > -1))
+            material_array = np.asarray(saved["materials"])
+            volume_array = np.asarray(saved["volumes"], dtype=np.float64)
+            actual_domains = int(np.count_nonzero(material_array > -1))
         if actual_domains < 1:
             raise RuntimeError("OpenMC material-volume sampling found no material-bearing activation domains")
         memory_budget = int(args.microxs_memory_budget_mib * 1024 ** 2)
@@ -403,7 +406,10 @@ def main() -> int:
                                                   len(chain.reactions), 42, args.activation_chunk_domains)
         activation_estimate = BM.activation_resource_estimate(
             actual_domains, len(chain.nuclides), len(coverage["required_microxs_nuclides"]),
-            len(chain.reactions), len(sc.TIMESTEPS), args.activation_chunk_domains)
+            len(chain.reactions), len(sc.TIMESTEPS), args.activation_chunk_domains,
+            group_count=42, mesh_array_bytes=volume_layout["array_bytes"],
+            mesh_element_count=volume_layout["shape"][0],
+            material_slot_count=volume_layout["shape"][1])
         _chain_reactions, _reachable, metadata_required, collapse_reactions = BM._chain_spec(
             CHAIN, nuclides, openmc.data.REACTION_MT)
         if metadata_required != coverage["required_microxs_nuclides"]:
@@ -447,15 +453,13 @@ def main() -> int:
             "collapse": estimate, "collapse_pointwise_memory": collapse_data_memory,
             "activation": activation_estimate}
         save()
-        with np.load(volume_path, allow_pickle=False) as saved:
-            material_array = np.asarray(saved["materials"])
-            volume_array = np.asarray(saved["volumes"], dtype=float)
         elements, slots = np.where(material_array > -1)
-        domain_map = [[int(element), int(material_array[element, slot]), float(volume_array[element, slot])]
-                      for element, slot in zip(elements, slots)]
+        domain_materials = material_array[elements, slots].astype(np.int64, copy=False)
+        domain_volumes = volume_array[elements, slots]
         volume_receipt = {"path": volume_path.relative_to(out).as_posix(), "sha256": RM.sha256(volume_path),
                           "size_bytes": volume_path.stat().st_size, "domain_count": actual_domains,
-                          "domain_map_sha256": BM._canonical_sha256(domain_map)}
+                          "layout": volume_layout,
+                          "domain_map_sha256": BM.domain_map_sha256(elements, domain_materials, domain_volumes)}
         tally = openmc.Tally(name="R3 bounded MicroXS flux")
         tally.filters = [openmc.MeshMaterialFilter.from_volumes(activation_mesh, mmv),
                         openmc.EnergyFilter.from_group_structure(sc.ACTIVATION_GROUPS)]

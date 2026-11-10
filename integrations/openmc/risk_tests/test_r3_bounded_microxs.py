@@ -4,17 +4,20 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import sys
 import tempfile
 import types
 import unittest
 import unittest.mock
+import zipfile
 from pathlib import Path
 
 import h5py
 import numpy as np
 import openmc
+import openmc.deplete
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -53,6 +56,37 @@ class CollapseMathTests(unittest.TestCase):
         output = BC.collapse_domain_chunk(means, spectra)
         np.testing.assert_allclose(output[:, 0, :], [[3.0, 4.5]], rtol=0.0, atol=1e-14)
         np.testing.assert_array_equal(output[:, 1, :], np.zeros((1, 2)))
+
+    def test_openmc_0153_independent_rate_helper_matches_multigroup_rate_after_collapse(self):
+        with tempfile.TemporaryDirectory() as temp:
+            chain_path = Path(temp) / "chain.xml"
+            chain_path.write_text("""<depletion_chain>
+  <nuclide name="U235"><reaction type="(n,gamma)" target="U236"/></nuclide>
+  <nuclide name="U236"/>
+</depletion_chain>
+""", encoding="utf-8")
+            nuclides = ["U235", "U236"]
+            reactions = ["(n,gamma)"]
+            group_means = np.asarray([[[1.0] * 42], [[2.5] * 42]], dtype=np.float64)
+            flux = np.linspace(0.25, 4.0, 42, dtype=np.float64)
+            collapsed = BC.collapse_domain_chunk(group_means, flux[None, :])[:, 0, :]
+            material = openmc.Material()
+            material.add_nuclide("U235", 0.5)
+            material.add_nuclide("U236", 0.5)
+            material.depletable = True
+            material.volume = 1.0
+
+            multigroup_operator = openmc.deplete.IndependentOperator(
+                [material.clone()], [flux],
+                [openmc.deplete.MicroXS(group_means, nuclides, reactions)],
+                chain_file=str(chain_path), normalization_mode="source-rate")
+            collapsed_operator = openmc.deplete.IndependentOperator(
+                [material.clone()], [np.asarray([np.sum(flux)], dtype=np.float64)],
+                [openmc.deplete.MicroXS(collapsed[:, :, None], nuclides, reactions)],
+                chain_file=str(chain_path), normalization_mode="source-rate")
+            groupwise_rates = multigroup_operator._rate_helper.get_material_rates(0, [0, 1], [0]).copy()
+            collapsed_rates = collapsed_operator._rate_helper.get_material_rates(0, [0, 1], [0]).copy()
+            np.testing.assert_allclose(collapsed_rates, groupwise_rates, rtol=1e-14, atol=0.0)
 
     def test_canonical_energy_distribution_xml_roundtrips_without_solver(self):
         distribution = openmc.stats.Discrete([100_000.0, 200_000.0], [0.25, 0.75])
@@ -548,6 +582,59 @@ class BoundedWorkflowTests(unittest.TestCase):
                         large_chunk["temporary_chunk_inventory_raw_bytes"])
         self.assertLess(small["working_bytes_estimate"], large_chunk["working_bytes_estimate"])
         self.assertLess(small["temporary_chunk_inventory_upper_bytes"], 8 * BC.GIB)
+
+    def test_mesh_material_volume_preflight_rejects_high_slot_multiplicity_before_load(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "many-slots.npz"
+            np.savez_compressed(path, materials=np.full((2, BC.MAX_MATERIAL_SLOTS_PER_ELEMENT + 1), -2,
+                                                        dtype=np.int64),
+                                volumes=np.zeros((2, BC.MAX_MATERIAL_SLOTS_PER_ELEMENT + 1), dtype=np.float64))
+            with unittest.mock.patch.object(BC.np, "load", side_effect=AssertionError("array materialized")):
+                with self.assertRaisesRegex(ValueError, "slots per element"):
+                    BC.mesh_material_volumes_preflight(path)
+
+    def test_mesh_material_volume_preflight_rejects_oversized_archive_before_load(self):
+        with tempfile.TemporaryDirectory() as temp:
+            paths = _fixture(Path(temp))
+            with unittest.mock.patch.object(BC, "MAX_MESH_VOLUME_NPZ_BYTES", 16):
+                with unittest.mock.patch.object(BC.np, "load", side_effect=AssertionError("array materialized")):
+                    with self.assertRaisesRegex(ValueError, "NPZ size"):
+                        BC.mesh_material_volumes_preflight(paths["volumes"])
+
+    def test_mesh_material_volume_preflight_rejects_declared_oversized_npy_payload(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "oversized-member.npz"
+            header = io.BytesIO()
+            np.lib.format.write_array_header_1_0(header, {
+                "descr": np.dtype("<i8").str, "fortran_order": False,
+                "shape": (BC.MAX_MESH_ELEMENTS, BC.MAX_MATERIAL_SLOTS_PER_ELEMENT),
+            })
+            with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("materials.npy", header.getvalue())
+                archive.writestr("volumes.npy", header.getvalue())
+            with unittest.mock.patch.object(BC.np, "load", side_effect=AssertionError("array materialized")):
+                with self.assertRaisesRegex(ValueError, "payload size"):
+                    BC.mesh_material_volumes_preflight(path)
+
+    def test_streamed_domain_hash_matches_canonical_list_hash(self):
+        elements = np.array([0, 1, 1], dtype=np.int64)
+        materials = np.array([7, 3, 9], dtype=np.int64)
+        volumes = np.array([1.25, 2.0, 0.125], dtype=np.float64)
+        expected = BC._canonical_sha256([[int(e), int(m), float(v)]
+                                         for e, m, v in zip(elements, materials, volumes)])
+        self.assertEqual(BC.domain_map_sha256(elements, materials, volumes), expected)
+
+    def test_activation_estimate_counts_full_group_mean_and_slot_metadata(self):
+        estimate = BC.activation_resource_estimate(
+            10_000, 3820, 2190, 7, 4, 8, group_count=42,
+            mesh_array_bytes=6_000_000, mesh_element_count=8_000, material_slot_count=3)
+        self.assertEqual(estimate["full_group_mean_xs_bytes"], 2190 * 7 * 42 * 8)
+        self.assertEqual(estimate["mesh_material_volume_array_bytes"], 6_000_000)
+        self.assertEqual(estimate["source_slot_map_bytes_estimate"],
+                         10_000 * BC.SOURCE_SLOT_MAP_BYTES_PER_DOMAIN)
+        self.assertEqual(estimate["source_slot_matrix_bytes_estimate"], 8_000 * 3 * 8)
+        baseline = BC.activation_resource_estimate(10_000, 3820, 2190, 7, 4, 8)
+        self.assertGreater(estimate["working_bytes_estimate"], baseline["working_bytes_estimate"])
 
     def test_group_mean_collapse_storage_does_not_scale_with_mesh_domains(self):
         small = BC.collapse_resource_estimate(1_354, 2_190, 7, 42, 8)

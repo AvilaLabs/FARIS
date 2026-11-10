@@ -33,6 +33,7 @@ from pathlib import Path
 import shutil
 import sys
 import xml.etree.ElementTree as ET
+import zipfile
 import zlib
 
 import h5py
@@ -68,6 +69,14 @@ GIB = 1024 ** 3
 DEFAULT_MAX_OUTPUT_BYTES = 8 * GIB
 DEFAULT_DISK_RESERVE_BYTES = 8 * GIB
 DEFAULT_MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
+MAX_MESH_VOLUME_NPZ_BYTES = 256 * 1024 * 1024
+MAX_MESH_VOLUME_ARRAY_BYTES = 256 * 1024 * 1024
+MAX_MESH_ELEMENTS = 262_144
+MAX_MATERIAL_SLOTS_PER_ELEMENT = 64
+MAX_MESH_DOMAINS = 2_000_000
+# Conservative estimate for one retained dict and its four integer values,
+# pointers, and list slot in domain_source_slot_map().
+SOURCE_SLOT_MAP_BYTES_PER_DOMAIN = 320
 
 
 def sha256_file(path: Path) -> str:
@@ -269,7 +278,85 @@ def collapse_flux(means: np.ndarray, flux: np.ndarray) -> np.ndarray:
     return (values @ spectrum) / total
 
 
+def mesh_material_volumes_preflight(volumes_path: Path) -> dict:
+    """Inspect NPZ/NPY headers and declared payload sizes before array loading."""
+    path = Path(volumes_path)
+    file_size = path.stat().st_size
+    if file_size < 1 or file_size > MAX_MESH_VOLUME_NPZ_BYTES:
+        raise ValueError(f"mesh material volumes NPZ size {file_size} exceeds the {MAX_MESH_VOLUME_NPZ_BYTES}-byte input cap")
+    expected = {"materials.npy", "volumes.npy"}
+    arrays = {}
+    try:
+        with zipfile.ZipFile(path) as archive:
+            entries = archive.infolist()
+            if len(entries) != len(expected) or {entry.filename for entry in entries} != expected:
+                raise ValueError("mesh material volumes NPZ must contain exactly materials.npy and volumes.npy")
+            for entry in entries:
+                if entry.file_size > MAX_MESH_VOLUME_ARRAY_BYTES:
+                    raise ValueError(f"mesh material volume array {entry.filename} declares an oversized uncompressed payload")
+                with archive.open(entry) as stream:
+                    version = np.lib.format.read_magic(stream)
+                    if version == (1, 0):
+                        shape, _fortran, dtype = np.lib.format.read_array_header_1_0(stream)
+                    elif version in {(2, 0), (3, 0)}:
+                        shape, _fortran, dtype = np.lib.format.read_array_header_2_0(stream)
+                    else:
+                        raise ValueError(f"unsupported NPY header version {version} in {entry.filename}")
+                    dtype = np.dtype(dtype)
+                    if dtype.hasobject or len(shape) != 2 or any(int(dim) < 1 for dim in shape):
+                        raise ValueError(f"mesh material volume array {entry.filename} must be a nonempty 2-D numeric array")
+                    payload_bytes = math.prod(map(int, shape)) * dtype.itemsize
+                    header_bytes = stream.tell()
+                    if payload_bytes + header_bytes != entry.file_size:
+                        raise ValueError(f"mesh material volume array {entry.filename} payload size disagrees with its NPY header")
+                    arrays[entry.filename[:-4]] = {"shape": list(map(int, shape)),
+                                                   "dtype": dtype.str,
+                                                   "payload_bytes": payload_bytes,
+                                                   "uncompressed_bytes": entry.file_size}
+    except (zipfile.BadZipFile, EOFError, OSError) as exc:
+        raise ValueError(f"mesh material volumes NPZ is malformed: {exc}") from exc
+    if set(arrays) != {"materials", "volumes"} or arrays["materials"]["shape"] != arrays["volumes"]["shape"]:
+        raise ValueError("mesh material and volume arrays must have identical dimensions")
+    material_dtype = np.dtype(arrays["materials"]["dtype"])
+    volume_dtype = np.dtype(arrays["volumes"]["dtype"])
+    if not np.issubdtype(material_dtype, np.integer) or not np.issubdtype(volume_dtype, np.number):
+        raise ValueError("mesh material IDs must be integer and volumes must be numeric")
+    elements, slots = arrays["materials"]["shape"]
+    if elements > MAX_MESH_ELEMENTS:
+        raise ValueError(f"mesh material volume element count {elements} exceeds cap {MAX_MESH_ELEMENTS}")
+    if slots > MAX_MATERIAL_SLOTS_PER_ELEMENT:
+        raise ValueError(f"mesh material slots per element {slots} exceeds cap {MAX_MATERIAL_SLOTS_PER_ELEMENT}")
+    total_array_bytes = sum(item["payload_bytes"] for item in arrays.values())
+    if total_array_bytes > MAX_MESH_VOLUME_ARRAY_BYTES:
+        raise ValueError(f"mesh material volume arrays declare {total_array_bytes} bytes, above cap {MAX_MESH_VOLUME_ARRAY_BYTES}")
+    domain_upper = elements * slots
+    if domain_upper > MAX_MESH_DOMAINS:
+        raise ValueError(f"mesh material domain upper bound {domain_upper} exceeds cap {MAX_MESH_DOMAINS}")
+    return {"file_size_bytes": file_size, "array_bytes": total_array_bytes,
+            "shape": [elements, slots], "domain_upper_bound": domain_upper,
+            "source_slot_map_bytes_upper_bound": domain_upper * SOURCE_SLOT_MAP_BYTES_PER_DOMAIN,
+            "arrays": arrays}
+
+
+def domain_map_sha256(elements: np.ndarray, material_ids: np.ndarray, volumes: np.ndarray) -> str:
+    """Hash canonical domain triples with O(1) Python auxiliary memory."""
+    if not (len(elements) == len(material_ids) == len(volumes)):
+        raise ValueError("domain-map hash arrays have inconsistent lengths")
+    digest = hashlib.sha256()
+    digest.update(b"[")
+    first = True
+    for element, material, volume in zip(elements, material_ids, volumes):
+        if not first:
+            digest.update(b",")
+        triple = [int(element), int(material), float(volume)]
+        digest.update(json.dumps(triple, separators=(",", ":"), allow_nan=False).encode())
+        first = False
+    digest.update(b"]")
+    return digest.hexdigest()
+
+
 def _domain_table(volumes_path: Path, domain_count_expected: int):
+    mesh_material_volumes_preflight(volumes_path)
     with np.load(volumes_path, allow_pickle=False) as data:
         if set(data.files) != {"materials", "volumes"}:
             raise ValueError("mesh material volumes NPZ has an unexpected array catalogue")
@@ -419,10 +506,7 @@ def prepare_plan(plan_path: Path, *, fluxes_path: Path, volumes_path: Path, chai
     nuclide_count = len(required)
     reaction_count = len(reactions)
     domain_count = int(fluxes.shape[0])
-    domain_map_hash = _canonical_sha256([
-        [int(element), int(material), float(volume)]
-        for element, material, volume in zip(elements, material_ids, domain_volumes)
-    ])
+    domain_map_hash = domain_map_sha256(elements, material_ids, domain_volumes)
     resource_estimate = collapse_resource_estimate(domain_count, nuclide_count, reaction_count,
                                                    int(edges.size - 1), min(domain_chunk, domain_count))
     output_raw_bytes = resource_estimate["group_mean_xs_bytes"]
@@ -527,12 +611,10 @@ def run_collapse(plan_path: Path, run_dir: Path) -> dict:
         raise FileExistsError(f"refusing to overwrite existing bounded MicroXS run: {run_dir}")
     run_dir.parent.mkdir(parents=True, exist_ok=True)
     run_dir.mkdir()
+    mesh_material_volumes_preflight(paths["volumes"])
     flux = np.load(paths["fluxes"], mmap_mode="r", allow_pickle=False)
     elements, material_ids, volumes = _domain_table(paths["volumes"], int(flux.shape[0]))
-    domain_map_hash = _canonical_sha256([
-        [int(element), int(material), float(volume)]
-        for element, material, volume in zip(elements, material_ids, volumes)
-    ])
+    domain_map_hash = domain_map_sha256(elements, material_ids, volumes)
     if domain_map_hash != plan["domains"]["element_material_volume_map_sha256"]:
         raise ValueError("mesh/material/volume domain map changed after planning")
     chain_reactions, _, _, _ = _chain_spec(paths["chain"], plan["material_root_nuclides"], plan["reaction_mt"])
@@ -768,26 +850,36 @@ def domain_source_slot_map(materials: np.ndarray) -> list[dict[str, int]]:
 
 def activation_resource_estimate(domain_count: int, chain_nuclide_count: int, microxs_nuclide_count: int,
                                 reaction_count: int, timestep_count: int, domain_chunk: int,
-                                file_overhead_bytes: int = 1024 * 1024) -> dict:
+                                file_overhead_bytes: int = 1024 * 1024, *, group_count: int = 42,
+                                mesh_array_bytes: int = 0, mesh_element_count: int = 0,
+                                material_slot_count: int = 0) -> dict:
     """Bound temporary chunk inventories and per-chunk depletion working set."""
     values = (domain_count, chain_nuclide_count, microxs_nuclide_count, reaction_count,
-              timestep_count, domain_chunk, file_overhead_bytes)
-    if any(int(value) < 1 for value in values):
+              timestep_count, domain_chunk, file_overhead_bytes, group_count)
+    if any(int(value) < 1 for value in values) or any(
+            int(value) < 0 for value in (mesh_array_bytes, mesh_element_count, material_slot_count)):
         raise ValueError("activation resource-estimate inputs must be positive")
     states = timestep_count + 1
     result_raw = domain_chunk * chain_nuclide_count * states * 8
     result_upper = 2 * result_raw + file_overhead_bytes
     one_group_microxs = domain_count * microxs_nuclide_count * reaction_count * 8
+    group_mean_xs = microxs_nuclide_count * reaction_count * group_count * 8
+    source_slot_map = domain_count * SOURCE_SLOT_MAP_BYTES_PER_DOMAIN
+    source_slot_matrix = mesh_element_count * material_slot_count * 8
     working = 128 * 1024 * 1024 + domain_chunk * (
         microxs_nuclide_count * reaction_count * 8 + chain_nuclide_count * states * 8 * 4
-    )
+    ) + group_mean_xs + mesh_array_bytes + source_slot_map + source_slot_matrix
     return {"temporary_chunk_inventory_raw_bytes": result_raw,
             "temporary_chunk_inventory_upper_bytes": result_upper,
             "retained_source_archive_compressed_bytes": None,
             "retained_source_archive_decompressed_bytes": None,
             "hypothetical_dense_one_group_microxs_bytes": one_group_microxs,
+            "full_group_mean_xs_bytes": group_mean_xs,
+            "mesh_material_volume_array_bytes": mesh_array_bytes,
+            "source_slot_map_bytes_estimate": source_slot_map,
+            "source_slot_matrix_bytes_estimate": source_slot_matrix,
             "working_bytes_estimate": working,
-            "estimate_scope": "one temporary chunk inventory plus 128 MiB Python/OpenMC overhead; inventory is converted to exact source spectra and deleted before the next chunk; source archive size is data-dependent and hard-capped during writing"}
+            "estimate_scope": "one temporary chunk inventory, full retained group-mean XS array, material/volume arrays, per-domain source-slot dictionaries, source-slot matrix, and 128 MiB Python/OpenMC overhead; inventory is converted to exact source spectra and deleted before the next chunk; source archive size is data-dependent and hard-capped during writing"}
 
 
 def _write_json_new(path: Path, value: dict) -> None:
@@ -876,11 +968,26 @@ def prepare_activation_plan(plan_path: Path, *, collapse_plan_path: Path,
             raise ValueError("activation group-mean XS domain count differs from collapse plan")
         micro_nuclides = len(micro["nuclides"])
         reactions = len(micro["reactions"])
-    chain_nuclides = len(ET.parse(paths["chain"]).getroot().findall("nuclide"))
+        group_mean_shape = tuple(map(int, micro["group_mean_xs_barns"].shape))
+        group_mean_itemsize = int(micro["group_mean_xs_barns"].dtype.itemsize)
+        if len(group_mean_shape) != 3 or group_mean_shape[:2] != (micro_nuclides, reactions):
+            raise ValueError("activation group-mean XS array dimensions disagree with nuclide/reaction catalogues")
+        group_count = group_mean_shape[2]
+        group_mean_bytes = math.prod(group_mean_shape) * group_mean_itemsize
     domains = int(collapse_plan["domains"]["count"])
+    volume_layout = mesh_material_volumes_preflight(paths["volumes"])
+    if volume_layout["shape"][0] > MAX_MESH_ELEMENTS or domains > volume_layout["domain_upper_bound"]:
+        raise ValueError("activation mesh/material domain metadata exceeds its preflight bounds")
+    chain_nuclides = len(ET.parse(paths["chain"]).getroot().findall("nuclide"))
     chunk = min(int(domain_chunk), domains)
     estimate = activation_resource_estimate(domains, chain_nuclides, micro_nuclides,
-                                            reactions, len(timesteps), chunk)
+                                            reactions, len(timesteps), chunk,
+                                            group_count=group_count,
+                                            mesh_array_bytes=volume_layout["array_bytes"],
+                                            mesh_element_count=volume_layout["shape"][0],
+                                            material_slot_count=volume_layout["shape"][1])
+    if estimate["full_group_mean_xs_bytes"] != group_mean_bytes:
+        raise ValueError("activation resource estimate differs from the complete group-mean XS dataset size")
     if estimate["working_bytes_estimate"] > memory_limit_bytes:
         raise ValueError("chunked depletion working-set estimate exceeds memory budget")
     free_bytes = shutil.disk_usage(output_run_dir.parent).free
@@ -896,6 +1003,7 @@ def prepare_activation_plan(plan_path: Path, *, collapse_plan_path: Path,
                             "gzip_header_policy": "mtime=0, empty filename, canonical JSONL payload"},
         "output_run_dir": str(output_run_dir),
         "inputs": inputs,
+        "mesh_material_volumes_layout": volume_layout,
         "collapse_plan_sha256": collapse_plan["plan_sha256"],
         "collapse_record_sha256": inputs["collapse_record"]["sha256"],
         "domain_count": domains,
@@ -957,6 +1065,9 @@ def run_activation_chunks(plan_path: Path) -> dict:
         raise ValueError("Python/zlib source-archive runtime differs from the frozen activation plan")
     mats = openmc.Materials.from_xml(input_paths["materials"])
     materials_by_id = {int(mat.id): mat for mat in mats}
+    layout = mesh_material_volumes_preflight(input_paths["volumes"])
+    if layout != plan.get("mesh_material_volumes_layout"):
+        raise ValueError("mesh material volume layout changed after activation planning")
     with np.load(input_paths["volumes"], allow_pickle=False) as file_data:
         material_array = np.asarray(file_data["materials"])
         volume_array = np.asarray(file_data["volumes"], dtype=np.float64)
@@ -1025,7 +1136,12 @@ def run_activation_chunks(plan_path: Path) -> dict:
         microxs_payload_hash = hashlib.sha256(raw.astype("<f8", copy=False).tobytes()).hexdigest()
         micro_list = [openmc.deplete.MicroXS(raw[:, local, :, None], nuclides, reactions)
                       for local in range(stop - start)]
-        flux_list = [np.asarray(fluxes[i], dtype=np.float64) for i in range(start, stop)]
+        # MicroXS has one collapsed group, so pair it with the corresponding
+        # integrated flux. OpenMC's independent rate helper multiplies XS by
+        # flux groupwise and sums; this is algebraically identical to the
+        # original multigroup rate from the exact flux-weighted collapse.
+        flux_list = [np.asarray([np.sum(fluxes[i], dtype=np.float64)], dtype=np.float64)
+                     for i in range(start, stop)]
         operator = openmc.deplete.IndependentOperator(
             chunk_materials, flux_list, micro_list, chain_file=str(input_paths["chain"]),
             normalization_mode="source-rate")
@@ -1213,6 +1329,7 @@ def verify_activation_microxs_receipts(activation_plan_path: Path,
     out_dir = Path(record["output_dir"]).resolve(strict=True)
     if out_dir != Path(plan["output_run_dir"]).resolve():
         raise ValueError("activation source archive destination differs from its frozen plan")
+    mesh_material_volumes_preflight(Path(plan["inputs"]["volumes"]["path"]))
     with np.load(Path(plan["inputs"]["volumes"]["path"]), allow_pickle=False) as values:
         source_slots = domain_source_slot_map(np.asarray(values["materials"]))
     time_source_sums = [0.0] * (len(plan["timesteps"]) + 1)
@@ -1402,11 +1519,21 @@ def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_re
     for name, ref in plan["inputs"].items():
         if sha256_file(Path(ref["path"])) != ref["sha256"]:
             raise ValueError(f"activation source input changed after planning: {name}")
+    volume_layout = mesh_material_volumes_preflight(Path(plan["inputs"]["volumes"]["path"]))
+    memory_limit = int(plan["resources"]["memory_limit_bytes"])
+    source_base_estimate = (128 * 1024 * 1024 +
+                            int(plan["resources"]["full_group_mean_xs_bytes"]) +
+                            int(plan["domain_count"]) * SOURCE_SLOT_MAP_BYTES_PER_DOMAIN +
+                            int(volume_layout["array_bytes"]) +
+                            int(volume_layout["shape"][0]) * int(volume_layout["shape"][1]) * 8)
+    if source_base_estimate > memory_limit:
+        raise ValueError(f"photon source reassembly base estimate {source_base_estimate} exceeds declared memory limit {memory_limit}")
     source_revalidation = verify_activation_microxs_receipts(activation_plan_path, activation_record_path)
     source_working_estimate = (128 * 1024 * 1024 +
                                4 * int(source_revalidation["time_source_xml_bytes"][int(time_index)]) +
-                               int(plan["domain_count"]) * 4096)
-    memory_limit = int(plan["resources"]["memory_limit_bytes"])
+                               int(plan["domain_count"]) * SOURCE_SLOT_MAP_BYTES_PER_DOMAIN +
+                               int(volume_layout["array_bytes"]) +
+                               int(volume_layout["shape"][0]) * int(volume_layout["shape"][1]) * 8)
     if source_working_estimate > memory_limit:
         raise ValueError(f"photon source reassembly working-set estimate {source_working_estimate} exceeds declared memory limit {memory_limit}")
     try:
@@ -1418,6 +1545,8 @@ def build_chunked_decay_photon_sources(activation_plan_path: Path, activation_re
         raise ValueError("chunked photon source assembly requires OpenMC 0.15.3")
     materials = openmc_module.Materials.from_xml(Path(plan["inputs"]["materials"]["path"]))
     materials_by_id = {int(mat.id): mat for mat in materials}
+    if volume_layout != plan.get("mesh_material_volumes_layout"):
+        raise ValueError("mesh material volume layout changed after activation planning")
     with np.load(Path(plan["inputs"]["volumes"]["path"]), allow_pickle=False) as values:
         material_array = np.asarray(values["materials"])
     slot_map = domain_source_slot_map(material_array)
