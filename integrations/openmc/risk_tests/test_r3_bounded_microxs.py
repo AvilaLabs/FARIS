@@ -7,7 +7,9 @@ import hashlib
 import json
 import sys
 import tempfile
+import types
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import h5py
@@ -320,6 +322,145 @@ class BoundedWorkflowTests(unittest.TestCase):
             self.assertLess(activation_plan["resources"]["working_bytes_estimate"], 256 * 1024 * 1024)
             self.assertEqual(activation_plan["inputs"]["microxs"]["sha256"],
                          BC.sha256_file(collapse_dir / "group_mean_xs.h5"))
+
+    def test_chunk_activation_executes_receipt_path_with_mock_openmc_api(self):
+        """Exercise run_activation_chunks through receipt serialization without launching a solver."""
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = _fixture(root)
+            # Two exact material IDs are present in the mesh-volume fixture.
+            paths["materials"].write_text(
+                '<materials><material id="1"><nuclide name="A" ao="1"/></material>'
+                '<material id="2"><nuclide name="A" ao="1"/></material></materials>',
+                encoding="utf-8")
+            collapse_plan_path = root / "collapse-plan.json"
+            collapse_dir = root / "collapse"
+            BC.prepare_plan(collapse_plan_path, fluxes_path=paths["fluxes"], volumes_path=paths["volumes"],
+                            chain_path=paths["chain"], cross_sections_xml=paths["xsec"],
+                            materials_xml=paths["materials"], energy_edges_eV=BC.VITAMIN_J_42_EDGES_E_V,
+                            output_run_dir=collapse_dir, output_budget_bytes=40 * 1024 * 1024,
+                            disk_reserve_bytes=0, memory_limit_bytes=256 * 1024 * 1024)
+            BC.run_collapse(collapse_plan_path, collapse_dir)
+            activation_plan_path = root / "activation-plan.json"
+            activation_plan = BC.prepare_activation_plan(
+                activation_plan_path, collapse_plan_path=collapse_plan_path,
+                collapse_record_path=collapse_dir / "collapse_record.json",
+                microxs_path=collapse_dir / "group_mean_xs.h5", fluxes_path=paths["fluxes"],
+                volumes_path=paths["volumes"], materials_xml=paths["materials"],
+                chain_path=paths["chain"], output_run_dir=root / "activation-run",
+                timesteps=[[1.0, "a"], [1.0, "d"]], source_rates=[5.0, 0.0],
+                domain_chunk=2, output_budget_bytes=40 * 1024 * 1024,
+                disk_reserve_bytes=0, memory_limit_bytes=256 * 1024 * 1024)
+
+            class Material:
+                def __init__(self, material_id, name="A"):
+                    self.id = material_id
+                    self.name = name
+                    self.depletable = False
+                    self.volume = None
+
+                def clone(self):
+                    return Material(self.id, self.name)
+
+                def get_nuclides(self):
+                    return [self.name]
+
+                def get_decay_photon_energy(self, clip_tolerance=0.05):
+                    return PhotonEnergy()
+
+            class Materials(list):
+                @classmethod
+                def from_xml(cls, path):
+                    xml = ET.parse(path).getroot()
+                    return cls((Material(int(node.get("id"))) for node in xml.findall("material")),
+                               assign_activation_ids=False)
+
+                def __init__(self, values, assign_activation_ids=True):
+                    super().__init__(values)
+                    if assign_activation_ids:
+                        for index, item in enumerate(self, start=1000):
+                            item.id = index
+
+                def export_to_xml(self, path):
+                    Path(path).write_text("<materials/>\n", encoding="utf-8")
+
+            class PhotonEnergy:
+                def integral(self):
+                    return 4.0
+
+                def to_xml_element(self, name):
+                    return ET.Element(name, {"type": "discrete"})
+
+            class InventoryMaterial:
+                def get_nuclide_atoms(self):
+                    return {"A": 4.0}
+
+                def get_decay_photon_energy(self, clip_tolerance=0.05):
+                    return PhotonEnergy()
+
+            class Step:
+                def get_material(self, _material_id):
+                    return InventoryMaterial()
+
+            class Results:
+                def __init__(self, _path):
+                    pass
+
+                def __len__(self):
+                    return len(activation_plan["timesteps"]) + 1
+
+                def __getitem__(self, _index):
+                    return Step()
+
+            class Chain:
+                @staticmethod
+                def from_xml(_path):
+                    photon = types.SimpleNamespace(x=np.array([1.0e6]), p=np.array([1.0]))
+                    return types.SimpleNamespace(nuclides=[
+                        types.SimpleNamespace(name="A", sources={"photon": photon}),
+                        types.SimpleNamespace(name="B", sources=None),
+                    ])
+
+            class IndependentOperator:
+                def __init__(self, *args, **kwargs):
+                    pass
+
+            final_step_flags = []
+
+            class PredictorIntegrator:
+                def __init__(self, *args, **kwargs):
+                    pass
+
+                def integrate(self, final_step, path):
+                    final_step_flags.append(final_step)
+                    Path(path).write_bytes(b"mock depletion result")
+
+            class MicroXS:
+                def __init__(self, *args, **kwargs):
+                    pass
+
+            fake_deplete = types.SimpleNamespace(
+                Chain=Chain, Results=Results, IndependentOperator=IndependentOperator,
+                PredictorIntegrator=PredictorIntegrator, MicroXS=MicroXS)
+            fake_openmc = types.ModuleType("openmc")
+            fake_openmc.__version__ = "0.15.3"
+            fake_openmc.__file__ = str(root / "fake_openmc.py")
+            fake_openmc.Materials = Materials
+            fake_openmc.deplete = fake_deplete
+            with unittest.mock.patch.dict(sys.modules, {"openmc": fake_openmc,
+                                                         "openmc.deplete": fake_deplete}):
+                record = BC.run_activation_chunks(activation_plan_path)
+
+            self.assertEqual(record["status"], "PASS")
+            self.assertEqual(record["domain_count"], activation_plan["domain_count"])
+            self.assertEqual(record["chunk_count"], 2)
+            self.assertEqual(final_step_flags, [False, False])
+            for item in record["chunks"]:
+                receipt_path = Path(record["output_dir"]) / item["receipt_path"]
+                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                self.assertEqual(len(receipt["activation_material_ids"]),
+                                 receipt["domain_stop"] - receipt["domain_start"])
+                self.assertTrue(receipt["activation_material_ids"])
 
     def test_export_revalidation_rederives_each_chunk_microxs_hash(self):
         with tempfile.TemporaryDirectory() as temp:

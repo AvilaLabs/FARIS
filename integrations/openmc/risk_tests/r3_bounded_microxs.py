@@ -1111,9 +1111,6 @@ def run_activation_chunks(plan_path: Path) -> dict:
         if row_count != expected_rows:
             raise ValueError("source archive lacks one explicit row for every domain at every cooling state")
         material_hash = sha256_file(material_xml)
-        del (material, step, integrator, operator, micro_list, raw, flux_list,
-             chunk_materials, mats_chunk, energy, clipped_energy, unclipped_energy,
-             atoms_by_nuclide, local_power, source_row, line)
         receipt = {
             "schema": "faris-r3-bounded-activation-chunk/v1",
             "status": "PASS",
@@ -1150,6 +1147,11 @@ def run_activation_chunks(plan_path: Path) -> dict:
                        "source_archive_compressed_bytes": compressed_bytes,
                        "source_archive_decompressed_bytes": uncompressed_bytes,
                        "domain_start": start, "domain_stop": stop})
+        # Keep the chunk materials alive through receipt construction. Release
+        # the potentially large OpenMC objects only after their IDs are recorded.
+        del (material, step, integrator, operator, micro_list, raw, flux_list,
+             chunk_materials, mats_chunk, clipped_energy, unclipped_energy,
+             atoms_by_nuclide, local_power, source_row, line)
     record = {
         "schema": "faris-r3-bounded-activation/v1",
         "status": "PASS",
