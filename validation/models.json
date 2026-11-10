@@ -186,18 +186,76 @@
     },
     {
       "id": "design-winding-pack-heating",
-      "label": "Separate coupled, all-energy heating tallies for explicitly authored winding-pack solids, with sampled peak power density",
+      "label": "Coupled all-energy winding-pack heating and whole-model heat driving the shared CAD operating-history energy ledger",
       "page": "docs/guide/transport.md",
-      "catalogues": ["DESIGN_HEATING_OUTPUTS"],
-      "quantities": [],
-      "sources": ["crates/faris-engine/src/design/heating.rs", "integrations/openmc/design_transport.py"],
-      "verification": [
-        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/heating.rs", "name": "two_volumes_scale_density_and_sampling_error_independently", "what": "independent dimensional control: equal raw energy and source rate produce peak density and sampling error inversely proportional to the sampled averaging volume"},
-        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/heating.rs", "name": "worker_parser_preserves_failed_correlated_closure_and_terminal_controls", "what": "worker JSON retains a failed correlated-closure diagnostic and checks terminal status against planned histories"},
-        {"class": "verification", "kind": "test", "file": "integrations/openmc/risk_tests/test_design_transport.py", "name": "test_fake_openmc_phase_writes_raw_report_for_engine_parser", "what": "fake C API drives the worker batch loop and raw report, including total/component filters, source normalization, volume selection and inconclusive closure preservation"},
-        {"class": "verification", "kind": "test", "file": "integrations/openmc/risk_tests/test_design_transport.py", "name": "test_terminal_quality_checks_status_and_lost_count_even_for_short_runs", "what": "terminal C API codes and strict final lost-particle fraction gate short and full runs"}
+      "catalogues": [
+        "DESIGN_HEATING_OUTPUTS",
+        "HISTORY_ENERGY_RATES_OUTPUTS"
       ],
-      "not_covered": ["OpenMC transport physics and nuclear-data correctness are external; this path has no experimental or code-to-code physical validation and does not establish a requirement as met", "the peak is the leading sampled cylindrical voxel; unresolved sub-voxel hotspots may be higher", "the sampled geometry volume estimator reports its ray count but not a volume standard error; geometric volume uncertainty remains separate and is not folded into Monte Carlo heating error", "an explicit authored winding-pack classification is required; magnet roles, cases and homogenized assemblies are not inferred to be winding pack", "missing MT=301, photon or atomic-relaxation data and missing winding-pack identity produce NOT_EVALUATED rather than an inferred result"]
+      "quantities": [],
+      "sources": [
+        "crates/faris-engine/src/design/heating.rs",
+        "integrations/openmc/design_transport.py",
+        "controls/photon_energy_closure.py"
+      ],
+      "verification": [
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "name": "two_volumes_scale_density_and_sampling_error_independently",
+          "what": "independent dimensional control: equal raw energy and source rate produce peak density and sampling error inversely proportional to the sampled averaging volume"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "name": "worker_parser_preserves_failed_correlated_closure_and_terminal_controls",
+          "what": "worker JSON retains a failed correlated-closure diagnostic and checks terminal status against planned histories"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "integrations/openmc/risk_tests/test_design_transport.py",
+          "name": "test_fake_openmc_phase_writes_raw_report_for_engine_parser",
+          "what": "fake C API drives the worker batch loop and raw report, including total/component filters, source normalization, volume selection and inconclusive closure preservation"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "integrations/openmc/risk_tests/test_design_transport.py",
+          "name": "test_terminal_quality_checks_status_and_lost_count_even_for_short_runs",
+          "what": "terminal C API codes and strict final lost-particle fraction gate short and full runs"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "name": "rank_deficient_large_covariance_allows_roundoff_but_rejects_material_closure_variance",
+          "what": "rank-deficient same-batch closure tolerates bounded floating cancellation while rejecting a material variance inconsistency"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "name": "report_cannot_replace_worker_response_and_history_energy_numbers_are_classified",
+          "what": "the consumed whole-model response matches retained worker bytes and every mixed heat/flux/H3 receipt output has its quantity and validation mark"
+        },
+        {
+          "class": "verification",
+          "kind": "control",
+          "file": "controls/photon_energy_closure.py",
+          "name": "analyze_batches",
+          "what": "the recorded 1 MeV photon/Fe/LED control closes deposited plus escaping energy and the material partition using paired batch covariance; it does not qualify neutron-induced heating"
+        }
+      ],
+      "not_covered": [
+        "OpenMC transport physics and nuclear-data correctness are external; this path has no experimental or code-to-code physical validation and does not establish a requirement as met",
+        "the peak is the leading sampled cylindrical voxel; unresolved sub-voxel hotspots may be higher",
+        "the sampled geometry volume estimator reports its ray count but not a volume standard error; geometric volume uncertainty remains separate and is not folded into Monte Carlo heating error",
+        "an explicit authored winding-pack classification is required; magnet roles, cases and homogenized assemblies are not inferred to be winding pack",
+        "missing MT=301, photon or atomic-relaxation data and missing winding-pack identity produce NOT_EVALUATED rather than an inferred result"
+      ]
     }
   ]
 }

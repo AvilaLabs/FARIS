@@ -447,6 +447,46 @@
       "fixed_in": "80f8f6c",
       "disposition": "The new bounded R3 activation stage deleted its material list before recording activation material IDs and tried to delete an undefined local. Its first chunk would fail before a usable activation record was written. Cleanup now follows receipt construction and preserves all material IDs. An end-to-end mocked execution runs two chunks through receipt writing and checks final-step and source-state behavior. No physical campaign consumed the broken path.",
       "regression_test": "integrations/openmc/risk_tests/test_r3_bounded_microxs.py::test_chunk_activation_executes_receipt_path_with_mock_openmc_api"
+    },
+    {
+      "id": "FARIS-035",
+      "title": "Rank-deficient heating covariance was refused after floating-point cancellation",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "9264e17",
+      "retrospective_test": "4f20be6",
+      "disposition": "The whole-model partition closure subtracted large correlated covariance terms and compared their near-zero contrast without a roundoff bound. Valid rank-deficient responses could fail closed. Compensated contraction now retains the absolute term sum and applies a floating-point error bound while rejecting material covariance inconsistencies. The native regression passes after its authored means and sampling errors were made internally consistent; this does not qualify transport physics.",
+      "regression_test": "crates/faris-engine/src/design/heating.rs::rank_deficient_large_covariance_allows_roundoff_but_rejects_material_closure_variance"
+    },
+    {
+      "id": "FARIS-036",
+      "title": "Combined history energy trusted edited heating-report numbers without rechecking raw worker evidence",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "9264e17",
+      "disposition": "The new heat-to-history combination could consume edited report response numbers without comparing them to the retained worker result and request. Combination now rehashes retained request/result files, validates their source and sampling context, compares the exact response, and carries supplemental heating provenance into history results. The native mutation regression passes. No qualified physical result was produced through the broken path.",
+      "regression_test": "crates/faris-engine/src/design/heating.rs::report_cannot_replace_worker_response_and_history_energy_numbers_are_classified"
+    },
+    {
+      "id": "FARIS-037",
+      "title": "FNS finite-detector flux omitted the spherical-volume normalization",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "7cc5d87",
+      "disposition": "OpenMC cell-filter flux is tracklength integrated over the detector volume. The adapter applied the source FM and lethargy width without dividing the mean and standard deviation by that volume, giving the wrong response units and radius dependence. Both now use the exact analytic sphere volume; raw scores, units, radius and volume remain in receipts. Analytic and radius-invariance regressions pass. The first live pilot remains unsealed and unqualified due to sparse tallies; F5 point-estimator equivalence and the unchanged convergence criteria remain separate requirements.",
+      "regression_test": "validation/test_fns_tof_jade.py::test_spatial_volume_normalization_is_radius_invariant_for_constant_flux"
     }
   ]
 }

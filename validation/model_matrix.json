@@ -20,15 +20,15 @@
       "fns-tof-pb-20": "0c627426aeb4781cbce5e8da1dae3d3402a0b6f9de5637c60849a7b9e0510c65",
       "fns-tof-pb-40": "05834437b053a048ff0b5b629d964b003a0222816f9e6573b499f0e791b4e1f4",
       "fns-tof-pb-5": "f53b70f06b7d02dc84feb1dce6518317a3dd282f6241b063974339e7297d5bae",
-      "hcpb-tbm-jade-v1": "344bf656536a5937c16d4738fcf524c89a05ce35535c8454d38c4ae7b8b287f0",
+      "hcpb-tbm-jade-v1": "6a282eb4b6bae5423f170873edbd44982703c20258f4d2658441144bed8a5e63",
       "iter-1d": "16c84ee534de823a7e21b205225f530e9af9baa24beab427343373db1f54b859",
       "oktavian-al": "7de31d0283027eaca125a85f769999de140b8ebd17de9ede9c5814161ba347d5",
       "oktavian-al-cad": "20b4c5b800b6213b6fda74a84efc08c4e77cb28f386956bea7eea37c61d076c7",
       "tiara-bc-cc-68-100": "b64b4205c6adb11e8a16bdbb9f954655f289cefa53291d2b2acbabd1c1a77f8b",
       "tiara-bc-fe-68-40": "edc4f5c641afbf48191c687d4eae5cb3e03c85f103c5e97b4fe19c28929408cd",
-      "wcll-tbm-jade-v1": "5c95db2d8cc541f9d7da48aafe4f63800e672d495c82116ab62f7d236fd42963"
+      "wcll-tbm-jade-v1": "bc4740a3a1b708a99325d0b2a6dc82bc0cc15f6224751d25b25c7227d0c90e2f"
     },
-    "models.json": "4594d35f5568db5995d9f15d7e06d719884ce044b4823104b86b46e463794203",
+    "models.json": "48b319fdcaebe9e3c75dc5a8da0316fda17d74bd4a512cf91f8025dd3655b81e",
     "quantities.json": "487fe41c504b22728cee244ed43674a623a90a86433efd9c1e56670df0717c87",
     "rule_hashes.json": "b2d232f27d9cf8c9e9c323884857406dac1723b12f6f0cf01b3edea37391a3cc"
   },
@@ -644,7 +644,7 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/design/transport.rs": "9ec44a74ac2d52f0a66a92973c66967f7c3e2bd3b3b188ad8753201eb4ead748",
+        "crates/faris-engine/src/design/transport.rs": "7937bc0b0e3a9ec75f1b91dd598f6adf7b0c39d2f832c41496ec0d908a2de9ee",
         "integrations/openmc/design_transport.py": "271d0ab9c6b9f5e134bede6236599e72d228de30de0ca4e4cfb1b8e5a2503358"
       },
       "status": "not validated",
@@ -1057,7 +1057,7 @@
       ],
       "source_sha256": {
         "crates/faris-engine/src/comparison.rs": "9ad7452d50235f624b3c2f469efb01b8eb394e4c69fcd91c9f2439b6b26d7efb",
-        "crates/faris-engine/src/history.rs": "aacb75accdd7fa629f88394679b19590a2712541f50e3a282460cdd53cc6e95a"
+        "crates/faris-engine/src/history.rs": "25ef0701170fc4a9d9122cbffc7476aa97a16b6223b82159671d5b5221b084b6"
       },
       "status": "not validated",
       "validation": [
@@ -1515,8 +1515,8 @@
       "source_sha256": {
         "crates/faris-engine/src/maintenance.rs": "876fcef8869f7c0ed7257143113d608710055cc1b4ae4bcb18fc3a1d20326d93",
         "crates/faris-engine/src/maintenance/actinv.rs": "80698befe7a9c8fe9ce3b4bf10aff999dcfe3905cff4f78cf1087dd33f76f50f",
-        "crates/faris-engine/src/maintenance/files.rs": "717c11c46c73dc6b650d2712657a8393c983328bff8eab7cf6f244ef606fc46e",
-        "crates/faris-engine/src/maintenance/spatial_dose.rs": "81755e0fcd3d5feac07da1194d9e3847cd1cbc587257e717e253d10b44f0390f",
+        "crates/faris-engine/src/maintenance/files.rs": "4eb83ea0a24b5f9a8cdf40457dde7d9249ff9aafe50fb0280f059885aeeb8a4a",
+        "crates/faris-engine/src/maintenance/spatial_dose.rs": "bc1ce825dc611eef091dd24492051d23309db7c9383be7b78b96407822a61362",
         "crates/faris-engine/src/maintenance/spatial_dose_worker.rs": "134f60660610ce9e88166aa8949878ed9d78389e10985b9a0208593d40f27730",
         "integrations/openmc/maintenance_709_response.py": "9f78f7c4b835a7aac69678ad1e784449e11f66c3aa5e4f165332640023873c3b",
         "integrations/openmc/maintenance_event_r2s.py": "43b1684e10cff3d6582142dc42ac75fb003fd3727e307703c2b557d9895183d3"
@@ -1687,15 +1687,17 @@
       "evidence_classes": [
         "verification"
       ],
-      "label": "Separate coupled, all-energy heating tallies for explicitly authored winding-pack solids, with sampled peak power density",
+      "label": "Coupled all-energy winding-pack heating and whole-model heat driving the shared CAD operating-history energy ledger",
       "model": "design-winding-pack-heating",
       "next_step": "score the registered benchmarks of these quantities (see the matrix rows) or register one",
       "not_covered": "OpenMC transport physics and nuclear-data correctness are external; this path has no experimental or code-to-code physical validation and does not establish a requirement as met; the peak is the leading sampled cylindrical voxel; unresolved sub-voxel hotspots may be higher; the sampled geometry volume estimator reports its ray count but not a volume standard error; geometric volume uncertainty remains separate and is not folded into Monte Carlo heating error; an explicit authored winding-pack classification is required; magnet roles, cases and homogenized assemblies are not inferred to be winding pack; missing MT=301, photon or atomic-relaxation data and missing winding-pack identity produce NOT_EVALUATED rather than an inferred result",
       "page": "docs/guide/transport.md",
       "quantities": [
-        "heating"
+        "flux",
+        "heating",
+        "tbr"
       ],
-      "reason": "the model reports quantities with no scored benchmark: heating",
+      "reason": "the model reports quantities with no scored benchmark: flux, heating, tbr",
       "reported_outputs": [
         {
           "catalogue": "DESIGN_HEATING_OUTPUTS",
@@ -1948,17 +1950,162 @@
           "kind": "not_calculated",
           "name": "elapsed_seconds",
           "why": "A run duration, not a heating response."
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "calculated",
+          "name": "breeder_h3_per_source_neutron",
+          "quantity": "tbr"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "calculated",
+          "name": "component_average_flux_n_m2_s",
+          "quantity": "flux"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "calculated",
+          "name": "region_flux_n_m2_s",
+          "quantity": "flux"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "calculated",
+          "name": "transport_deposited_heat_w",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "covariance",
+          "why": "base-run covariance; separate heating-run covariance is unknown"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "response_id",
+          "why": "response identity metadata"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "mean",
+          "why": "response estimate value is classified by its enclosing response"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "standard_error",
+          "why": "sampling diagnostic, not an additional response"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "reference_fusion_power_mw",
+          "why": "authored operating input"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "fusion_reaction_rate_per_s",
+          "why": "source normalization conversion"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "neutron_source_rate_per_s",
+          "why": "source normalization conversion"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "total_reaction_energy_ev",
+          "why": "source convention constant"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "primary_neutron_energy_ev",
+          "why": "source convention constant"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "fusion_power_mw",
+          "why": "authored CAD operating input"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "source_neutron_rate_per_s",
+          "why": "source normalization input"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "bytes",
+          "why": "nuclear-data file size metadata"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "shell_count",
+          "why": "photon data shell-count metadata"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "histories",
+          "why": "transport sample count"
+        },
+        {
+          "catalogue": "HISTORY_ENERGY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "batches",
+          "why": "independent transport batch count"
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/design/heating.rs": "4f21bee39052480a1843929bd317d99fe0caadbb52df593130ddbd33e7042952",
+        "controls/photon_energy_closure.py": "499ec945b24a7d5fb2418ccdd688aa76d9d03e5560b302bcc7d3eb90f094a82d",
+        "crates/faris-engine/src/design/heating.rs": "fe05f10e65db4328b9f1fbbf72efd36e198ffbb954d88c5c315424397b852efe",
         "integrations/openmc/design_transport.py": "271d0ab9c6b9f5e134bede6236599e72d228de30de0ca4e4cfb1b8e5a2503358"
       },
       "status": "not validated",
       "validation": [
         {
+          "benchmarks": [
+            "oktavian-al/neutron_leakage_spectrum",
+            "oktavian-al-cad/neutron_leakage_spectrum",
+            "iter-1d/neutron_flux",
+            "tiara-bc-fe-68-40/neutron_spectrum_in_detector",
+            "tiara-bc-cc-68-100/neutron_spectrum_in_detector",
+            "fns-tof-be-5/neutron_leakage_spectrum",
+            "fns-tof-be-15/neutron_leakage_spectrum",
+            "fns-tof-c-5/neutron_leakage_spectrum",
+            "fns-tof-c-20/neutron_leakage_spectrum",
+            "fns-tof-c-40/neutron_leakage_spectrum",
+            "fns-tof-fe-5/neutron_leakage_spectrum",
+            "fns-tof-fe-20/neutron_leakage_spectrum",
+            "fns-tof-fe-40/neutron_leakage_spectrum",
+            "fns-tof-fe-60/neutron_leakage_spectrum",
+            "fns-tof-n-20/neutron_leakage_spectrum",
+            "fns-tof-o-20/neutron_leakage_spectrum",
+            "fns-tof-pb-5/neutron_leakage_spectrum",
+            "fns-tof-pb-20/neutron_leakage_spectrum",
+            "fns-tof-pb-40/neutron_leakage_spectrum"
+          ],
+          "quantity": "flux",
+          "status": "not validated"
+        },
+        {
           "benchmarks": [],
           "quantity": "heating",
+          "status": "not validated"
+        },
+        {
+          "benchmarks": [],
+          "quantity": "tbr",
           "status": "not validated"
         }
       ],
@@ -1990,9 +2137,30 @@
           "kind": "test",
           "name": "test_terminal_quality_checks_status_and_lost_count_even_for_short_runs",
           "what": "terminal C API codes and strict final lost-particle fraction gate short and full runs"
+        },
+        {
+          "class": "verification",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "kind": "test",
+          "name": "rank_deficient_large_covariance_allows_roundoff_but_rejects_material_closure_variance",
+          "what": "rank-deficient same-batch closure tolerates bounded floating cancellation while rejecting a material variance inconsistency"
+        },
+        {
+          "class": "verification",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "kind": "test",
+          "name": "report_cannot_replace_worker_response_and_history_energy_numbers_are_classified",
+          "what": "the consumed whole-model response matches retained worker bytes and every mixed heat/flux/H3 receipt output has its quantity and validation mark"
+        },
+        {
+          "class": "verification",
+          "file": "controls/photon_energy_closure.py",
+          "kind": "control",
+          "name": "analyze_batches",
+          "what": "the recorded 1 MeV photon/Fe/LED control closes deposited plus escaping energy and the material partition using paired batch covariance; it does not qualify neutron-induced heating"
         }
       ],
-      "verification_status": "4 test or control items, each with one evidence class (verification)"
+      "verification_status": "7 test or control items, each with one evidence class (verification)"
     }
   ],
   "schema": "faris.validation-model-matrix/1.0.0"

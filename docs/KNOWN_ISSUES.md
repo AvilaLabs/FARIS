@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 32 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 35 fixed before they reached a release.
 
 ## Open
 
@@ -43,6 +43,8 @@ These were found in development and never shipped.
 | FARIS-027 | S1 | Convex-face bound used a length tolerance on an area-valued cross product | ed1fc21 |
 | FARIS-030 | S1 | Transport enclosing sphere clipped mixed-sign model extents | d048bdd |
 | FARIS-033 | S1 | ITER reference intake accepted changed benchmark inputs without checking registered identities | 59806a0 |
+| FARIS-036 | S1 | Combined history energy trusted edited heating-report numbers without rechecking raw worker evidence | 9264e17 |
+| FARIS-037 | S1 | FNS finite-detector flux omitted the spherical-volume normalization | 7cc5d87 |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
@@ -63,4 +65,5 @@ These were found in development and never shipped.
 | FARIS-031 | S3 | Thin material photon-source regions hit the default OpenMC rejection cutoff | 4d48429 |
 | FARIS-032 | S3 | FNS decay-heat provenance recorded the wrong source PDF hash | 5559beb |
 | FARIS-034 | S3 | Bounded activation cleanup discarded material identities before writing receipts | 80f8f6c |
+| FARIS-035 | S3 | Rank-deficient heating covariance was refused after floating-point cancellation | 9264e17 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |
