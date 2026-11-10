@@ -306,6 +306,66 @@ class FnsTofHelpers(unittest.TestCase):
                     R.verify_aim_control_receipt(path, runtime, R.AIM_SUPPORTED_CASE,
                                                  parsed, "d" * 64, 0.1, imp0_control)
 
+    def test_aim_control_cli_namespace_reaches_mocked_model_boundary(self):
+        import argparse
+        import ast
+        import inspect
+        import tempfile
+        from unittest.mock import patch
+        parsed = B.input_deck(DECK_FOUR)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            upstream = root / "upstream"
+            upstream.mkdir()
+            deck = upstream / "FNS-TOF_Fe-5.i"
+            deck.write_text("pinned test source deck")
+            xs = root / "cross_sections.xml"
+            xs.write_text("<cross_sections />")
+            imp0 = root / "imp0-control.json"
+            imp0.write_text("{}")
+            executable = root / "openmc"
+            executable.write_text("mock executable")
+            executable.chmod(0o755)
+            library = root / "libopenmc.so"
+            library.write_bytes(b"mock library")
+            work = root / "aim-work"
+            manifest_path = root / "manifest.json"
+            argv = ["aim-vacuum-control", "--upstream", str(upstream),
+                    "--manifest", str(manifest_path), "--cross-sections", str(xs),
+                    "--work-dir", str(work), "--openmc", str(executable),
+                    "--imp0-control", str(imp0), "--aim-aperture-beta", "0.1",
+                    "--particles", "1000000", "--batches", "100", "--threads", "1",
+                    "--seed", "1701", "--timeout", "3600", "--i-have-the-cpu"]
+            args = R.parser().parse_args(argv)
+            self.assertFalse(hasattr(args, "case"), "the real AIM CLI intentionally derives case from its manifest")
+            cli = R.parser()
+            subparser_action = next(action for action in cli._actions
+                                    if isinstance(action, argparse._SubParsersAction))
+            command_parser = subparser_action.choices["aim-vacuum-control"]
+            declared = {action.dest for action in command_parser._actions}
+            used = {node.attr for node in ast.walk(ast.parse(inspect.getsource(R.command_aim_vacuum_control)))
+                    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                    and node.value.id == "args"}
+            self.assertLessEqual(used, declared, f"AIM command reads CLI fields with no parser action: {used - declared}")
+            manifest = {"case_id": R.AIM_SUPPORTED_CASE}
+            runtime = {"executable_sha256": R.hash_file(executable),
+                       "linked_library_path": str(library),
+                       "linked_library_sha256": R.hash_file(library), "patch_version": 1}
+            with patch.object(R, "load_manifest", return_value=manifest), \
+                    patch.object(R, "source_inputs", return_value=(manifest, deck, {"deck": parsed})), \
+                    patch.object(R, "validate_response_mapping", return_value={}), \
+                    patch.object(R, "library_identity", return_value={"sha256": "x"}), \
+                    patch.object(R.shutil, "which", return_value=str(executable)), \
+                    patch.object(R, "selected_openmc_runtime_identity", return_value=runtime), \
+                    patch.object(R, "verify_imp0_control_receipt", return_value={"status": "PASS"}), \
+                    patch.object(R, "aim_runtime_identity", return_value={"patch_sha256": "p"}), \
+                    patch.object(R, "vacuum_aim_control_model", side_effect=RuntimeError("mocked model/launch boundary")) as model_boundary:
+                with self.assertRaisesRegex(RuntimeError, "mocked model/launch boundary"):
+                    R.command_aim_vacuum_control(args)
+                self.assertEqual(model_boundary.call_args.args[2:],
+                                 (R.AIM_CONTROL_RADII_CM[0], args.batches, args.particles,
+                                  args.seed))
+
     def test_analog_environment_clears_inherited_aim_and_collision_settings(self):
         env = R.solver_environment({"OPENMC_APERTURE_BIAS": "bad", "OPENMC_COLLISION_AIM": "bad",
                                    "OPENMC_WW_SKIP_VOID": "1", "KEEP": "yes"}, 1)

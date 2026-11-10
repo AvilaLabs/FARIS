@@ -1365,7 +1365,6 @@ def solver_environment(base: dict[str, str], threads: int, aperture: dict | None
 
 def command_aim_vacuum_control(args) -> int:
     require(args.i_have_the_cpu, "aim-vacuum-control runs three bounded OpenMC vacuum jobs; pass --i-have-the-cpu")
-    require(args.case == AIM_SUPPORTED_CASE, "the AIM vacuum-control adapter is restricted to FNS-Fe-5")
     require(0 < args.particles <= MAX_PARTICLES, f"--particles must be in [1, {MAX_PARTICLES}]")
     require(0 < args.batches <= MAX_BATCHES and args.particles % args.batches == 0,
             "--batches must be <=500 and divide --particles exactly")
