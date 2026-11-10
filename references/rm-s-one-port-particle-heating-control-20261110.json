@@ -1,0 +1,62 @@
+{
+  "schema": "faris-nuc013-one-port-heating-control/v1",
+  "date": "2026-11-10",
+  "requirement": "NUC-013",
+  "status": "STRICT_CLOSURE_FAIL",
+  "scientific_qualification": "NOT_EVALUATED",
+  "scenario": "One-port RM-S cold-reference CSG arrangement with explicitly declared coupled photon transport and LED electron treatment.",
+  "sampling": {
+    "batches": 100,
+    "particles_per_batch": 900,
+    "seed": 20261111,
+    "threads": 1
+  },
+  "histories": 90000,
+  "lost_particle_events": 0,
+  "closure": {
+    "mean_residual_ev_per_source": 7.462687790393829e-07,
+    "standard_error_ev_per_source": 2.4364084599029594e-08,
+    "three_sigma_bound_ev_per_source": 7.309225379708878e-08,
+    "criterion": "abs(mean over same-batch [neutron + photon + electron + positron - total]) <= 3 * sample_standard_error(residual); no additive tolerance",
+    "photon_only_fraction_of_total": 0.00018211316298718866,
+    "quantization": {
+      "total_mean_ulp": 1.862645149230957e-09,
+      "response_scale": 16541678.653685456,
+      "ulp_relative_to_scale": 1.1260315160432422e-16,
+      "maximum_absolute_batch_residual": 1.475214958190918e-06,
+      "minimum_batch_residual": 2.905726432800293e-07,
+      "maximum_batch_residual": 1.475214958190918e-06,
+      "distinct_residual_values": 93,
+      "mean_residual_in_total_mean_ulps": 400.65,
+      "note": "Diagnostic only. No floating-point allowance is added to the strict gate."
+    }
+  },
+  "identities": {
+    "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+    "physics_sha256": "96377e35bd2dc48d6bbfe4a7708c2fd2774438a9d54e28b362651b1489bc4e2c",
+    "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b"
+  },
+  "evidence": {
+    "native_cli": {
+      "path": "runs/continuation/nuc013-oneport-90k-20261110-v1/faris-v107",
+      "sha256": "b234e0515bab5c60a12723f9adc70909f4fae2795f3a5a43fe75499ade6e0571"
+    },
+    "execution": {
+      "path": "runs/continuation/nuc013-oneport-90k-20261110-v1/run-port-reference-90k/run.json",
+      "sha256": "23db8398d2733c268747b525eb2edc8940ea40c837cf31783108bf9020940207"
+    },
+    "aligned_tallies": {
+      "path": "runs/continuation/nuc013-oneport-90k-20261110-v1/run-port-reference-90k/solver/transport-batch-values.json",
+      "sha256": "2bf0a85e6626c8eec88819d9e9837d490adee1ec9367c4b780a329e0737ed46e"
+    },
+    "closure_check": {
+      "path": "runs/continuation/nuc013-oneport-90k-20261110-v1/run-port-reference-90k/nuc013-heating-closure.json",
+      "sha256": "5b0f9a0ac904a093dcb31ea59ae2edf01622983a2ce9a0cbf4db99ebf6fa8560"
+    },
+    "run_summary": {
+      "path": "runs/continuation/nuc013-oneport-90k-20261110-v1/result.json",
+      "sha256": "1c6a001f9d854577f5da7d58294838afad44a117674c6c74ff44297297c410e3"
+    }
+  },
+  "timing_scope": "Shared host, one thread, coupled-heating control."
+}
