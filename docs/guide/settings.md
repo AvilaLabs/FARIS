@@ -45,6 +45,7 @@ The table is checked against the program's list of settings by a test, so it can
 | `tools.plasma_source` | path | not set | - | `FARIS_PLASMA_SOURCE_PATH` | Folder holding the openmc_plasma_source package, for the plasma source sampler. |
 | `tools.window_python` | path | not set | - | - | Python interpreter with OpenMC 0.16 or later, used to make weight windows. |
 | `tools.openmc_package` | path | not set | - | - | Folder of an OpenMC built with the aiming patch. |
+| `tools.actinv` | path | not set | - | `FARIS_ACTINV` | ACTINV executable used by dose-governed maintenance and activation workflows. |
 | `tools.cad_reader` | one of auto, native, python | `auto` | - | `FARIS_CAD_READER` | Which reader opens STEP models: the native worker, the Python helper, or whichever is found. |
 | `tools.occt_worker` | path | not set | - | `FARIS_OCCT_WORKER` | The native CAD worker program; when unset, the one beside the running program. |
 | `tools.core_executable` | path | not set | - | `FARIS_CORE_EXECUTABLE` | The Avila Core program that compiles and runs studies; when unset, the one on PATH. |
