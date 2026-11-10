@@ -300,14 +300,14 @@ fn bad_designs_files_are_refused_with_a_reason() {
             "unknown field",
         ),
         (
-            "missing field",
+            "missing physics",
             Box::new(|v| {
                 v["designs"]["ref"]
                     .as_object_mut()
                     .unwrap()
                     .remove("physics");
             }),
-            "missing field",
+            "requires physics and spectrum_run",
         ),
         (
             "missing file",
