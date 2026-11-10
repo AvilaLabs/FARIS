@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 52 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 53 fixed before they reached a release.
 
 ## Open
 
@@ -82,5 +82,6 @@ These were found in development and never shipped.
 | FARIS-051 | S3 | Heating history wrapper serialized responses differently from the native contract | 12bfa40 |
 | FARIS-052 | S3 | CAD corpus helper read an obsolete deviation field and rejected current reports | 34252ae |
 | FARIS-053 | S3 | OpenMC 0.15.3 model export paths did not match the single-file XML API | 15a3549 |
-| FARIS-054 | S3 | The 709 validator rejected OpenMC 0.15.3 DAGMC universe references | 15a3549 |
+| FARIS-054 | S3 | The 709 validator rejected OpenMC 0.15.3 DAGMC universe references | 80e9b0d |
+| FARIS-055 | S3 | Checked CAD source preflight rejected bounded energy mixtures and zero-strength mesh bins | 9f28378 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

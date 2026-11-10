@@ -708,9 +708,22 @@
       "affected_versions": [
         "unreleased"
       ],
-      "fixed_in": "15a3549",
-      "disposition": "The validator recognized only the legacy nested DAGMC filename element, so it rejected genuine OpenMC 0.15.3 models using a dagmc_universe filename attribute even when the geometry was hash-verified. Validation now accepts exactly one modern or legacy DAGMC reference and checks that it resolves to the verified geometry; missing, multiple and mismatched references remain rejected. Regressions cover the modern reference identity and legacy compatibility. This enabled native preparation but does not establish a physical dose PASS.",
-      "regression_test": "integrations/openmc/test_maintenance_709_response.py::test_model_geometry_binding_accepts_openmc_0153_dagmc_universe_and_checks_identity"
+      "fixed_in": "80e9b0d",
+      "disposition": "The 709 validator recognized only the legacy nested DAGMC filename element, so it rejected genuine OpenMC 0.15.3 models using a dagmc_universe filename attribute even when the geometry was hash-verified. After the first 709 check was corrected, the v12 run completed neutron transport and exposed remaining legacy-only selectors in ACTINV and general R2S validation. Strict modern or legacy exact-H5M binding now applies across those validators and to the exported photon model; missing, multiple and mismatched references remain rejected. Cross-stage regressions cover the modern reference and verified-file identity. The v13 dose run is still in progress, with no activation or dose PASS claimed.",
+      "regression_test": "integrations/openmc/test_maintenance_event_r2s.py::test_geometry_binding_accepts_openmc_0153_dagmc_universe_only_for_verified_file"
+    },
+    {
+      "id": "FARIS-055",
+      "title": "Checked CAD source preflight rejected bounded energy mixtures and zero-strength mesh bins",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "9f28378",
+      "disposition": "The data-only dose preflight rejected the checked CAD source XML because it used built-in recursive normal, tabular and mixture energy distributions and included zero-strength mesh bins. The actual v11 attempt stopped before transport. Preflight now validates those bounded built-in energy forms and allows nonnegative bin strengths while still requiring the outer and source-unit normalization, finite weights, strict XML fields and configured depth, node, component and parameter limits. Executable file or function sources remain unsupported. The retained 36.8 MB model passed direct preflight in 1.38 s; the v12 dose diagnostic is live, and no scientific or dose PASS is claimed.",
+      "regression_test": "integrations/openmc/test_maintenance_actinv_backend.py::test_safe_source_preflight_accepts_bounded_recursive_energy_mixtures"
     }
   ]
 }
