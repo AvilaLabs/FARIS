@@ -438,6 +438,16 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(not(unix))]
             let cancellation = interrupts.clone();
             let run_dir = out.clone();
+            if history_rates.is_some()
+                && report
+                    .as_deref()
+                    .is_some_and(|path| path == run_dir.join("history-energy-rates.json"))
+            {
+                return Err(
+                    "--report cannot overwrite the generated history-energy-rates.json sidecar"
+                        .into(),
+                );
+            }
             let options = DesignHeatingOptions {
                 check_report,
                 out_dir: out,
