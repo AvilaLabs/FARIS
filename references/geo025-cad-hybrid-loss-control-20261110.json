@@ -14,7 +14,7 @@
     "leak": "lost_particles",
     "clean": "target_reached"
   },
-  "diagnostics": "Ten restart positions were returned for the leaky case. They are source birth coordinates. Actual escape coordinates remain open.",
+  "diagnostics": "The ten original restart positions identify particle birth sites. Replay with the same OpenMC library reproduced each loss and printed the final post-crossing point within 1e-8 cm of the injected interface. Integration in the normal FARIS report remains open.",
   "openmc_library_sha256": "ba09ae9d19c4c789d8230abe62984de00d2326723b306c440506f099c2e46216",
   "checked_cad_geometry_sha256": "79c535336093f4eb9fa529cfffd2e684b33ea2ea4fe693548f331e75cb7891d0",
   "worker": {
@@ -34,5 +34,13 @@
       "path": "runs/continuation/geo025-cad-loss-control-20261110-v3/prepared/clean/geo025-clean-0_o5q5fp/openmc.log",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
+  },
+  "replay": {
+    "histories": 10,
+    "report": {
+      "path": "runs/continuation/geo025-cad-loss-control-20261110-v3/diagnostics/lost-position-replay/lost-position-replay.json",
+      "sha256": "43af9c3116f822b63d9fdb1766ca0db5f85d40b1790401b8dd1c687650e209a0"
+    },
+    "coordinate_scope": "Final OpenMC particle position after a failed cell lookup and its small forward nudge."
   }
 }

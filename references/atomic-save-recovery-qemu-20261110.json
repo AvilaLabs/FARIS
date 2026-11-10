@@ -1,0 +1,195 @@
+{
+  "schema": "faris-rel010-recovery-writer-powercut/v1",
+  "date": "2026-11-10",
+  "requirement": "REL-010",
+  "status": "ALL_TEN_POWER_CUTS_RECOVERED_COMPLETE_PAYLOADS",
+  "method": "Each actual QEMU SIGKILL occurred after the writer marker. Device log replay into a fresh ext4 image and guest journal recovery completed. Read-only host debugfs verified full deterministic payload bytes and all visible previous-version sidecars.",
+  "verifier_adjustment": "The guest verifier was invoked without its cut-point argument after the ext4 mount. The recovered disk images were subsequently verified byte-for-byte with debugfs.",
+  "writer_in_guest": {
+    "path": "runs/continuation/rel010-qemu-attempt-v2/initramfs-root/bin/rel010-powercut-writer",
+    "sha256": "a0c9f4b84793c7261449fbbc24208b1473bcf26520da045399dd14dbe71c0a1a"
+  },
+  "scope": "Linux ext4/virtio in one QEMU guest. The full randomized current-writer study campaign is a separate control.",
+  "cases": [
+    {
+      "cut_after": "CreateTemporary",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 0,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-CreateTemporary-1.log",
+        "sha256": "acf4bd3af6981ce66d01f6556e5917012d1c5c60b31eb4fcd10602c2d3269cb8"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-CreateTemporary-1.log",
+        "sha256": "37a296f71c3574246a257197990abe0a31758b393a76cce475ef8264ba54d208"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-CreateTemporary-1.img",
+        "sha256": "0597b5094b09bb3fe6f0182d2d8e265bdeb0056c73ec05668c2ba0d145f928d9"
+      }
+    },
+    {
+      "cut_after": "WriteData",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 0,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-WriteData-1.log",
+        "sha256": "6a4ae4d3eb5a66000d91707a017cfaae27ae4993d47800f21dba60b4a9a424a9"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-WriteData-1.log",
+        "sha256": "016622cc2a12bfd2e5301326b8bab6ba766c77258046a2b6ab3e402d3f6025a2"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-WriteData-1.img",
+        "sha256": "214fc0666e426d2f1efaaa3f105284d12b8c81a33202f4e358c3f55cd65edc22"
+      }
+    },
+    {
+      "cut_after": "FsyncFile",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 0,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-FsyncFile-1.log",
+        "sha256": "38eb8fbb1a887d2c051724844d9d30975223e0c96528b088faa45fbc48fde89d"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-FsyncFile-1.log",
+        "sha256": "5c38429107394e86251db0e0b97229aed83153393a395892c8ee46f3d89a280d"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-FsyncFile-1.img",
+        "sha256": "f009ee3c3444466610279d642439cfe26cb6acc943d4be10dce1c3d83d7378f8"
+      }
+    },
+    {
+      "cut_after": "CreateRecoveryCopy",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 0,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-CreateRecoveryCopy-1.log",
+        "sha256": "a63d03081eab8b9c0600ab7b789ce4b8082ae9c973cc3687bab7fe1ff029d44b"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-CreateRecoveryCopy-1.log",
+        "sha256": "68948c8be8b69da366b1cd4b2a32c4b4d70464a3efe1705ebc1a5409cba03f01"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-CreateRecoveryCopy-1.img",
+        "sha256": "1c92f5a910a44f750d70fcc4dc32714e45b95a7962369c4066d46dbc38b78e32"
+      }
+    },
+    {
+      "cut_after": "WriteRecoveryCopy",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 0,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-WriteRecoveryCopy-1.log",
+        "sha256": "3b9522c8e0b83475f67deb136d16381208f0247e085efa6abea84a0c244d0f46"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-WriteRecoveryCopy-1.log",
+        "sha256": "50b825d823ee790f040fecc40cbbba2f13128b8f6a6212474495274132f300bf"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-WriteRecoveryCopy-1.img",
+        "sha256": "d9ad6059216f4e6814b840ec96d2b479f74656e1355fae11a9b379aa65f611eb"
+      }
+    },
+    {
+      "cut_after": "FsyncRecoveryCopy",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 0,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-FsyncRecoveryCopy-1.log",
+        "sha256": "e7c226ba3adb426b201fd0d9d1099feb1a0c609e5c24bdc9f1183aa354b6a4c1"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-FsyncRecoveryCopy-1.log",
+        "sha256": "e6643e5b43f950af6006c8a2411613024067eba2537e2d2c09c42763fb0e71ef"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-FsyncRecoveryCopy-1.img",
+        "sha256": "6e4bd19d24a897aafb4d508a717a3449a15f8b3000fddb95e620225e9b2c9404"
+      }
+    },
+    {
+      "cut_after": "PersistRecoveryCopy",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 0,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-PersistRecoveryCopy-1.log",
+        "sha256": "f249e54ef1bf89f76544b9600188d4e39c77bc7ac9d8b1312fa1572268050b19"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-PersistRecoveryCopy-1.log",
+        "sha256": "958b83581b191a488aed55e27613ec83b3f9d660d3c0be0be0809a1d2c796feb"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-PersistRecoveryCopy-1.img",
+        "sha256": "df0198b50a935b228cbad3b683535743be2386464e76fd2a7e679b81b0548fac"
+      }
+    },
+    {
+      "cut_after": "FsyncRecoveryDirectory",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 1,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-FsyncRecoveryDirectory-1.log",
+        "sha256": "f953fb97c38878af0d1265350ec87fe8a4b54e81665ad24e3f0766d68b5d0578"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-FsyncRecoveryDirectory-1.log",
+        "sha256": "5bdd1653604158c374fd80a9f8fdf778cd95b388e3186d93980bdfa7ffeebd8c"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-FsyncRecoveryDirectory-1.img",
+        "sha256": "164d94ec18ac879fb51671b0e3f164985b24c8098256677a3cc84a61da8fa804"
+      }
+    },
+    {
+      "cut_after": "Rename",
+      "target": "OLD",
+      "target_payload_sha256": "88810a338aa0d3a03f612781f6254c4a45b5865f4efd10806169713be2ae7adf",
+      "old_recovery_copies": 1,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-Rename-1.log",
+        "sha256": "667d6b9d0d0c6a99e3d27bbd128c895e954b6e8a2e3fda13799f3f6a2ad55d2d"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-Rename-1.log",
+        "sha256": "913eb073c89a764ca4a24e49f514280486be12174faaa19a3e40ff5cd8dd84ad"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-Rename-1.img",
+        "sha256": "b9d2fdeff0f6fc5a449d1a08bed391fce16ff12f631cd2b407f18158236df68c"
+      }
+    },
+    {
+      "cut_after": "FsyncDirectory",
+      "target": "NEW",
+      "target_payload_sha256": "5a41244b8389cf19143c3713022a21579e7fe4981b701b4e8697afaa335d20cf",
+      "old_recovery_copies": 1,
+      "power_cut_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-replace-FsyncDirectory-1.log",
+        "sha256": "4269107d3b7f716429682860e3f4e5cdc76de2d7a3ca9b7c4d507a9996121102"
+      },
+      "recovery_mount_log": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/serial-recover-FsyncDirectory-1.log",
+        "sha256": "e807fa9cafce8d9ab8b08eddb8d43f8af129816a72778e80aeb5f460f6841950"
+      },
+      "replayed_ext4_image": {
+        "path": "runs/continuation/rel010-qemu-attempt-v2/recovered-FsyncDirectory-1.img",
+        "sha256": "792965483c562954c651441c3060e29cff41700bc6ac2cc230d5250042df9985"
+      }
+    }
+  ]
+}
