@@ -23,8 +23,9 @@ use faris_model::{
     transport::{
         DEFAULT_PORT_SECTOR_HALF_WIDTH_RAD, FAST_NEUTRON_ENERGY_MIN_EV, HeatingConvention,
         HeatingParticleScope, ProducedParticle, ResponseDefinition, ResponseDomain,
-        ScoreDefinition, TRANSPORT_ARTIFACT_VERSION, TRANSPORT_REQUEST_LEGACY_VERSION,
-        TRANSPORT_REQUEST_VERSION, ToroidalRegion, TransportRequest,
+        ScoreDefinition, TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_OLDEST_VERSION,
+        TRANSPORT_ARTIFACT_VERSION, TRANSPORT_REQUEST_LEGACY_VERSION, TRANSPORT_REQUEST_VERSION,
+        ToroidalRegion, TransportRequest,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -839,6 +840,19 @@ pub struct ReactorRun {
     pub windowed_run: Option<Box<ReactorRun>>,
     pub scientific_qualification: String,
     pub notice: String,
+}
+
+/// Withhold raw-derived values from historical records that predate exact
+/// selected-library lost-particle accounting. The run's execution record and
+/// hashes remain intact for inspection.
+fn enforce_recorded_loss_gate(record: &mut ReactorRun) {
+    if record.lost_particle_accounting.is_none() {
+        record.normalized = None;
+        record.normalized_spectra = None;
+        record.import_error = Some(
+            "lost-particle count is NOT_EVALUATED; this recorded run's numerical result is not trusted without an exact OpenMC C API receipt. Re-run transport with a runtime whose selected executable's linked C API library can be verified.".into(),
+        );
+    }
 }
 
 impl ReactorRun {
@@ -2452,6 +2466,16 @@ pub fn load_reactor_run(
         return Err("recorded raw artifact digest differs".into());
     }
     let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
+    let artifact_schema_matches = (request.schema_version == TRANSPORT_REQUEST_VERSION
+        && matches!(
+            artifact.schema_version.as_str(),
+            TRANSPORT_ARTIFACT_VERSION | TRANSPORT_ARTIFACT_LEGACY_VERSION
+        ))
+        || (request.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION
+            && artifact.schema_version == TRANSPORT_ARTIFACT_OLDEST_VERSION);
+    if !artifact_schema_matches || artifact.request != request {
+        return Err("artifact schema or echoed request identity/definitions do not match".into());
+    }
     if record.lost_particle_accounting != artifact.lost_particle_accounting {
         return Err("recorded lost-particle receipt differs from the raw artifact".into());
     }
@@ -2524,26 +2548,33 @@ pub fn load_reactor_run(
     }
     if record.normalized.is_none()
         && let Some(reason) = record.import_error.as_deref()
-        && (reason.contains("lost-particle count is NOT_EVALUATED")
-            || reason.contains("strict 1e-6-per-source-history limit"))
+        && reason.contains("strict 1e-6-per-source-history limit")
     {
-        if reason.contains("strict 1e-6-per-source-history limit") {
-            let error = normalize_transport_artifact(&request, &artifact, scenario)
-                .err()
-                .ok_or("record says loss limit failed but the checked artifact passes")?;
-            if !error
-                .to_string()
-                .contains("strict 1e-6-per-source-history limit")
-            {
-                return Err(
-                    "recorded loss-limit failure does not match checked normalization".into(),
-                );
+        let error = normalize_transport_artifact(&request, &artifact, scenario)
+            .err()
+            .ok_or("record says loss limit failed but the checked artifact passes")?;
+        if !error
+            .to_string()
+            .contains("strict 1e-6-per-source-history limit")
+        {
+            return Err("recorded loss-limit failure does not match checked normalization".into());
+        }
+        return Ok(record);
+    }
+    if artifact.lost_particle_accounting.is_none() {
+        enforce_recorded_loss_gate(&mut record);
+        if let Some(pass) = record.windowed_pass.clone() {
+            let windowed = load_windowed_pass(parent, &pass, &record, scenario)?;
+            if windowed.normalized.is_none() {
+                let reason = windowed
+                    .import_error
+                    .as_deref()
+                    .unwrap_or("the windowed pass has no trusted normalized result");
+                record.import_error = Some(format!(
+                    "analog results are withheld because their lost-particle count is NOT_EVALUATED; the windowed pass is also unavailable: {reason}"
+                ));
             }
-        } else if artifact.lost_particle_accounting.is_some() {
-            return Err(
-                "record says lost-particle count is NOT_EVALUATED but the artifact has a count"
-                    .into(),
-            );
+            record.windowed_run = Some(Box::new(windowed));
         }
         return Ok(record);
     }
@@ -2569,6 +2600,19 @@ pub fn load_reactor_run(
     let normalized = match record.windowed_pass.clone() {
         Some(pass) => {
             let windowed = load_windowed_pass(parent, &pass, &record, scenario)?;
+            if windowed.normalized.is_none() {
+                let reason = windowed
+                    .import_error
+                    .clone()
+                    .unwrap_or_else(|| "the windowed pass has no trusted normalized result".into());
+                record.windowed_run = Some(Box::new(windowed));
+                record.normalized = None;
+                record.normalized_spectra = None;
+                record.import_error = Some(format!(
+                    "windowed pass did not produce a trusted normalized result: {reason}"
+                ));
+                return Ok(record);
+            }
             let merged = merge_windowed(
                 Some(&normalized),
                 windowed.normalized.as_ref(),
@@ -3602,6 +3646,334 @@ mod tests {
         };
         let record = run_reactor(&job, &Cancellation::default()).unwrap();
         (record, library.dir)
+    }
+
+    /// A recorded, legacy-schema run assembled from typed synthetic transport
+    /// data. It enters the public replay loader without launching OpenMC.
+    #[cfg(unix)]
+    fn recorded_run_fixture(
+        store_normalized: bool,
+        include_loss_receipt: bool,
+        import_error: Option<&str>,
+    ) -> (LoadedScenario, PathBuf, tempfile::TempDir) {
+        let (scenario, physics) = reference_case();
+        let (mut record, dir) = run_with_fake_worker("exit 3");
+        let run_directory = dir.path().join("run");
+        let run_json = run_directory.join("run.json");
+        let input_path = run_directory.join("input.json");
+        let mut input: Value =
+            serde_json::from_slice(&std::fs::read(&input_path).unwrap()).unwrap();
+        let (request, mesh) = legacy_request_for_case(&scenario, &physics).unwrap();
+        input["request"] = serde_json::to_value(&request).unwrap();
+        let input_bytes = serde_json::to_vec_pretty(&input).unwrap();
+        std::fs::write(&input_path, &input_bytes).unwrap();
+
+        let manifest = build_manifest(&scenario).unwrap();
+        let variant = manifest
+            .variants
+            .iter()
+            .find(|variant| variant.id == physics.variant_id)
+            .unwrap();
+        let outer_minor_radius = variant.components.last().unwrap().outer_minor_radius_m;
+        let mut volumes = Vec::new();
+        let mut tallies = Vec::with_capacity(request.responses.len());
+        for response in &request.responses {
+            if !volumes
+                .iter()
+                .any(|volume: &DomainVolume| volume.domain == response.domain)
+            {
+                let value = match &response.domain {
+                    ResponseDomain::WholeModel => {
+                        2.0 * math::powi(std::f64::consts::PI, 2)
+                            * manifest.major_radius_m
+                            * math::powi(outer_minor_radius, 2)
+                    }
+                    ResponseDomain::Component { component_id } => {
+                        variant
+                            .components
+                            .iter()
+                            .find(|component| &component.id == component_id)
+                            .unwrap()
+                            .full_torus_volume_m3
+                    }
+                    ResponseDomain::Mesh { .. } => mesh.bin_volume_m3(),
+                    ResponseDomain::ComponentRegion { .. } => {
+                        panic!("legacy fixture unexpectedly includes a component region")
+                    }
+                };
+                volumes.push(DomainVolume {
+                    domain: response.domain.clone(),
+                    value,
+                    standard_error: 0.0,
+                    unit: VolumeUnit::CubicMetre,
+                });
+            }
+            let (estimator, unit) = match &response.score {
+                ScoreDefinition::Flux | ScoreDefinition::FluxAbove { .. } => {
+                    (TallyEstimator::Tracklength, RawTallyUnit::CmPerSource)
+                }
+                ScoreDefinition::ReactionRate { .. } => {
+                    (TallyEstimator::Tracklength, RawTallyUnit::EventsPerSource)
+                }
+                ScoreDefinition::ParticleProduction { .. } => (
+                    TallyEstimator::Tracklength,
+                    RawTallyUnit::ParticlesPerSource,
+                ),
+                ScoreDefinition::Heating { .. } => {
+                    (TallyEstimator::Collision, RawTallyUnit::EvPerSource)
+                }
+            };
+            tallies.push(RawTally {
+                response_id: response.id.clone(),
+                estimator,
+                unit,
+                mean: 0.0,
+                standard_error: 0.0,
+            });
+        }
+        let histories = expected_histories(&record.sampling, None).unwrap();
+        let accounting = include_loss_receipt.then(|| {
+            let selected = PathBuf::from(input["openmc_executable"].as_str().unwrap());
+            let library_path = selected
+                .parent()
+                .and_then(Path::parent)
+                .unwrap()
+                .join("lib/libopenmc.so");
+            LostParticleAccounting {
+                method: "openmc-c-api-n_lost_particles/v1".into(),
+                histories,
+                particles_per_batch: record.sampling.particles_per_batch,
+                lost_particle_events: 0,
+                passes: vec![crate::transport::LostParticlePass {
+                    pass: 1,
+                    start_batch: 0,
+                    end_batch: record.sampling.batches,
+                    histories,
+                    lost_particle_events: 0,
+                }],
+                library_path: library_path.to_string_lossy().into_owned(),
+                library_sha256: "b".repeat(64),
+            }
+        });
+        let artifact = TransportArtifact {
+            schema_version: faris_model::transport::TRANSPORT_ARTIFACT_OLDEST_VERSION.into(),
+            request: request.clone(),
+            solver: ToolIdentity {
+                name: "OpenMC".into(),
+                version: "0.15.3".into(),
+                digest: format!("sha256:{}", record.openmc_sha256),
+            },
+            nuclear_data: ToolIdentity {
+                name: "synthetic".into(),
+                version: "test".into(),
+                digest: input["nuclear_data_digest"].as_str().unwrap().into(),
+            },
+            histories,
+            volumes,
+            tallies,
+            response_covariance: None,
+            lost_particle_accounting: accounting.clone(),
+        };
+        let artifact_bytes = serde_json::to_vec(&artifact).unwrap();
+        let solver_dir = run_directory.join("solver");
+        std::fs::create_dir_all(&solver_dir).unwrap();
+        std::fs::write(solver_dir.join("transport-artifact.json"), &artifact_bytes).unwrap();
+
+        record.input_sha256 = digest(&input_bytes);
+        record.mesh_preflight = None;
+        record.execution.as_mut().unwrap().execution_status = ExecutionStatus::Succeeded;
+        record.execution.as_mut().unwrap().exit_code = Some(0);
+        record.raw_artifact_sha256 = Some(digest(&artifact_bytes));
+        record.lost_particle_accounting = accounting;
+        record.normalized = store_normalized
+            .then(|| normalize_transport_artifact(&request, &artifact, &scenario).unwrap());
+        record.normalized_spectra = None;
+        record.transport_spectra_sha256 = None;
+        record.worker_result_sha256 = None;
+        record.import_error = import_error.map(str::to_owned);
+        std::fs::write(&run_json, serde_json::to_vec_pretty(&record).unwrap()).unwrap();
+        (scenario, run_json, dir)
+    }
+
+    #[cfg(unix)]
+    fn attach_windowed_fixture(parent_run_json: &Path, child_run_json: &Path) -> PathBuf {
+        let child_run_directory = child_run_json.parent().unwrap();
+        let window_bytes = b"synthetic-window-data";
+        let receipt_bytes = b"{}";
+        std::fs::write(
+            child_run_directory.join(windows::WINDOWS_FILE),
+            window_bytes,
+        )
+        .unwrap();
+        std::fs::write(
+            child_run_directory.join(windows::WINDOWS_RECORD_FILE),
+            receipt_bytes,
+        )
+        .unwrap();
+        let plan = WeightWindowsPlan {
+            kind: "weight_windows".into(),
+            response_id: STOP_RULE_RESPONSE_ID.into(),
+            windows_file: windows::WINDOWS_FILE.into(),
+            windows_sha256: digest(window_bytes),
+            record_file: windows::WINDOWS_RECORD_FILE.into(),
+            record_sha256: digest(receipt_bytes),
+        };
+        let input_path = child_run_directory.join("input.json");
+        let mut input: Value =
+            serde_json::from_slice(&std::fs::read(&input_path).unwrap()).unwrap();
+        input["variance_reduction"] = serde_json::to_value(&plan).unwrap();
+        let input_bytes = serde_json::to_vec_pretty(&input).unwrap();
+        std::fs::write(&input_path, &input_bytes).unwrap();
+        let mut child: ReactorRun =
+            serde_json::from_slice(&std::fs::read(child_run_json).unwrap()).unwrap();
+        child.input_sha256 = digest(&input_bytes);
+        child.mesh_preflight = None;
+        child.variance_reduction = Some(VarianceReductionRecord {
+            mode: "weight_windows".into(),
+            reason: "synthetic mixed-pass fixture".into(),
+            windows_reused: Some(false),
+            generation_seconds: Some(0.0),
+        });
+        std::fs::write(child_run_json, serde_json::to_vec_pretty(&child).unwrap()).unwrap();
+
+        let parent_run_directory = parent_run_json.parent().unwrap();
+        let windowed_directory = parent_run_directory.join(WINDOWED_PASS_DIRECTORY);
+        std::fs::rename(child_run_directory, &windowed_directory).unwrap();
+        let windowed_run_json = windowed_directory.join("run.json");
+        let mut parent: ReactorRun =
+            serde_json::from_slice(&std::fs::read(parent_run_json).unwrap()).unwrap();
+        parent.variance_reduction = Some(VarianceReductionRecord {
+            mode: "weight_windows".into(),
+            reason: "synthetic mixed-pass fixture".into(),
+            windows_reused: Some(false),
+            generation_seconds: Some(0.0),
+        });
+        parent.windowed_pass = Some(WindowedPass {
+            directory: WINDOWED_PASS_DIRECTORY.into(),
+            run_sha256: hash_file(&windowed_run_json).unwrap(),
+            responses: vec![STOP_RULE_RESPONSE_ID.into()],
+        });
+        std::fs::write(parent_run_json, serde_json::to_vec_pretty(&parent).unwrap()).unwrap();
+        windowed_run_json
+    }
+
+    // Verifies: GEO-025
+    #[cfg(unix)]
+    #[test]
+    fn public_replay_loader_withholds_legacy_values_and_keeps_counted_legacy_records() {
+        for store_normalized in [true, false] {
+            let (scenario, run_json, _dir) = recorded_run_fixture(store_normalized, false, None);
+            let bytes_before = std::fs::read(&run_json).unwrap();
+            let original: ReactorRun = serde_json::from_slice(&bytes_before).unwrap();
+            assert_eq!(original.normalized.is_some(), store_normalized);
+
+            let replayed = load_reactor_run(&run_json, &scenario).unwrap();
+            assert_eq!(
+                replayed.execution.as_ref().unwrap().execution_status,
+                ExecutionStatus::Succeeded
+            );
+            assert_eq!(replayed.raw_artifact_sha256, original.raw_artifact_sha256);
+            assert!(replayed.normalized.is_none());
+            assert!(replayed.normalized_spectra.is_none());
+            let reason = replayed.import_error.as_deref().unwrap_or_default();
+            assert!(
+                reason.contains("lost-particle count is NOT_EVALUATED"),
+                "{reason}"
+            );
+            assert!(reason.contains("not trusted"), "{reason}");
+            assert_eq!(std::fs::read(&run_json).unwrap(), bytes_before);
+        }
+
+        // Legacy request records have no spectra sidecar. A valid counted receipt
+        // still replays its normalized values, including the absent spectra value.
+        let (scenario, run_json, _dir) = recorded_run_fixture(true, true, Some("archived note"));
+        let replayed = load_reactor_run(&run_json, &scenario).unwrap();
+        assert!(replayed.normalized.is_some());
+        assert!(replayed.normalized_spectra.is_none());
+        assert_eq!(replayed.import_error.as_deref(), Some("archived note"));
+    }
+
+    // Verifies: NUC-001, GEO-025
+    #[cfg(unix)]
+    #[test]
+    fn public_replay_loader_rejects_tampered_or_malformed_raw_artifacts() {
+        let (scenario, run_json, dir) = recorded_run_fixture(false, false, None);
+        let artifact_path = dir.path().join("run/solver/transport-artifact.json");
+        std::fs::write(&artifact_path, b"{\n").unwrap();
+        let error = load_reactor_run(&run_json, &scenario)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("recorded raw artifact digest differs"),
+            "{error}"
+        );
+
+        let mut record: ReactorRun =
+            serde_json::from_slice(&std::fs::read(&run_json).unwrap()).unwrap();
+        let malformed = b"{";
+        std::fs::write(&artifact_path, malformed).unwrap();
+        record.raw_artifact_sha256 = Some(digest(malformed));
+        std::fs::write(&run_json, serde_json::to_vec_pretty(&record).unwrap()).unwrap();
+        let error = load_reactor_run(&run_json, &scenario)
+            .unwrap_err()
+            .to_string();
+        assert!(!error.is_empty());
+    }
+
+    // Verifies: GEO-025, NUC-051
+    #[cfg(unix)]
+    #[test]
+    fn public_replay_loader_validates_mixed_windowed_passes_and_propagates_child_reason() {
+        // A missing analog receipt with a counted windowed pass still validates
+        // the child's hash and identity while withholding the aggregate result.
+        let (scenario, parent_run_json, _parent_dir) = recorded_run_fixture(false, false, None);
+        let (_, child_run_json, _child_dir) = recorded_run_fixture(true, true, None);
+        let child_path = attach_windowed_fixture(&parent_run_json, &child_run_json);
+        let replayed = load_reactor_run(&parent_run_json, &scenario).unwrap();
+        assert!(replayed.normalized.is_none());
+        let analog_reason = replayed.import_error.as_deref().unwrap_or_default();
+        assert!(
+            analog_reason.contains("lost-particle count is NOT_EVALUATED"),
+            "{analog_reason}"
+        );
+        assert!(
+            replayed
+                .windowed_run
+                .as_deref()
+                .unwrap()
+                .normalized
+                .is_some()
+        );
+
+        let mut damaged_child = std::fs::read(&child_path).unwrap();
+        damaged_child.push(b' ');
+        std::fs::write(&child_path, damaged_child).unwrap();
+        let error = load_reactor_run(&parent_run_json, &scenario)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("recorded windowed pass differs"), "{error}");
+
+        // In the reverse mix, the counted analog pass cannot make a partial
+        // result look complete when the windowed pass has no exact count.
+        let (scenario, parent_run_json, _parent_dir) = recorded_run_fixture(true, true, None);
+        let (_, child_run_json, _child_dir) = recorded_run_fixture(true, false, None);
+        let _child_path = attach_windowed_fixture(&parent_run_json, &child_run_json);
+        let replayed = load_reactor_run(&parent_run_json, &scenario).unwrap();
+        assert!(replayed.normalized.is_none());
+        assert!(
+            replayed
+                .windowed_run
+                .as_deref()
+                .unwrap()
+                .normalized
+                .is_none()
+        );
+        let reason = replayed.import_error.as_deref().unwrap_or_default();
+        assert!(reason.contains("windowed pass did not produce a trusted normalized result"));
+        assert!(
+            reason.contains("lost-particle count is NOT_EVALUATED"),
+            "{reason}"
+        );
     }
 
     // Verifies: NUC-004

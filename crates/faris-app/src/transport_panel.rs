@@ -623,6 +623,9 @@ impl TransportPanel {
                     ));
                 }
             });
+            if let Some(reason) = record.import_error.as_deref() {
+                ui.colored_label(ui.visuals().warn_fg_color, reason);
+            }
             ui.horizontal_wrapped(|ui| {
                 ui.strong(tier_label(&record.sampling));
                 match &record.sampling_outcome {
