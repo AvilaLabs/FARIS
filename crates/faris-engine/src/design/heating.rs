@@ -1990,7 +1990,7 @@ fn history_energy_response_valid(
     }
     for (index, score) in scores.iter().enumerate() {
         let variance = covariance[index * dimension + index];
-        let expected = score.standard_error_ev_per_source.powi(2);
+        let expected = faris_model::math::powi(score.standard_error_ev_per_source, 2);
         if (variance - expected).abs() > 1.0e-6 * expected + f64::MIN_POSITIVE {
             return false;
         }
@@ -2002,7 +2002,8 @@ fn history_energy_response_valid(
         .flat_map(|i| (0..dimension).map(move |j| (i, j)))
         .map(|(i, j)| contrast[i] * covariance[i * dimension + j] * contrast[j])
         .sum::<f64>();
-    let closure_expected_variance = response.closure_residual.standard_error.powi(2);
+    let closure_expected_variance =
+        faris_model::math::powi(response.closure_residual.standard_error, 2);
     if !closure_variance.is_finite()
         || (closure_variance - closure_expected_variance).abs()
             > 1.0e-6 * closure_expected_variance.abs().max(closure_variance.abs())

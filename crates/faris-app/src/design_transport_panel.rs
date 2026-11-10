@@ -451,10 +451,10 @@ impl DesignTransportPanel {
         }
         if let Some(shown) = &self.result {
             ui.separator();
-            if show_result(ui, shown) {
-                if let Some(context) = &shown.history_context {
-                    self.history_handoff = Some(context.clone());
-                }
+            if show_result(ui, shown)
+                && let Some(context) = &shown.history_context
+            {
+                self.history_handoff = Some(context.clone());
             }
         }
     }

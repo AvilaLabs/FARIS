@@ -142,7 +142,7 @@ def make_model(openmc, directory: Path, *, particle: str, source_in_zero_cell: b
     settings.output = {"summary": False, "tallies": False}
     settings.max_lost_particles = 2_000_000_000
     settings.rel_max_lost_particles = 0.999999
-    settings.max_write_lost_particles = 0
+    settings.max_write_lost_particles = 1
     point = (1.75, 0.0, 0.0) if source_in_zero_cell else (0.0, 0.0, 0.0)
     energy = 1.0e6 if particle == "photon" else 14.1e6
     settings.source = openmc.IndependentSource(

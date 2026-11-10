@@ -2116,16 +2116,16 @@ impl eframe::App for FarisApp {
             self.design_flux.open = true;
         }
         self.design_flux.window(&ctx);
-        if let Some(context) = self.design_flux.take_history_handoff() {
-            if let Err(error) = self.design_heating.prefill_cad_history(context) {
-                self.message = error;
-            }
+        if let Some(context) = self.design_flux.take_history_handoff()
+            && let Err(error) = self.design_heating.prefill_cad_history(context)
+        {
+            self.message = error;
         }
         self.design_heating.window(&ctx);
-        if let Some(context) = self.design_heating.take_history_handoff() {
-            if let Err(error) = self.maintenance_dose.prefill_cad_history(context) {
-                self.message = error;
-            }
+        if let Some(context) = self.design_heating.take_history_handoff()
+            && let Err(error) = self.maintenance_dose.prefill_cad_history(context)
+        {
+            self.message = error;
         }
         if self.sign_in_prompt
             && !self.tour.active
