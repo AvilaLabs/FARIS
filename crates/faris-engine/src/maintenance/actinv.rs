@@ -407,6 +407,10 @@ pub struct ActinvSourceConfig {
     pub actinv: PathBuf,
     /// ACTINV data root (the folder above the catalogue version).
     pub data_dir: PathBuf,
+    /// Optional explicit ACTINV prepared-cache root. `None` keeps the user's documented cache
+    /// selection; isolated fake-tool callers can provide a per-test directory without mutating
+    /// process-wide HOME/XDG environment variables.
+    pub prepared_cache_dir: Option<PathBuf>,
     /// Content-addressed `<sha>.points.json` files, shared across runs and with the driver.
     pub cache_dir: PathBuf,
     /// Per-(design, iteration) folders and scratch space.
@@ -433,6 +437,7 @@ impl ActinvSourceConfig {
             builder,
             actinv,
             data_dir,
+            prepared_cache_dir: None,
             cache_dir,
             work_dir,
             workers: 1,
@@ -592,6 +597,10 @@ impl ActinvDecaySource {
             .map_err(|e| format!("data dir {}: {e}", config.data_dir.display()))?;
         config.cache_dir = std::path::absolute(&config.cache_dir)
             .map_err(|e| format!("cache dir {}: {e}", config.cache_dir.display()))?;
+        if let Some(path) = &mut config.prepared_cache_dir {
+            *path = std::path::absolute(&*path)
+                .map_err(|e| format!("prepared ACTINV cache dir {}: {e}", path.display()))?;
+        }
         config.work_dir = std::path::absolute(&config.work_dir)
             .map_err(|e| format!("work dir {}: {e}", config.work_dir.display()))?;
         let builder_hash = hash_file(&config.builder)?;
@@ -684,8 +693,11 @@ impl ActinvDecaySource {
     ) -> Result<(), String> {
         std::fs::create_dir_all(scratch).map_err(|e| format!("{}: {e}", scratch.display()))?;
         let (environment, cache_policy) = if actinv_cache {
-            let (environment, root) =
-                crate::actinv_env::for_actinv(std::env::vars_os(), Some(&self.data_dir))?;
+            let (environment, root) = crate::actinv_env::for_actinv_with_cache_dir(
+                std::env::vars_os(),
+                Some(&self.data_dir),
+                self.config.prepared_cache_dir.as_deref(),
+            )?;
             (environment, Some(PreparedCachePolicy::actinv(root)))
         } else {
             (self.environment(), None)

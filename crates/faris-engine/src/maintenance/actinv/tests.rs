@@ -260,7 +260,7 @@ fn rig_with(actinv_extra: &str) -> Rig {
     script(
         &rig.path("actinv"),
         &format!(
-            "echo \"$ACTINV_DATA_DIR $2\" >> {logs}/actinv.log\n{actinv_extra}\nstem=\"${{2%.spec.json}}\"\n/bin/cp \"$stem.fake-result\" \"$3\"",
+            "echo \"$ACTINV_DATA_DIR $2\" >> {logs}/actinv.log\necho \"$ACTINV_CACHE_DIR\" >> {logs}/actinv-cache.log\n{actinv_extra}\nstem=\"${{2%.spec.json}}\"\n/bin/cp \"$stem.fake-result\" \"$3\"",
             logs = rig.path("logs").display()
         ),
     );
@@ -300,6 +300,7 @@ fn source(
         rig.path(work),
     );
     config.python = "/bin/sh".into();
+    config.prepared_cache_dir = Some(rig.path("test-actinv-prepared-cache"));
     config.workers = workers;
     if impurities {
         std::fs::write(rig.path("impurities.json"), "{}").unwrap();
@@ -355,6 +356,12 @@ fn cache_miss_then_hit_and_curves_are_scaled_by_mass() {
     // ACTINV gets the data dir in its environment, resolved.
     let data = std::fs::canonicalize(rig.path("data")).unwrap();
     assert!(rig.log("actinv.log")[0].starts_with(data.to_str().unwrap()));
+    let prepared = std::fs::canonicalize(rig.path("test-actinv-prepared-cache")).unwrap();
+    assert!(
+        rig.log("actinv-cache.log")
+            .iter()
+            .all(|line| line == prepared.to_str().unwrap())
+    );
     // Results are compacted to points files and removed; the scratch space is empty.
     let cached: Vec<_> = std::fs::read_dir(rig.path("cache")).unwrap().collect();
     assert_eq!(cached.len() as u64, n);

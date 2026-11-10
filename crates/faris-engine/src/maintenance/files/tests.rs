@@ -284,6 +284,7 @@ impl Tree {
             assumptions: self.path("assumptions.json"),
             actinv: self.path("actinv"),
             data_dir: self.path("data"),
+            prepared_cache_dir: Some(self.path("test-actinv-prepared-cache")),
             cache: None,
             work_dir: self.path("out.work"),
             workers: 1,
@@ -347,9 +348,13 @@ fn tree() -> Tree {
     .unwrap();
     std::fs::write(t.path("builder.py"), BUILDER).unwrap();
     std::fs::create_dir_all(t.path("data")).unwrap();
+    std::fs::create_dir_all(t.path("logs")).unwrap();
     std::fs::write(
         t.path("actinv"),
-        "#!/bin/sh\nstem=\"${2%.spec.json}\"\n/bin/cp \"$stem.fake-result\" \"$3\"\n",
+        format!(
+            "#!/bin/sh\necho \"$ACTINV_CACHE_DIR\" >> {}\nstem=\"${{2%.spec.json}}\"\n/bin/cp \"$stem.fake-result\" \"$3\"\n",
+            t.path("logs/actinv-cache.log").display()
+        ),
     )
     .unwrap();
     std::fs::set_permissions(t.path("actinv"), std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -372,6 +377,13 @@ fn run_from_files_runs_the_real_wiring_end_to_end() {
     let (progress, seen) = collector();
     let result =
         run_from_files_with(&t.config(), &rates, &Cancellation::default(), progress).unwrap();
+    let prepared = std::fs::canonicalize(t.path("test-actinv-prepared-cache")).unwrap();
+    let cache_paths = std::fs::read_to_string(t.path("logs/actinv-cache.log")).unwrap();
+    assert!(
+        cache_paths
+            .lines()
+            .all(|line| line == prepared.to_str().unwrap())
+    );
     let design = &result.designs["ref"];
     assert!(design.computed.summary.is_some(), "{:?}", design.computed);
     assert!(design.computed.converged_at_iteration.is_some());

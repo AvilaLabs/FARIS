@@ -288,6 +288,8 @@ pub struct RunConfig {
     pub assumptions: PathBuf,
     pub actinv: PathBuf,
     pub data_dir: PathBuf,
+    /// Optional ACTINV prepared-cache root; absent preserves ACTINV's normal user cache.
+    pub prepared_cache_dir: Option<PathBuf>,
     /// Content-addressed ACTINV points cache [default: `decay-cache` inside the work folder].
     pub cache: Option<PathBuf>,
     /// Per-design, per-iteration spec folders and scratch space.
@@ -455,6 +457,7 @@ pub fn run_from_files_with(
         config.work_dir.clone(),
     );
     source_config.python = config.python.clone();
+    source_config.prepared_cache_dir = config.prepared_cache_dir.clone();
     source_config.workers = config.workers;
     source_config.impurities = config.impurities.clone();
     let log_report = report.clone();

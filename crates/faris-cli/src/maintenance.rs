@@ -307,6 +307,7 @@ fn run_designs(request: RunRequest) -> Result<(), Box<dyn std::error::Error>> {
         assumptions: request.assumptions,
         actinv: request.actinv,
         data_dir: request.data_dir,
+        prepared_cache_dir: None,
         cache: request.cache,
         work_dir,
         workers: request.workers,

@@ -53,7 +53,24 @@ pub(crate) fn for_actinv(
     inherited: impl IntoIterator<Item = (OsString, OsString)>,
     data_dir: Option<&Path>,
 ) -> Result<(Vec<(OsString, OsString)>, std::path::PathBuf), String> {
+    for_actinv_with_cache_dir(inherited, data_dir, None)
+}
+
+/// Resolve ACTINV's cache the same way as [`for_actinv`], with an explicit optional cache root
+/// for isolated callers such as fake-tool tests. This avoids mutating the process environment.
+pub(crate) fn for_actinv_with_cache_dir(
+    inherited: impl IntoIterator<Item = (OsString, OsString)>,
+    data_dir: Option<&Path>,
+    cache_dir: Option<&Path>,
+) -> Result<(Vec<(OsString, OsString)>, std::path::PathBuf), String> {
     let mut environment = job_environment(inherited, data_dir);
+    if let Some(path) = cache_dir {
+        if !path.is_absolute() {
+            return Err("explicit ACTINV cache directory must be absolute".into());
+        }
+        environment.retain(|(name, _)| name != "ACTINV_CACHE_DIR");
+        environment.push(("ACTINV_CACHE_DIR".into(), path.as_os_str().to_owned()));
+    }
     let value = |name: &str| {
         environment
             .iter()
@@ -142,11 +159,11 @@ fn is_link_or_reparse(metadata: &std::fs::Metadata) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{allowed_name, for_actinv, job_environment};
+    use super::{allowed_name, for_actinv, for_actinv_with_cache_dir, job_environment};
     use crate::jobs::{JobSpec, ResourceLimits};
     use std::collections::BTreeMap;
     use std::ffi::{OsStr, OsString};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::Duration;
 
     #[test]
@@ -241,6 +258,41 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("must be an absolute path"));
+    }
+
+    #[test]
+    fn explicit_cache_root_is_injected_without_changing_inherited_environment() {
+        let temp = tempfile::tempdir().unwrap();
+        let prepared = temp.path().join("prepared-cache");
+        let inherited = vec![
+            (OsString::from("HOME"), OsString::from("/home/user")),
+            (
+                OsString::from("XDG_CACHE_HOME"),
+                OsString::from("/user/cache"),
+            ),
+            (
+                OsString::from("ACTINV_CACHE_DIR"),
+                OsString::from("/user/actinv"),
+            ),
+        ];
+        let (environment, root) =
+            for_actinv_with_cache_dir(inherited.clone(), None, Some(&prepared)).unwrap();
+        assert_eq!(root, prepared.canonicalize().unwrap());
+        let values: BTreeMap<_, _> = environment.into_iter().collect();
+        assert_eq!(
+            values[OsStr::new("ACTINV_CACHE_DIR")].as_os_str(),
+            root.as_os_str()
+        );
+        assert_eq!(
+            values[OsStr::new("HOME")].as_os_str(),
+            OsStr::new("/home/user")
+        );
+        assert_eq!(
+            values[OsStr::new("XDG_CACHE_HOME")].as_os_str(),
+            OsStr::new("/user/cache")
+        );
+        assert_eq!(inherited[2].1, OsStr::new("/user/actinv"));
+        assert!(for_actinv_with_cache_dir(inherited, None, Some(Path::new("relative"))).is_err());
     }
 
     #[cfg(unix)]
