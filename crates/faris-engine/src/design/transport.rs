@@ -423,7 +423,7 @@ struct WorkerHistoryRate {
 #[derive(Clone, Debug)]
 enum HistorySourceContext {
     LegacyScenario {
-        scenario: faris_model::LoadedScenario,
+        scenario: Box<faris_model::LoadedScenario>,
         path: PathBuf,
         sha256: String,
     },
@@ -1504,7 +1504,7 @@ pub fn design_transport(
                     ));
                 }
                 HistorySourceContext::LegacyScenario {
-                    scenario,
+                    scenario: Box::new(scenario),
                     path: scenario_path,
                     sha256: sha256_hex(&bytes),
                 }
@@ -2346,7 +2346,7 @@ pub fn load_design_history_rates(
 ) -> Result<TransportDrivingRates, String> {
     load_design_history_rates_from_source(
         artifact_path,
-        ExpectedHistorySource::LegacyScenario(scenario.clone()),
+        ExpectedHistorySource::LegacyScenario(Box::new(scenario.clone())),
     )
 }
 
@@ -2364,7 +2364,7 @@ pub fn load_cad_design_history_rates(
 
 #[derive(Clone, Debug)]
 enum ExpectedHistorySource {
-    LegacyScenario(faris_model::LoadedScenario),
+    LegacyScenario(Box<faris_model::LoadedScenario>),
     CadDesign(PathBuf),
 }
 

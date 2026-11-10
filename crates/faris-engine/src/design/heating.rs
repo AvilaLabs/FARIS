@@ -1972,8 +1972,7 @@ fn verify_history_energy_worker_run(
         || threads == 0
         || threads > 32
         || !(0.0..1.0).contains(&target)
-        || max_batches < MIN_BATCHES
-        || max_batches > MAX_HEATING_BATCHES
+        || !(MIN_BATCHES..=MAX_HEATING_BATCHES).contains(&max_batches)
         || history_request.get("component_map")
             != Some(&serde_json::to_value(&base.component_map).map_err(|e| e.to_string())?)
         || history_request
