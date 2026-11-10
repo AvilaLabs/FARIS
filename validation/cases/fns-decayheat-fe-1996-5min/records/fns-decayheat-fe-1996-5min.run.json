@@ -1,0 +1,244 @@
+{
+  "case_id": "fns-decayheat-fe-1996-5min",
+  "execution": {
+    "actinv_binary_sha256": "91ecd4c3e04d36c67780a36fecbf336e174517fba77db0ae1a03ac0a6b9e9687",
+    "actinv_mode": "trace",
+    "actinv_result_sha256": "a5dcce39204f59574ed476d27ab589c7da057058e4983cfb3e2f19a632c5cb4d",
+    "actinv_solver": "actinv-core 1.4.0",
+    "adapter": "FARIS FNS-96 Fe prescribed-spectrum ACTINV runner",
+    "library_identity_basis": "SHA-256 of the canonical map of ACTINV activation library, index and primary/fallback decay-data hashes; installation paths are recorded but excluded from identity",
+    "resolved_data": {
+      "decay_fallback": {
+        "path": "/home/connoravila/Documents/actinv/actinv-data/v1.1.0/decay/jeff-3-3_decay.dat",
+        "sha256": "850b8b7f85f8d88b6ad826c4cd341aaaffabd525c8ecf3c588a0ad437bf5d123"
+      },
+      "decay_primary": {
+        "path": "/home/connoravila/Documents/actinv/actinv-data/v1.1.0/decay/endf-b-viii-0_decay.dat",
+        "sha256": "6f04cf009086c179021f243a58dadc2d5bb078de5ba39c4fe46ccad77d228ddb"
+      },
+      "library": {
+        "path": "/home/connoravila/Documents/actinv/actinv-data/v1.1.0/activation/tendl-2025-neutron-709g.npz",
+        "sha256": "ec4c72bf598dc8ad3d533d9cfafdcf493e2d1f949a3e4db6251495659b68cc44"
+      },
+      "library_index": {
+        "path": "/home/connoravila/Documents/actinv/actinv-data/v1.1.0/activation/tendl-2025-neutron-709g_index.json",
+        "sha256": "8bd19b4001c246758e739cd0067a0087e1ce5c2157438dae97bd52e1d3beb3fb"
+      }
+    },
+    "spec_sha256": "72fb487dbc780c4fa3a316752615c934406b1e32e9549ee498b407e66748b558",
+    "uncertainty": "ACTINV reports no sampling uncertainty for this deterministic run (u_mc=0); model and nuclear-data uncertainty are unquantified"
+  },
+  "identity": {
+    "adapter_sha256": "500b987e290976df76d7f0a4fa1bc8edfd6221f386c606434d6a430daa57f9fb",
+    "code_version": "actinv-core 1.4.0",
+    "library_sha256": "82b9105d8f594a2644259ebca8ab098e43ab8df55e191a575864069a4c94eeef"
+  },
+  "kind": "faris-run",
+  "manifest_sha256": "c4a6f1d8672b63bbe1dd7f5e7760c7753e022db16d6fa8313860530b5cdbe683",
+  "record_sha256": "47e203560e32263a5ddb34052444bcc0df2e1a77d13d6379932eb7567f271720",
+  "results": [
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-01",
+      "source_step": 2,
+      "time_s": 366.0,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.11514084526618183
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-02",
+      "source_step": 3,
+      "time_s": 382.2,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.11305899234262608
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-03",
+      "source_step": 4,
+      "time_s": 397.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.11127213142432872
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-04",
+      "source_step": 5,
+      "time_s": 424.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.10860911340904039
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-05",
+      "source_step": 6,
+      "time_s": 460.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.10574243173019637
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-06",
+      "source_step": 7,
+      "time_s": 495.0,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.10357461828053256
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-07",
+      "source_step": 8,
+      "time_s": 547.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.10099230207904045
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-08",
+      "source_step": 9,
+      "time_s": 613.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.09863994655108593
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-09",
+      "source_step": 10,
+      "time_s": 681.0,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.09686410724236556
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-10",
+      "source_step": 11,
+      "time_s": 777.0,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.09494635316388891
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-11",
+      "source_step": 12,
+      "time_s": 904.2,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.09299464114831225
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-12",
+      "source_step": 13,
+      "time_s": 1027.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.09142464264377491
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-13",
+      "source_step": 14,
+      "time_s": 1155.0,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.0899961125887893
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-14",
+      "source_step": 15,
+      "time_s": 1339.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.08813494693498505
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-15",
+      "source_step": 16,
+      "time_s": 1584.0,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.08594098390293829
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-16",
+      "source_step": 17,
+      "time_s": 1831.2,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.08393891676591267
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-17",
+      "source_step": 18,
+      "time_s": 2077.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.0821023733458522
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-18",
+      "source_step": 19,
+      "time_s": 2506.2000000000003,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.07918335857964452
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-19",
+      "source_step": 20,
+      "time_s": 3112.8,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.07544188288039555
+    },
+    {
+      "component_closure": "total equals alpha+beta+gamma within 1e-12 relative plus 1e-20 W/g",
+      "conversion": "ACTINV heat_W_per_g.total multiplied by 1e6",
+      "detector_id": "cooling-20",
+      "source_step": 21,
+      "time_s": 3721.2000000000003,
+      "u_mc": 0.0,
+      "unit": "microW/g",
+      "value": 0.07198843163470185
+    }
+  ],
+  "run_date": "2026-11-10",
+  "run_id": "actinv-20261110T004826.893077Z",
+  "schema": "faris-validation-run/1.0.0"
+}

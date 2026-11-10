@@ -94,3 +94,17 @@ The sealed `faris-run` record uses the existing `validation/scoring.py`
 pipeline. It carries the adapter, manifest, source spec, ACTINV executable,
 ACTINV result, and resolved nuclear-data hashes. Execution success is not
 experimental validation success.
+
+## Recorded execution
+
+The coordinator ran the pinned case on 2026-11-10 UTC with ACTINV Core 1.4.0.
+The sealed [run record](records/fns-decayheat-fe-1996-5min.run.json) contains all
+20 measured endpoints, the exact executable/result/specification hashes, and
+the resolved activation and decay-data identities. Its canonical record digest
+is `47e203560e32263a5ddb34052444bcc0df2e1a77d13d6379932eb7567f271720`.
+The full 11 MiB solver output and logs remain outside Git.
+
+The shared scorer reports 20 `INCONCLUSIVE` rows, with descriptive pointwise
+C/E values from 0.883112 to 0.962269. No point is omitted. Unknown prediction
+and reference covariance prevents a compatibility pass/fail; this execution
+does not validate transport, shutdown dose, or whole-device heat.
