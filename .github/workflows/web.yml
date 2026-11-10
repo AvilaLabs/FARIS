@@ -170,6 +170,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Check recorded library path syntax under wasm std
+        run: python3 scripts/check_wasm_recorded_path.py
+
       # The smoke script loads WEB_URL in headless Chromium and fails on any
       # console error. The package is installed without saving, so no
       # package.json is added to the repository.

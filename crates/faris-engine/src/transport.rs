@@ -770,6 +770,21 @@ pub fn normalize_transport_artifact(
     })
 }
 
+fn recorded_library_path_is_absolute(path: &str) -> bool {
+    // Browser replays inspect a native OpenMC receipt without opening the
+    // machine-specific library. wasm32-unknown-unknown does not classify a
+    // POSIX root as Path::is_absolute(), so recognize the serialized POSIX
+    // absolute syntax used by supported OpenMC runs on that target.
+    #[cfg(target_arch = "wasm32")]
+    {
+        path.starts_with('/')
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        Path::new(path).is_absolute()
+    }
+}
+
 /// Check count provenance and apply the strict lost-particle limit (greater than 1 per million
 /// source histories fails; equality passes). Missing legacy receipts remain explicitly unknown.
 pub fn validate_lost_particle_accounting(
@@ -782,7 +797,7 @@ pub fn validate_lost_particle_accounting(
         || histories == 0
         || accounting.particles_per_batch == 0
         || accounting.passes.is_empty()
-        || !Path::new(&accounting.library_path).is_absolute()
+        || !recorded_library_path_is_absolute(&accounting.library_path)
         || accounting.library_sha256.len() != 64
         || !accounting
             .library_sha256
