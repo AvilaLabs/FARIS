@@ -22,7 +22,10 @@ MAG-004 meets the display criterion across all 18 registered surfaces
 PERF-041 meets the default-size peak-memory and admission criteria. The four
 one-million-history arrangements peaked at 725,397,504 bytes in the campaign
 cgroup ([PERF-041 receipt](../references/default-size-four-arrangement-memory-20261110.json)).
-The tables now record 25 of 44 release-gate IDs as Met. Release-candidate
+GEO-021 meets the seeded overlap criterion. All six STEP fixtures reported
+the overlapping pair and common volume and blocked import before imprinting
+([GEO-021 receipt](../references/geo021-seeded-overlap-control-20261110.json)).
+The tables now record 26 of 44 release-gate IDs as Met. Release-candidate
 checks and physical validation are tracked separately. The NUC-053 control does not assert formal PRNG
 stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The

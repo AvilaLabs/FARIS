@@ -1,0 +1,163 @@
+{
+  "schema": "faris-geo021-seeded-overlap-control/v1",
+  "date": "2026-11-10",
+  "requirement": "GEO-021",
+  "status": "PASS",
+  "scope": "All six overlap fixtures in the committed defect corpus, reconstructed as STEP and checked with the FARIS CLI and its Python CAD reader. Each real OCCT boolean reported the overlapping pair and blocked import before imprinting.",
+  "cli": {
+    "path": "runs/continuation/native-target-v33/debug/faris",
+    "sha256": "b234e0515bab5c60a12723f9adc70909f4fae2795f3a5a43fe75499ade6e0571"
+  },
+  "cad_helper": {
+    "path": "integrations/cad/faris_cad.py",
+    "sha256": "6751166310b3b0440e6c499b5e9b8aac393e34de8fab3e7cdbf603ee7d767f0b"
+  },
+  "cad_backend": {
+    "cadquery": "2.8.0",
+    "open_cascade": "7.9"
+  },
+  "generated_corpus_index": {
+    "path": "runs/continuation/geo021-seeded-overlap-control-v1/corpus/corpus.json",
+    "sha256": "12d4f4c4df56ed47e9b056d23dfbeed0c42d17393490ccf1da887ff1a26fe851"
+  },
+  "resource_limits": {
+    "cpu_quota_percent": 100,
+    "memory_max_bytes": 3221225472,
+    "swap_max_bytes": 0,
+    "faris_cap_mib": 1024
+  },
+  "cases": [
+    {
+      "case": "seeded-overlap-boxes",
+      "step": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/designs/seeded-overlap-boxes.step",
+        "sha256": "f568d8a80af7c0378797372ef3d59c939e46ee58de3489e0ba72670f1def84d4"
+      },
+      "faris_report": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/reports/seeded-overlap-boxes.json",
+        "sha256": "61e554e731e33c4ac4ac210996ba5e56d51bc4a83980676ac2eac082cf654a05"
+      },
+      "boolean": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/work/seeded-overlap-boxes/booleans/booleans.json",
+        "sha256": "8f5dbc59d555f3416d08400b77cb543fd80726d399a9d5d52390fea3c009ea46"
+      },
+      "seeded_fraction_of_smaller": null,
+      "found_pair": [
+        "core",
+        "shell1"
+      ],
+      "measured_common_volume_m3": 0.0007280000000000002,
+      "cli_exit_code": 1
+    },
+    {
+      "case": "seeded-overlap-boxes-1e-4",
+      "step": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/designs/seeded-overlap-boxes-1e-4.step",
+        "sha256": "24c9d7a25b0bf32103390adbc56ab7a5d3ad1ab898ee2512ed0fb47b30e47cca"
+      },
+      "faris_report": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/reports/seeded-overlap-boxes-1e-4.json",
+        "sha256": "c8ff325233b80798df0415919fda49722b8f06434995978fdd7c6f088d3c98f0"
+      },
+      "boolean": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/work/seeded-overlap-boxes-1e-4/booleans/booleans.json",
+        "sha256": "15219ca111eed698c99b3a49035c377e24c1f1b8ba19863044673c8d1a0b9090"
+      },
+      "seeded_fraction_of_smaller": 0.0001,
+      "found_pair": [
+        "core",
+        "shell1"
+      ],
+      "measured_common_volume_m3": 1.0001000079500955e-07,
+      "cli_exit_code": 1
+    },
+    {
+      "case": "seeded-overlap-boxes-1e-5",
+      "step": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/designs/seeded-overlap-boxes-1e-5.step",
+        "sha256": "75f5ed274fa782927f980a399a36177607368188532e850fa4f9ed27ca621613"
+      },
+      "faris_report": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/reports/seeded-overlap-boxes-1e-5.json",
+        "sha256": "c8ae2e6e7f1f6f1aea7c346c718bc0e525400b7e9e22e4546eb3ef05a25e0c4d"
+      },
+      "boolean": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/work/seeded-overlap-boxes-1e-5/booleans/booleans.json",
+        "sha256": "96616d7294fb64b645f3adb02a3e48926afda69704335433dfb3ae6ea84fe9fe"
+      },
+      "seeded_fraction_of_smaller": 1e-05,
+      "found_pair": [
+        "core",
+        "shell1"
+      ],
+      "measured_common_volume_m3": 1.0000099773897092e-08,
+      "cli_exit_code": 1
+    },
+    {
+      "case": "seeded-overlap-port",
+      "step": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/designs/seeded-overlap-port.step",
+        "sha256": "090180640a16457d7655339d8be45f6eee8b34eb689172d77461063b00143d1d"
+      },
+      "faris_report": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/reports/seeded-overlap-port.json",
+        "sha256": "73ae399999c76c85cb94b9aad9fc1b055b930643b4cb0b2b321f0152de6c8ef1"
+      },
+      "boolean": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/work/seeded-overlap-port/booleans/booleans.json",
+        "sha256": "2b6fb1ea2e468ef44f9e25f315107d5b339d2780225a708a4b06deb6624802cf"
+      },
+      "seeded_fraction_of_smaller": null,
+      "found_pair": [
+        "plug",
+        "shell"
+      ],
+      "measured_common_volume_m3": 0.0002375044046113888,
+      "cli_exit_code": 1
+    },
+    {
+      "case": "seeded-overlap-port-1e-4",
+      "step": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/designs/seeded-overlap-port-1e-4.step",
+        "sha256": "5b58cc66f9faaf97901d0871651f8878a1271faa8c3575ac8f5be200573119ca"
+      },
+      "faris_report": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/reports/seeded-overlap-port-1e-4.json",
+        "sha256": "3a31e9f40f6c9fc083bd57bacc7d2066c68ad7e0c668d497a8bf18505aa0733b"
+      },
+      "boolean": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/work/seeded-overlap-port-1e-4/booleans/booleans.json",
+        "sha256": "67ccdc176798574181cea047572be868b62dd41ec12443eceebc9cfdaf021754"
+      },
+      "seeded_fraction_of_smaller": 0.0001,
+      "found_pair": [
+        "plug",
+        "shell"
+      ],
+      "measured_common_volume_m3": 1.1310864640306682e-07,
+      "cli_exit_code": 1
+    },
+    {
+      "case": "seeded-overlap-port-1e-5",
+      "step": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/designs/seeded-overlap-port-1e-5.step",
+        "sha256": "467e9945b181545d8ea02411b44a6db11d6eb3c864f6950cc3beb79c069cfe4b"
+      },
+      "faris_report": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/reports/seeded-overlap-port-1e-5.json",
+        "sha256": "34c9d9392ede85855574e34e11e83e77cebf23014f959e7713db38afcb95be4f"
+      },
+      "boolean": {
+        "path": "runs/continuation/geo021-seeded-overlap-control-v1/work/seeded-overlap-port-1e-5/booleans/booleans.json",
+        "sha256": "2cb434f4bd255f551563b8d0b221298e7f08bd2093e75fa8cb003117d7cbc758"
+      },
+      "seeded_fraction_of_smaller": 1e-05,
+      "found_pair": [
+        "plug",
+        "shell"
+      ],
+      "measured_common_volume_m3": 1.1309846650576219e-08,
+      "cli_exit_code": 1
+    }
+  ]
+}
