@@ -24,6 +24,15 @@ except ImportError as exc:
 else:
     EXPORT_TEST_DEPS_MISSING = None
 
+try:
+    import openmc  # noqa: F401
+except ImportError as exc:
+    if os.environ.get("FARIS_REQUIRE_OPENMC") == "1":
+        raise
+    OPENMC_MISSING = str(exc)
+else:
+    OPENMC_MISSING = None
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r3_scenario as sc  # noqa: E402
 import r3_activation_coverage as AC  # noqa: E402
@@ -218,6 +227,8 @@ def _fixture(root: Path, method: str, basis_hashes=None):
 @unittest.skipUnless(h5py is not None, "exporter tests require h5py to inspect actual H5M coordinates")
 @unittest.skipIf(EXPORT_TEST_DEPS_MISSING is not None,
                  f"shutdown-dose exporter fixtures require h5py and NumPy: {EXPORT_TEST_DEPS_MISSING}")
+@unittest.skipIf(OPENMC_MISSING is not None,
+                 f"shutdown-dose R2S coverage fixtures require OpenMC: {OPENMC_MISSING}")
 class R3ShutdownDoseExportTest(unittest.TestCase):
     def test_bounded_evidence_bundle_is_content_addressed_and_reopens_all_chunk_sources(self):
         with tempfile.TemporaryDirectory() as temp:
