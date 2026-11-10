@@ -22,6 +22,7 @@ on:
       - "docs/licence-footer.js"
       - "scripts/web_smoke.mjs"
       - "scripts/prepare_web_demo.py"
+      - "scripts/prepare_web_smoke.py"
       - ".github/workflows/web.yml"
   workflow_dispatch:
 
@@ -115,6 +116,18 @@ jobs:
           python3 scripts/prepare_web_demo.py "$PACKAGE_DIR" \
             --out crates/faris-app/demo --ensembles web-ensembles/ensembles.json
 
+      # This test-only emitter reuses the engine's typed synthetic run fixture.
+      # It writes no scientific run data into the repository or release artifact.
+      - name: Check synthetic smoke-tree isolation
+        run: python3 -m unittest scripts/test_prepare_web_smoke.py
+
+      - name: Generate synthetic browser smoke fixture
+        env:
+          FARIS_WEB_SMOKE_FIXTURE_OUT: ${{ runner.temp }}/faris-web-smoke-fixture
+        run: |
+          cargo test --locked -p faris-engine --lib write_synthetic_web_smoke_fixture -- \
+            --ignored --nocapture
+
       - name: Build wasm bundle
         working-directory: crates/faris-app
         run: trunk build --release --public-url ./
@@ -145,6 +158,14 @@ jobs:
           rm -rf crates/faris-app/dist/docs
           cp -R dist/docs crates/faris-app/dist/docs
 
+      # Exercise positive rendering on a disposable copy. The production dist
+      # remains the package data source above and is uploaded without mutation.
+      - name: Prepare isolated synthetic browser smoke tree
+        run: |
+          python3 scripts/prepare_web_smoke.py \
+            crates/faris-app/dist "$RUNNER_TEMP/faris-web-smoke-fixture" \
+            "$RUNNER_TEMP/faris-web-smoke-dist"
+
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -158,9 +179,15 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
           npx playwright install --with-deps chromium
           python3 -m http.server 8080 --directory crates/faris-app/dist --bind 127.0.0.1 &
-          server_pid=$!
-          trap 'kill "$server_pid"; wait "$server_pid" || true' EXIT
-          WEB_URL=http://127.0.0.1:8080/ timeout 180s node scripts/web_smoke.mjs
+          legacy_server=$!
+          synthetic_server=
+          trap 'kill "$legacy_server" "$synthetic_server" 2>/dev/null || true; wait "$legacy_server" "$synthetic_server" 2>/dev/null || true' EXIT
+          WEB_URL=http://127.0.0.1:8080/ WEB_EXPECT_TRANSPORT=withheld \
+            WEB_SCREENSHOT=web-smoke-legacy.png timeout 180s node scripts/web_smoke.mjs
+          python3 -m http.server 8081 --directory "$RUNNER_TEMP/faris-web-smoke-dist" --bind 127.0.0.1 &
+          synthetic_server=$!
+          WEB_URL=http://127.0.0.1:8081/ WEB_SYNTHETIC_FIXTURE=1 \
+            WEB_SCREENSHOT=web-smoke-synthetic.png timeout 180s node scripts/web_smoke.mjs
 
       - name: Upload complete web bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

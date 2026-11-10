@@ -7,6 +7,8 @@
 // WEB_URL selects another address; WEB_SCREENSHOT the picture's path
 // (default web-smoke.png); PLAYWRIGHT_MODULE a playwright index.mjs to use;
 // CHROMIUM_PATH a browser executable to use instead of playwright's own.
+// WEB_EXPECT_TRANSPORT=withheld checks legacy replay refusal; WEB_SYNTHETIC_FIXTURE=1
+// displays an explicit test-data banner for the isolated current-schema fixture.
 // WEB_LONG_TASK_MS is the longest single main-thread task allowed (default 4000,
 // measured on headless Chromium with software GL: the longest is about 2.7 s,
 // the app's first frame; before the work was split up one task took 19.8 s).
@@ -21,6 +23,8 @@ const { chromium } = process.env.PLAYWRIGHT_MODULE
   : await import("playwright");
 const base = process.env.WEB_URL || "http://127.0.0.1:8080/";
 const shot = process.env.WEB_SCREENSHOT || "web-smoke.png";
+const expectWithheld = process.env.WEB_EXPECT_TRANSPORT === "withheld";
+const syntheticFixture = process.env.WEB_SYNTHETIC_FIXTURE === "1";
 const url = new URL(base);
 url.searchParams.set("verify", "1");
 
@@ -63,6 +67,21 @@ try {
       for (const entry of list.getEntries()) window.__longTasks.push(Math.round(entry.duration));
     }).observe({ entryTypes: ["longtask"] });
   });
+  if (syntheticFixture) {
+    await page.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const banner = document.createElement("div");
+        banner.id = "faris-synthetic-smoke-label";
+        banner.textContent = "SYNTHETIC CI SMOKE FIXTURE — placeholder values; NOT scientific transport results";
+        Object.assign(banner.style, {
+          position: "fixed", top: "0", left: "0", right: "0", zIndex: "2147483647",
+          padding: "8px 12px", background: "#7b2300", color: "white",
+          font: "bold 14px sans-serif", textAlign: "center",
+        });
+        document.body.append(banner);
+      }, { once: true });
+    });
+  }
   await page.goto(url.href);
   await page.locator("#faris_canvas").waitFor({ state: "attached" });
   // The loading text goes away once the first frame is up.
@@ -79,7 +98,17 @@ try {
   const status = await page.evaluate(() => window.__farisStatus);
   const box = await page.locator("#faris_canvas").boundingBox();
   assert.ok(box && box.width > 400 && box.height > 300, "the canvas has a usable size");
-  assert.equal(status.hasResults, true, "the recorded transport is loaded");
+  assert.equal(status.hasResults, !expectWithheld,
+    `${expectWithheld ? "legacy transport values remain withheld" : "the recorded transport is loaded"}; browser status: ${JSON.stringify(status)}`);
+  if (expectWithheld) {
+    assert.ok(status.transportRefusals?.some(item =>
+      /lost-particle count is NOT_EVALUATED/.test(item.reason)),
+    `the legacy run refusal names its missing exact loss receipt; browser status: ${JSON.stringify(status)}`);
+  }
+  if (syntheticFixture) {
+    await page.locator("#faris-synthetic-smoke-label").waitFor({ state: "visible" });
+    assert.match(await page.locator("#faris-synthetic-smoke-label").innerText(), /NOT scientific transport results/);
+  }
   assert.equal(status.pairedLoaded, true, "the no-port arrangement is loaded");
   assert.equal(status.historyAssumptions, true, "the operating history assumptions are loaded");
   assert.equal(status.noticeOpen, true, "the first-open card is shown");

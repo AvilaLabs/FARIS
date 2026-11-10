@@ -225,6 +225,10 @@ impl FarisApp {
             "tourActive": self.tour.active,
             "step": self.step.name(),
             "hasResults": self.transport.has_results(),
+            "transportRefusals": self.transport.records().values().filter_map(|record| {
+                let reason = record.import_error.as_deref()?;
+                Some(serde_json::json!({"variant": record.variant_id, "reason": reason}))
+            }).collect::<Vec<_>>(),
             "historyAssumptions": self.history.assumptions.is_some(),
             "historyPending": self.history.is_pending(),
             "pairedLoaded": self.paired.is_some(),
