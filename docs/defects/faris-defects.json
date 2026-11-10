@@ -487,6 +487,19 @@
       "fixed_in": "7cc5d87",
       "disposition": "OpenMC cell-filter flux is tracklength integrated over the detector volume. The adapter applied the source FM and lethargy width without dividing the mean and standard deviation by that volume, giving the wrong response units and radius dependence. Both now use the exact analytic sphere volume; raw scores, units, radius and volume remain in receipts. Analytic and radius-invariance regressions pass. The first live pilot remains unsealed and unqualified due to sparse tallies; F5 point-estimator equivalence and the unchanged convergence criteria remain separate requirements.",
       "regression_test": "validation/test_fns_tof_jade.py::test_spatial_volume_normalization_is_radius_invariant_for_constant_flux"
+    },
+    {
+      "id": "FARIS-038",
+      "title": "AIM vacuum control and production preflight disagreed with the documented CLI and runtime identity",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "a43aefa",
+      "disposition": "The new optional control referenced a case argument absent from its real parser, and its runtime identity contained Python fields missing from production preflight. The documented command failed before transport, while production would refuse a valid control on the same runtime. Scope now comes from the verified manifest and both paths share the complete runtime preflight. Parser-backed and identity regressions pass; the actual twelve-response vacuum control and its raw-statepoint consumer revalidation pass. The material benchmark remains unqualified.",
+      "regression_test": "validation/test_fns_tof_jade.py::test_control_and_production_cli_use_same_complete_runtime_preflight"
     }
   ]
 }
