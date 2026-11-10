@@ -13,7 +13,10 @@ not establish that the full 1.0 target set is met.
 At this baseline, the requirement tables record 14 of the 44 release-gate IDs
 as Met. That count describes recorded evidence, not a fresh release-gate pass.
 SRC-002 source-power bookkeeping is now Met after native checks, bringing the
-recorded count to 15 of 44. VAL-023 remains No/NOT_EVALUATED; its approved access
+recorded count to 15 of 44. The NUC-053 evidence review confirms that the
+implemented generation/production separation meets its stated seed-disjointness
+criterion, bringing the recorded count to 16 of 44; it does not assert formal
+PRNG stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The
 2026-11-10 RM-M v3 acceptance control is recorded at
 [references/rm-m-v3-acceptance-control-20261110.json](../references/rm-m-v3-acceptance-control-20261110.json);

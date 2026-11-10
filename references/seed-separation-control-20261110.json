@@ -1,0 +1,62 @@
+{
+  "schema": "faris-seed-separation-control/v1",
+  "requirement": "NUC-053",
+  "criterion_status": "PASS",
+  "scope": "Generation histories are not reused as production tally histories; generation and production seed assignments are disjoint. This is the requirement's defined seed-disjointness check.",
+  "checked_utc": "2026-11-10T11:38:24.261496+00:00",
+  "generation_seeds": [
+    811500991,
+    811500993
+  ],
+  "generation_outputs": "MGXS and weight-window proposal files; generation statepoints and source banks are not used to start production.",
+  "product_paths": [
+    {
+      "path": "integrations/openmc/design_transport.py",
+      "evidence": "Production request rejects both generation seeds; MGXS and window phases build their own models; production initializes a fresh selected-library C API run with the authored production seed."
+    },
+    {
+      "path": "crates/faris-engine/src/reactor.rs",
+      "evidence": "SamplingPlan::validate rejects reserved seeds; analog_pass_sampling selects another nonzero, nonreserved seed. Cached window preparation retains only proposal artifacts, not histories."
+    },
+    {
+      "path": "integrations/openmc/reactor_windows.py",
+      "evidence": "MGXS and random-ray phases build separate models and emit proposal artifacts; no generation restart is supplied to production."
+    }
+  ],
+  "verification": [
+    {
+      "test": "reactor::tests::a_run_may_not_use_the_seeds_of_the_window_steps",
+      "status": "PASS"
+    },
+    {
+      "test": "reactor::tests::the_analog_pass_watches_the_whole_model_responses_with_its_own_seed",
+      "status": "PASS"
+    },
+    {
+      "test": "test_design_transport.WindowHelpersTest.test_generation_and_reported_run_seeds_are_disjoint",
+      "status": "PASS"
+    }
+  ],
+  "native_verification": {
+    "binary_path": "runs/continuation/native-target-v33/debug/deps/faris_engine-44e7c3d0e78094c8",
+    "binary_sha256": "b012359af8a4e8855c922e43d7c4746f871ca435cd24afe8a387d25e9ab3da08",
+    "build_scope": "O0 feedback/control test build; not release or performance evidence",
+    "reactor_source_commit": "5ef97c9",
+    "reactor_source_sha256": "b2206ff54377d73a7ae532af875a809de6b41643fbc035c9e16838c13fe240a5",
+    "applicability": "Seed policy has not changed since that build; pending replay-loader changes are unrelated to seed selection."
+  },
+  "python_test_source": {
+    "path": "integrations/openmc/risk_tests/test_design_transport.py",
+    "sha256": "2c45df216ea0c2495d51d0b3aac688c956c5e64111d48910d0c85cb10473b5c0"
+  },
+  "window_generator": {
+    "path": "integrations/openmc/window_generator.py",
+    "sha256": "a5f9d40aa389cf592fed125799f922e38e7e180e1921ecead6d1965ddd394f47"
+  },
+  "limits": [
+    "This does not establish mathematical PRNG-stream non-overlap or statistical independence beyond the stated seed policy.",
+    "Imported external window files do not acquire verified generation provenance from this control.",
+    "The RM-M v4 FOM campaign is incomplete and is not cited as a completed performance or bias acceptance result.",
+    "The change in recorded requirement status is an evidence reconciliation, not physical validation or a release-gate pass."
+  ]
+}

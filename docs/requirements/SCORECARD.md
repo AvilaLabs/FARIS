@@ -8,14 +8,14 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 123 | 575 | 686 | 35 | 432 | 30 % | 505 | 150 | 459 | 116 | 430 | 98 |
+| All requirements | 1419 | 124 | 574 | 686 | 35 | 432 | 30 % | 505 | 150 | 459 | 116 | 430 | 98 |
 
 ## By category
 
 | Category | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | 73 | 4 | 41 | 27 | 1 | 31 | 42 % | 29 | 8 | 43 | 4 | 6 | 12 |
-| [Radiation transport and neutron source](02-radiation-transport.md) | 107 | 10 | 46 | 48 | 3 | 35 | 33 % | 40 | 12 | 50 | 18 | 7 | 12 |
+| [Radiation transport and neutron source](02-radiation-transport.md) | 107 | 11 | 45 | 48 | 3 | 35 | 33 % | 40 | 12 | 50 | 18 | 7 | 12 |
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 20 | 40 | 37 | 0 | 52 | 54 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 4 | 19 | 76 | 0 | 8 | 8 % | 46 | 17 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 3 | 9 | 33 | 0 | 5 | 11 % | 17 | 5 | 18 | 5 | 6 | 2 |
@@ -43,7 +43,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | F1 | 445 | 77 | 279 | 72 | 17 | 239 | 54 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 35 | 222 | 224 | 16 | 163 | 33 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F2 | 497 | 36 | 221 | 224 | 16 | 163 | 33 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 8 | 57 | 0 | 4 | 6 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 6 | 32 | 133 | 2 | 12 | 7 % | 66 | 15 | 62 | 8 | 40 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |
