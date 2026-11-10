@@ -10,6 +10,10 @@
 //! Full verification of every indexed file stays with `verify.sh`; the checks
 //! here are the launch-relevant part of it. Nothing here interprets physics.
 
+#[cfg(all(test, unix))]
+#[path = "../../faris-engine/tests/support/children.rs"]
+mod package_open_children;
+
 use faris_study::sha256_file;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -701,6 +705,9 @@ mod tests {
     use faris_engine::evidence_store::{EvidenceStore, pack_store};
     use serde_json::{Value, json};
 
+    #[cfg(unix)]
+    use super::package_open_children;
+
     fn sha(bytes: &[u8]) -> String {
         format!("sha256:{}", faris_study::sha256_hex(bytes))
     }
@@ -1327,5 +1334,67 @@ mod tests {
         assert!(supplies(&["--bundle", "b.json"]));
         assert!(supplies(&["--assumptions", "a.json"]));
         assert!(supplies(&["--saved-study", "d.json"]));
+    }
+    // Verifies: SEC-001. A valid package containing hostile free text and a
+    // sentinel in the verified Core executable slot opens as data without
+    // launching the packaged executable. Explicit Core compilation/run remains
+    // a separate user action with the configured executable.
+    #[cfg(unix)]
+    #[test]
+    fn opening_a_valid_hostile_text_package_does_not_start_the_packaged_core() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let fixture = Fixture::new();
+        let marker = fixture.dir.path().join("core-ran");
+        let core = fixture.root().join("bin/avila-core");
+        let marker_text = marker.to_string_lossy().replace('\'', "'\\''");
+        let script = format!("#!/bin/sh\nprintf ran > '{marker_text}'\n");
+        std::fs::write(&core, script.as_bytes()).unwrap();
+        std::fs::set_permissions(&core, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        // Keep the package valid: update the app-part entry to match the
+        // sentinel bytes, and put shell syntax, a command, and the sentinel
+        // path in ordinary user-visible text files.
+        let hostile_text = format!(
+            "{{\"title\":\"$(touch {})\",\"note\":\"; {} &\",\"path\":\"{}\"}}\n",
+            marker.display(),
+            core.display(),
+            core.display()
+        );
+        std::fs::write(fixture.root().join("README.md"), &hostile_text).unwrap();
+        std::fs::write(
+            fixture.root().join("operating-assumptions.json"),
+            &hostile_text,
+        )
+        .unwrap();
+
+        let mut index: Value =
+            serde_json::from_slice(&std::fs::read(fixture.root().join(INDEX)).unwrap()).unwrap();
+        for entry in index["files"].as_array_mut().unwrap() {
+            let relative = entry["path"].as_str().unwrap();
+            let bytes = std::fs::read(fixture.root().join(relative)).unwrap();
+            entry["bytes"] = json!(bytes.len());
+            entry["sha256"] = json!(sha(&bytes));
+        }
+        fixture.write_index(&index);
+
+        let opened =
+            package_open_children::assert_no_process("opening a hostile-text package", || {
+                fixture
+                    .open()
+                    .expect("the hostile-text package remains valid")
+            });
+        assert_eq!(
+            opened.core,
+            fixture
+                .root()
+                .canonicalize()
+                .unwrap()
+                .join("bin/avila-core")
+        );
+        assert!(
+            !marker.exists(),
+            "opening the package ran its Core executable"
+        );
     }
 }

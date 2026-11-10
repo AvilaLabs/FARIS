@@ -978,6 +978,7 @@ dependencies = [
  "flate2",
  "image",
  "js-sys",
+ "nix",
  "rfd",
  "serde",
  "serde_json",
