@@ -14,10 +14,16 @@ At this baseline, the requirement tables recorded 14 of the 44 release-gate IDs
 as Met. SRC-002 source-power bookkeeping, NUC-053 seed separation, NUC-050
 replicated fast-flux performance, MAG-003 peak-density/volume display,
 SEC-001 file-opening controls, and OPS-031/032 duration sensitivity and cited
-presets and A11Y-001 keyboard operation now meet their written criteria. MAG-004's
-registered numeric margin displays also meet their written criterion, bringing
-the recorded count to 24 of 44. GEO-012 also meets its stated corpus volume/default-tolerance criterion ([receipt](../references/geo012-default-tolerance-corpus-control-20261110.json)). This is recorded evidence, not a fresh release-gate
-pass or physical qualification. The NUC-053 control does not assert formal PRNG
+presets and A11Y-001 keyboard operation now meet their written criteria. GEO-012
+also meets the corpus volume and default-tolerance criterion
+([GEO-012 receipt](../references/geo012-default-tolerance-corpus-control-20261110.json)).
+MAG-004 meets the display criterion across all 18 registered surfaces
+([MAG-004 audit](../references/mag004-display-audit-v2-20261110.json)).
+PERF-041 meets the default-size peak-memory and admission criteria. The four
+one-million-history arrangements peaked at 725,397,504 bytes in the campaign
+cgroup ([PERF-041 receipt](../references/default-size-four-arrangement-memory-20261110.json)).
+The tables now record 25 of 44 release-gate IDs as Met. Release-candidate
+checks and physical validation are tracked separately. The NUC-053 control does not assert formal PRNG
 stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The
 2026-11-10 RM-M v3 acceptance control is recorded at

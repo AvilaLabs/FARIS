@@ -60,13 +60,13 @@
     },
     {
       "id": "history_next_magnet_swap_headline",
-      "quantity": "time-to-first-swap headline",
+      "quantity": "history point magnet swap count and next-swap time-to-first-swap headline",
       "source": "crates/faris-app/src/history_panel.rs",
       "anchor": "fn headline",
-      "rendered_or_structural_fixture": "next_magnet_swap_headline_shows_matching_numeric_calendar_year_band;legacy_next_magnet_swap_without_error_shows_reason_and_next_step",
+      "rendered_or_structural_fixture": "next_magnet_swap_headline_shows_matching_numeric_calendar_year_band;legacy_next_magnet_swap_without_error_shows_reason_and_next_step;headline_uses_only_exact_current_time_bands_and_keeps_swap_count_state",
       "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
       "production_renderer": "HistoryPanel::headline",
-      "interval_and_edge_expectation": "absolute event-time band in calendar years from history start; matching engine band, earliest edge first; missing state renders why/next",
+      "interval_and_edge_expectation": "Current magnet swaps-so-far count is accompanied by the stored component_replacements uncertainty state; next-swap event has the matching absolute calendar-year time band, earliest edge first; missing states render stored why/next and do not substitute nearby values.",
       "renderer_symbol": [
         "fn headline(&self"
       ]
@@ -192,6 +192,66 @@
       "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
       "production_renderer": "render_pdf -> page_three -> delta_cells",
       "interval_and_edge_expectation": "numeric delta is paired with the engine two-sigma input-band verdict (separated, overlapping, or no band); no unsupported interval of the delta is fabricated"
+    },
+    {
+      "id": "history_component_inspector_magnet_fluence_and_count",
+      "quantity": "selected magnet component fluence and replacement count",
+      "source": "crates/faris-app/src/history_panel.rs",
+      "anchor": "pub fn inspector",
+      "rendered_or_structural_fixture": "rendered_component_inspector_pairs_fluence_count_and_residual_with_stored_states;rendered_component_inspector_explains_legacy_missing_states",
+      "coverage": "Rendered stored fluence/count uncertainty states and legacy missing-state fallback pass in native-history-panel-v107.log; exact stored states displayed, no synthetic interval.",
+      "production_renderer": "HistoryPanel::inspector -> component_fluence_n_m2 / component_replacements",
+      "interval_and_edge_expectation": "Display the stored uncertainty states next to the selected magnet fluence and replacement count; when no interval is stored show why and next step. Do not compute a fluence-to-trigger delta or synthesize a Poisson range.",
+      "renderer_symbol": [
+        "pub fn inspector"
+      ],
+      "fixture_source": "crates/faris-app/src/history_panel.rs",
+      "renderer_source": "crates/faris-app/src/history_panel.rs"
+    },
+    {
+      "id": "history_plot_magnet_replacement_span_hover",
+      "quantity": "per-event magnet replacement start/time-to-limit span hover",
+      "source": "crates/faris-app/src/history_panel.rs",
+      "anchor": "replacement_span_hover_text",
+      "rendered_or_structural_fixture": "rendered_replacement_span_hover_carries_matching_event_time_state",
+      "coverage": "Exact component/event-time band or stored reason/next state rendered fixture passes in native-history-panel-v107.log.",
+      "production_renderer": "HistoryPanel::draw_plot hover -> replacement_span_hover_text",
+      "interval_and_edge_expectation": "Match the magnet ReplacementStarted trip by component and exact event time; display its typed absolute calendar-year time band with earliest edge first, or its stored why/next state. Do not substitute the next-swap event or infer an end-time band.",
+      "renderer_symbol": [
+        "fn replacement_span_hover_text"
+      ],
+      "fixture_source": "crates/faris-app/src/history_panel.rs",
+      "renderer_source": "crates/faris-app/src/history_panel.rs"
+    },
+    {
+      "id": "history_plot_keyboard_magnet_fluence_cursor",
+      "quantity": "per-arrangement magnet limit-fluence value at the keyboard plot cursor",
+      "source": "crates/faris-app/src/history_panel.rs",
+      "anchor": "fn plot_cursor_readout",
+      "rendered_or_structural_fixture": "rendered_keyboard_plot_cursor_pairs_nominal_values_with_the_exact_snapshot_state",
+      "coverage": "Exact selected-snapshot magnet fluence state rendered fixture passes in native-history-panel-v107.log.",
+      "production_renderer": "HistoryPanel::draw_plot -> plot_cursor_readout (focused cursor)",
+      "interval_and_edge_expectation": "For Plot::MagnetFluence, pair each arrangement value with the exact selected snapshot limit_fluence_n_m2 uncertainty state, or why/next if no interval is stored. Do not substitute the generic transport P5-P95 band or a nearby snapshot.",
+      "renderer_symbol": [
+        "fn plot_cursor_readout"
+      ],
+      "fixture_source": "crates/faris-app/src/history_panel.rs",
+      "renderer_source": "crates/faris-app/src/history_panel.rs"
+    },
+    {
+      "id": "history_plot_hover_magnet_fluence",
+      "quantity": "per-arrangement magnet limit-fluence value and sampled band at the mouse hover time",
+      "source": "crates/faris-app/src/history_panel/uncertainty_view.rs",
+      "anchor": "pub(super) fn band_hover",
+      "rendered_or_structural_fixture": "rendered_magnet_fluence_hover_uses_exact_snapshot_band_or_stored_state",
+      "coverage": "Exact-time magnet fluence band/state rendered fixture passes in native-history-panel-v107.log; P5–P95 remains labeled transport sampling, not a two-sigma margin.",
+      "production_renderer": "HistoryPanel::draw_plot hover -> band_hover for Plot::MagnetFluence",
+      "interval_and_edge_expectation": "Pair each nominal magnet fluence at the selected hover time only with the matching band/state; do not select a proportional nearby index. Clearly label P5-P95 as transport sampling, not a two-sigma margin; when unavailable show stored why/next.",
+      "renderer_symbol": [
+        "pub(super) fn band_hover"
+      ],
+      "fixture_source": "crates/faris-app/src/history_panel.rs",
+      "renderer_source": "crates/faris-app/src/history_panel/uncertainty_view.rs"
     }
   ]
 }

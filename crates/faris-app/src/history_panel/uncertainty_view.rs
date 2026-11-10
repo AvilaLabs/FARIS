@@ -378,40 +378,71 @@ impl HistoryPanel {
         year: f64,
         color: egui::Color32,
     ) {
+        let history = self.results.get(id);
+        let snapshot = history.and_then(|h| super::snapshot_at(h, year * JULIAN_YEAR_SECONDS));
+        let Some(snapshot) = snapshot else {
+            let state = OutputUncertainty::none(
+                "no calculated history snapshot exists at or before this cursor time",
+                "calculate the operating history before reading the plotted value",
+            );
+            ui.colored_label(color, format!("   {}", state.text(2)));
+            return;
+        };
+        let stored_state =
+            history.map(|h| super::snapshot_uncertainty_text(h, plot.uncertainty_field()));
         let Some(ensemble) = self.display_ensemble(id) else {
-            if let Some(history) = self.results.get(id) {
-                ui.colored_label(
-                    color,
-                    format!(
-                        "   {}",
-                        super::snapshot_uncertainty_text(history, plot.uncertainty_field())
-                    ),
-                );
-            }
+            ui.colored_label(
+                color,
+                format!(
+                    "   {}",
+                    stored_state.unwrap_or_else(|| {
+                        OutputUncertainty::none(
+                    "this saved history has no stored uncertainty state for the numeric field",
+                    "rerun the history with this FARIS version to record its uncertainty state",
+                )
+                .text(2)
+                    })
+                ),
+            );
             return;
         };
         let Some((grid, band, scale)) = plot_band(plot, &ensemble) else {
-            if let Some(history) = self.results.get(id) {
-                ui.colored_label(
-                    color,
-                    format!(
-                        "   {}",
-                        super::snapshot_uncertainty_text(history, plot.uncertainty_field())
-                    ),
-                );
-            }
+            ui.colored_label(
+                color,
+                format!(
+                    "   {}",
+                    stored_state.unwrap_or_else(|| {
+                        OutputUncertainty::none(
+                    "this saved history has no stored uncertainty state for the numeric field",
+                    "rerun the history with this FARIS version to record its uncertainty state",
+                )
+                .text(2)
+                    })
+                ),
+            );
             return;
         };
-        let t = year * JULIAN_YEAR_SECONDS;
-        let last = grid.len().saturating_sub(1).max(1);
-        let index = ((t / grid[last]) * last as f64)
-            .round()
-            .clamp(0.0, last as f64) as usize;
+        let Some(index) = exact_band_index(grid, snapshot.time_s) else {
+            ui.colored_label(
+                color,
+                format!(
+                    "   {}",
+                    stored_state.unwrap_or_else(|| {
+                        OutputUncertainty::none(
+                    "the selected history snapshot time has no exact ensemble-band sample",
+                    "use an exact-time ensemble sample or inspect the stored point-state reason",
+                )
+                .text(2)
+                    })
+                ),
+            );
+            return;
+        };
         let (Some(lo), Some(hi)) = (
             band.p5.get(index).copied().flatten(),
             band.p95.get(index).copied().flatten(),
         ) else {
-            ui.colored_label(color, "   no uncertainty band here (no sample has a value)");
+            missing_band_hover(ui, color, band, index, ensemble.samples.len() as u32);
             return;
         };
         let (lo, hi) = (lo * scale, hi * scale);
@@ -502,6 +533,30 @@ impl HistoryPanel {
     }
 }
 
+fn exact_band_index(grid: &[f64], time_s: f64) -> Option<usize> {
+    let tolerance = time_s.abs().max(1.0) * f64::EPSILON * 8.0;
+    grid.iter()
+        .position(|time| (*time - time_s).abs() <= tolerance)
+}
+
+fn missing_band_hover(
+    ui: &mut egui::Ui,
+    color: egui::Color32,
+    band: &faris_engine::history_ensemble::SeriesBand,
+    index: usize,
+    samples: u32,
+) {
+    let n_at_point = band.n.get(index).copied().unwrap_or(0);
+    let coverage = band_coverage_note(n_at_point, samples).unwrap_or_else(|| {
+        "the stored ensemble summary has no complete bounds at this time".into()
+    });
+    let state = OutputUncertainty::none(
+        format!("no complete P5–P95 band is available at this plot time; {coverage}"),
+        "inspect the per-sample histories and event timeline at this year; recalculate the ensemble if required sample values are missing",
+    );
+    ui.colored_label(color, format!("   {}", state.text(2)));
+}
+
 /// The recorded rates with a synthetic covariance consistent with their
 /// standard errors (correlation 0.4 between every pair).
 #[cfg(feature = "uncertainty-fixture")]
@@ -544,6 +599,22 @@ pub(super) fn ensemble_reason(why: &str, next_step: &str) -> String {
 
 /// Each output with its nominal value and its range or distribution.
 fn rows_ui(ui: &mut egui::Ui, rows: &[UncertaintyRow]) {
+    let missing: Vec<&str> = rows
+        .iter()
+        .filter(|row| row.result.is_none())
+        .map(|row| row.label.as_str())
+        .collect();
+    if !missing.is_empty() {
+        let state = OutputUncertainty::none(
+            "the ensemble summary has no stored distribution for these outputs",
+            "inspect their per-sample histories and recalculate the ensemble if values are incomplete",
+        );
+        ui.small(format!(
+            "No range for {}: {}",
+            missing.join(", "),
+            state.text(2)
+        ));
+    }
     for row in rows {
         ui.add_space(3.0);
         ui.horizontal_wrapped(|ui| {
@@ -565,7 +636,7 @@ fn rows_ui(ui: &mut egui::Ui, rows: &[UncertaintyRow]) {
                 });
             }
             None => {
-                ui.weak("no uncertainty range");
+                ui.weak("no range; see the grouped reason above");
             }
         }
     }
@@ -605,5 +676,91 @@ mod cancellation_feedback_tests {
         }
         output.drop_without_applying_deltas();
         assert!(text.contains("Cancelling transport sampling…"), "{text}");
+    }
+}
+
+#[cfg(test)]
+mod output_uncertainty_display_tests {
+    use super::*;
+
+    // Verifies: UNC-080. Hover bands attach only to an exact history time.
+    #[test]
+    fn band_lookup_rejects_nearby_snapshot_times() {
+        let grid = [0.0, 10.0, 20.0];
+        assert_eq!(exact_band_index(&grid, 10.0), Some(1));
+        assert_eq!(exact_band_index(&grid, 10.1), None);
+    }
+
+    fn rendered_widget(draw: impl FnMut(&mut egui::Ui)) -> String {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        collect(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), draw);
+        let mut text = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut text);
+        }
+        output.textures_delta.clear();
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_missing_band_names_reason_and_next_step() {
+        let band = faris_engine::history_ensemble::SeriesBand {
+            name: "net_electricity".into(),
+            n: vec![0],
+            p5: vec![None],
+            p50: vec![None],
+            p95: vec![None],
+        };
+        let text = rendered_widget(|ui| {
+            missing_band_hover(ui, egui::Color32::WHITE, &band, 0, 12);
+        });
+        assert!(text.contains("no interval, because"), "{text}");
+        assert!(text.contains("0 of 12 samples"), "{text}");
+        assert!(text.contains("no value at this time"), "{text}");
+        assert!(
+            text.contains("next step: inspect the per-sample histories"),
+            "{text}"
+        );
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_nominal_rows_without_a_range_get_one_grouped_reason_and_next_step() {
+        let row = UncertaintyRow {
+            name: "cumulative_net_electricity_mwh".into(),
+            label: "Net electricity over the horizon".into(),
+            nominal: "13.35 TWh".into(),
+            result: None,
+        };
+        let text = rendered_widget(|ui| rows_ui(ui, std::slice::from_ref(&row)));
+        assert!(text.contains("13.35 TWh"), "{text}");
+        assert!(
+            text.contains("No range for Net electricity over the horizon"),
+            "{text}"
+        );
+        assert!(
+            text.contains("no interval, because the ensemble summary has no stored distribution"),
+            "{text}"
+        );
+        assert!(
+            text.contains("next step: inspect their per-sample histories"),
+            "{text}"
+        );
     }
 }

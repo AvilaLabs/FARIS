@@ -1,0 +1,46 @@
+{
+  "requirement": "MAG-004",
+  "decision": "Met",
+  "recorded_on": "2026-11-10",
+  "acceptance_criterion": {
+    "requirement_text": "FARIS shall never turn a tally with a 1-sigma error into a margin without showing the error band.",
+    "acceptance_text": "Margin shown as value with 2-sigma band; verdict uses the unfavourable edge; 100% of margin displays carry the band.",
+    "evidence_policy": "Display completeness only; does not qualify transport convergence, physical accuracy, service life, or underlying models."
+  },
+  "scope": {
+    "registry_path": "docs/requirements/mag004-margin-displays.json",
+    "surface_count": 18,
+    "policy": "A displayed margin must show its typed two-sigma interval and the verdict must use the unfavourable edge; when the stored state has no interval, show its reason and next step. Comparison deltas may show the two source intervals and an overlap/separation verdict, but must not fabricate an interval of the difference.",
+    "exclusions": "Raw fluence timelines with service-limit reference lines and P5-P95 transport-sampling shading, plus inspector source values, do not calculate or claim a numeric margin, headroom, percent-of-limit, or verdict. P5-P95 is not a two-sigma margin.",
+    "review": "All 18 registered surfaces are present and have named fixture functions. Numeric margins carry typed two-sigma intervals or stored why/next states; verdicts use the unfavourable edge. Deltas retain both source intervals and an overlap/separation/no-band verdict without fabricating a delta interval."
+  },
+  "registry_sha256": "7d4ec2616d9e847392786bbbfc1d3f0e180ef97148e2f4197aa9b7fcf487460c",
+  "audit_script_sha256": "b98df9aca2e4afc172d338d1f1dec4b4fc48e7f7557e3001d73f489c1fbfa9f5",
+  "source_and_fixture_sha256": {
+    "crates/faris-app/src/compare_panel.rs": "f47e97ec4a85c58e2532b02444eb6e8c500ec40c4ef83e31f5e2046d02be0861",
+    "crates/faris-app/src/design_transport_panel.rs": "8f13bcc1f7bca5c928f368fa5632ecbb79ddb5d543852a1e6f6bafee8c6e9932",
+    "crates/faris-app/src/design_transport_result.rs": "cdde6be7a5202b1568a4e3ad313cd59fe0a1f2b6febd74eed53718c38dde0e0e",
+    "crates/faris-app/src/history_panel.rs": "6162faeb0c2f2d6e0509f5f023a109f38e2fd5a81196a1499a3324b94adf0f1f",
+    "crates/faris-app/src/history_panel/uncertainty_view.rs": "c5df694c93b36ba0e4b7575ab9c7971c3b0318d07e56825932e913d846ab6c6e",
+    "crates/faris-app/src/sweep_panel.rs": "681c64e0de1b5c1024198ba2d42551cc12f534d990af30dcf0e141485cdba09f",
+    "crates/faris-engine/src/design/transport.rs": "c53b17f3cb4ef510476cba9885b0dc51449a78b25554ff258a78c14152527c9a",
+    "crates/faris-engine/src/history.rs": "f15d7bb966a6f9d556370e068adc3631fd6dc1f835ed6aecee0bec3893f84b17",
+    "crates/faris-report/src/pdf.rs": "9236aacad25742ed31fe4eb351535308c632edede78a95cc60b7bb14de7c6bc1",
+    "crates/faris-report/src/tables.rs": "e65a7a0ef39b64719435f5b483879a49ec272a29ed0795b6b571d373e0b9debc",
+    "crates/faris-report/src/tests.rs": "975c7f78c88a35faf0ce6c80306a9e34418836d2d152ef2fe02e76a2152c334b",
+    "scripts/mag004_display_audit.py": "b98df9aca2e4afc172d338d1f1dec4b4fc48e7f7557e3001d73f489c1fbfa9f5"
+  },
+  "passing_v107_evidence": {
+    "runs/continuation/checks/mag-display-registry-v107.log": "1a0bc8d24db0a674dd91ecae121729e478734ddfd2f56a44be19e8b9684d155f",
+    "runs/continuation/checks/native-history-panel-v107.log": "f3f440e782814fd13d00c9a9aed29bd0ce1846ba6f85866e377ac22eb8e99fef",
+    "runs/continuation/checks/native-cli-app-build-normal-optimization-v107.log": "6815a8c22a367368a437ba85df7179a056b8ea87e776c7ecb4fe8e45b22618c0",
+    "runs/continuation/checks/native-format-v107.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/continuation/checks/clippy-native-integrated-v107.log": "462429b9f09b2ad785d1b05c329e9862f02f626b7c995c166f4ccb1d1af9de9a"
+  },
+  "prior_receipt": {
+    "path": "references/mag004-display-audit-20261110.json",
+    "sha256": "46ec0f275e88ab21864cb7bad5b3f7d6bf58a6ce129c2d31c8f0e4cfa8690494",
+    "disposition": "Superseded 14-surface receipt; retained as historical evidence. It omitted four app readout surfaces, which are now included and have passing rendered fixtures."
+  },
+  "fixture_execution": "The v107 history-panel log reports 21 passed, including all newly added inspector/cursor/hover/event fixtures. The v107 registry log reports 18/18 callbacks, quantity contracts and fixture functions present; it is an inventory check, not a substitute for executing fixtures. The prior receipt records passing fixture evidence for the original 14 surfaces."
+}

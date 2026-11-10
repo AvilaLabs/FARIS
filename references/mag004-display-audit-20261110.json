@@ -9,7 +9,7 @@
     "physical_scope_limit": "This is a display-completeness finding. It does not qualify transport convergence, physical accuracy, service life, or any underlying model."
   },
   "registry": {
-    "path": "docs/requirements/mag004-margin-displays.json",
+    "path": "references/mag004-margin-displays-v14-20261110.json",
     "sha256": "f8d3e2629fc4bb8d79ce4b2eb83572264c1b0bf0aa1e7a5eace7595184ae114e"
   },
   "freshness_check": {
@@ -142,5 +142,10 @@
   "audit_script": {
     "path": "scripts/mag004_display_audit.py",
     "sha256": "b98df9aca2e4afc172d338d1f1dec4b4fc48e7f7557e3001d73f489c1fbfa9f5"
-  }
+  },
+  "superseded": true,
+  "superseded_reason": "The prior audit covered 14 surfaces. Expanded app-source review subsequently found four omitted magnet readouts: selected-component inspector fluence/count, replacement-span event hover, keyboard plot-cursor fluence, and mouse-hover fluence-band pairing. Their typed uncertainty states and rendered fixtures are being added; current MAG-004 remains Partial pending the expanded review.",
+  "current_status": "Partial pending all 18 registered surfaces and rendered fixtures.",
+  "requirement_record_historical": true,
+  "requirement_record_note": "The SHA-256 identifies the requirement file at the time of the prior 14-surface Met decision; the present requirement row is Partial while the inspector gap is fixed."
 }

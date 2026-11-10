@@ -1,7 +1,7 @@
 {
   "schema": "faris-perf041-default-size-and-admission-control/v1",
   "observed_utc": "2026-11-10T19:34:07Z",
-  "status": "partial_default_solver_peak_not_evaluated_realistic_admission_controls_passed",
+  "status": "partial_default_size_peak_observed_max_workload_stress_not_evaluated",
   "requirement": "PERF-041",
   "default_size_definition": {
     "basis": "crates/faris-cli/src/reactor.rs shipped clap defaults: 100 batches x 10,000 particles per batch = 1,000,000 histories per new transport run; one thread; coarse mesh. docs/DEMO_WALKTHROUGH.md describes the demo campaign as four million-history coupled runs.",
@@ -197,9 +197,9 @@
     }
   },
   "limitations": [
-    "The three UX-010 records are genuine one-million-history runs but each used four OpenMP threads and a 24x12x24 local mesh, while the shipped CLI defaults to one thread and coarse mesh; the records report runner process-group peaks, not per-run cgroup high-water marks. They are supporting bounds, not exact one-thread default-size calibration.",
-    "The 30,000-history cgroup control remains the only direct transport cgroup peak measurement in references/memory-admission-control-20261110.json; it is not the default-size stress test.",
-    "The near-boundary CLI admission jobs are harmless `--version` stubs. They validate cap admission/refusal and that refusal occurs before child launch; they do not measure solver allocation."
+    "The earlier three UX-010 records used four OpenMP threads and a 24x12x24 local mesh; they are not the current default-size measurement. The new four-arrangement one-thread/coarse campaign is separately bound in default-size-four-arrangement-memory-20261110.json.",
+    "The 30,000-history smoke is not a default-size run. The new full four-arrangement demo campaign measured its own default-size peak, but larger-than-default, repeated, concurrent and multi-platform stress remains unmeasured.",
+    "Near-boundary admission checks use harmless --version stubs. They validate admission/refusal, configurable cap reduction and prelaunch refusal, not solver allocation."
   ],
   "evidence_file_hashes_sha256": {
     "admit_cli": "6ba326202196e384a5bf783649ebfaad0cbd1e525c6b01d2017a776b1d773d0e",
@@ -219,5 +219,13 @@
     "path": "runs/continuation/native-keyboard-os-recipe-v1/os-keyboard-20261110-v14/exports/keyboard-study-export/export-manifest.json",
     "sha256": "ea74992180a4cfbae0843b3b2bbb92499915fe4533e827315c21fccaafdfd295",
     "entry_count": 16
+  },
+  "default_size_measurement": {
+    "receipt_path": "references/default-size-four-arrangement-memory-20261110.json",
+    "receipt_sha256": "117c0a7ab1e0af75332f22ae4eb8c1db8c093c97f89e713e6ca63b0db136aafb",
+    "campaign_cgroup_peak_bytes": 725397504,
+    "campaign_scope_memory_max_bytes": 6442450944,
+    "campaign_oom_events": 0,
+    "scientific_or_physics_qualification": "NOT_EVALUATED"
   }
 }

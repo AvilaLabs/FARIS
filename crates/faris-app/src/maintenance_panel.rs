@@ -969,6 +969,25 @@ pub fn why_text(why: &Why) -> String {
         .join(", ")
 }
 
+fn why_validation_text(why: &Why) -> String {
+    format!(
+        "{} {}",
+        why_text(why),
+        validation_tag(faris_model::validation::Quantity::DecayHeat)
+    )
+}
+
+fn why_validation_detail(why: &Why) -> String {
+    let quantity = faris_model::validation::Quantity::DecayHeat;
+    format!(
+        "Shares of the governing components' decay heat at the end of the cooldown. Curve-start decay heat: {:.2e} W/m³ {}. {}. {}",
+        why.curve_start_w_per_m3,
+        validation_tag(quantity),
+        validation_hover_text(quantity),
+        MAINTENANCE_NO_INTERVAL,
+    )
+}
+
 fn threshold_source(record: &ThresholdRecord) -> String {
     match (
         record.source.as_str(),
@@ -1052,7 +1071,8 @@ pub fn event_detail(event: &EventRecord) -> String {
         lines.push("Window-limited: the decay curve ended before reaching q*, so the cooldown is a lower bound.".into());
     }
     if let Some(why) = &event.why {
-        lines.push(format!("Why: {}", why_text(why)));
+        lines.push(format!("Why: {}", why_validation_text(why)));
+        lines.push(why_validation_detail(why));
     }
     if let Some(ne) = &event.not_evaluated {
         lines.push(format!("NOT_EVALUATED: {}", not_evaluated_text(ne)));
@@ -1826,10 +1846,8 @@ fn event_row(ui: &mut egui::Ui, event: &EventRecord) {
             ui.monospace(format!("{:.1}", days(event.work_s)));
             match &event.why {
                 Some(why) => {
-                    ui.label(why_text(why)).on_hover_text(format!(
-                        "Shares of the governing components' decay heat at the end of the cooldown; the curve started at {:.2e} W/m\u{b3}.",
-                        why.curve_start_w_per_m3
-                    ));
+                    ui.label(why_validation_text(why))
+                        .on_hover_text(why_validation_detail(why));
                 }
                 None => {
                     ui.weak("\u{2014}");
@@ -1879,7 +1897,15 @@ fn iteration_list(ui: &mut egui::Ui, computed: &ComputedResult) {
                             "{class}: {}",
                             values
                                 .iter()
-                                .map(|s| format!("{:.1}", days(*s)))
+                                .map(|s| {
+                                    format!(
+                                        "{:.1} {}",
+                                        days(*s),
+                                        validation_tag(
+                                            faris_model::validation::Quantity::DecayHeat,
+                                        )
+                                    )
+                                })
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         )
@@ -1927,10 +1953,24 @@ fn contrast_table(ui: &mut egui::Ui, contrasts: &[Contrast]) {
                             contrast.ratio_computed_over_fixed,
                         ) {
                             (Some(diff), ratio) => {
-                                ui.monospace(format!("{:+.1}", days(diff)));
+                                maintenance_calculated_value(
+                                    ui,
+                                    format!("{:+.1}", days(diff)),
+                                    faris_model::validation::Quantity::DecayHeat,
+                                );
                                 match ratio {
                                     Some(r) => {
-                                        ui.monospace(format!("{r:.2}\u{d7}"));
+                                        ui.monospace(format!(
+                                            "{r:.2}\u{d7} {}",
+                                            validation_tag(
+                                                faris_model::validation::Quantity::DecayHeat,
+                                            )
+                                        ))
+                                        .on_hover_text(
+                                            validation_hover_text(
+                                                faris_model::validation::Quantity::DecayHeat,
+                                            ),
+                                        );
                                     }
                                     None => {
                                         ui.weak("\u{2014}").on_hover_text(
@@ -2026,7 +2066,21 @@ mod tests {
                 faris_model::validation::Quantity::DecayHeat,
             ))
         }));
+        let decay_heat_tag = validation_tag(faris_model::validation::Quantity::DecayHeat);
+        assert!(
+            calculated
+                .iter()
+                .any(|text| text.contains("first-wall") && text.contains(&decay_heat_tag)),
+            "the rendered governing-share percentages need an adjacent decay-heat status: {calculated:?}"
+        );
         let calculated_detail = event_detail(&event(1, Some(42.0), false));
+        let decay_heat_note =
+            faris_model::validation::note(faris_model::validation::Quantity::DecayHeat);
+        assert!(calculated_detail.contains("Curve-start decay heat: 4.00e4 W/m³"));
+        assert!(calculated_detail.contains(&decay_heat_tag));
+        assert!(calculated_detail.contains(&decay_heat_note.scope));
+        assert!(calculated_detail.contains(&decay_heat_note.why));
+        assert!(calculated_detail.contains(&decay_heat_note.next_step));
         assert!(
             calculated_detail
                 .contains("Reason: the typed maintenance result stores point estimates only")
@@ -2039,6 +2093,43 @@ mod tests {
             !authored_only
                 .iter()
                 .any(|text| text.contains("no interval"))
+        );
+    }
+
+    #[test]
+    fn rendered_iteration_durations_show_decay_heat_status_beside_each_value() {
+        fn texts(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        texts(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let fixture = fixture();
+        let computed = &fixture.designs["X"].computed;
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| iteration_list(ui, computed));
+        let mut rendered = Vec::new();
+        for clipped in &output.shapes {
+            texts(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        let tag = validation_tag(faris_model::validation::Quantity::DecayHeat);
+        assert!(
+            rendered
+                .iter()
+                .any(|text| { text.contains("blanket: 35.0") && text.contains(&tag) }),
+            "rendered next-iteration durations need adjacent status tags: {rendered:?}"
+        );
+        assert!(
+            rendered
+                .iter()
+                .any(|text| { text.contains(&format!("55.0 {tag}")) })
         );
     }
 

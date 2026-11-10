@@ -119,7 +119,7 @@ Its main gaps against these targets:
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 5 | 7 | 0 | 33 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 13 | 27 | 0 | 32 |
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 22 | 0 | 37 |
-| [Performance](08-performance.md) | PERF | 37 | 1 | 13 | 6 | 17 |
+| [Performance](08-performance.md) | PERF | 37 | 2 | 12 | 6 | 17 |
 | [Usability](09-usability.md) | UX | 73 | 4 | 34 | 3 | 32 |
 | [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 3 | 18 | 9 | 27 |
 | [Visualization](11-visualization.md) | VIS | 49 | 1 | 31 | 1 | 16 |
@@ -135,9 +135,9 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 12 | 29 | 1 | 35 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 3 | 24 | 1 | 17 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 8 | 18 | 2 | 8 |
-| **Total** | | **1419** | **132** | **568** | **34** | **685** |
+| **Total** | | **1419** | **133** | **567** | **34** | **685** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 132 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 133 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control

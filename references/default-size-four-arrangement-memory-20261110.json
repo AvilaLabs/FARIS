@@ -1,0 +1,359 @@
+{
+  "schema": "faris-perf041-default-four-arrangement-memory-observation/v1",
+  "status": "met_for_declared_default_size_campaign_and_admission_behavior; broader_stress_not_evaluated",
+  "requirement": "PERF-041",
+  "summary": "Fresh current-CLI run of the documented four-arrangement demo campaign, one thread and coarse mesh, 1,000,000 histories per arrangement (4,000,000 total), completed in a single owned cgroup. The cgroup high-water was 725,397,504 bytes with no OOM or limit events.",
+  "cli": {
+    "path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/faris-v100",
+    "sha256": "80f391fcce6c56e34c1e59a730690518ea4eb9bd7f2206bdadced218f43406b4",
+    "version": "faris 0.2.0; parent identifies this as v100"
+  },
+  "campaign": {
+    "documented_scope": "Four cases listed in docs/DEMO_WALKTHROUGH.md and references/demo-workstation-resource-envelope.json: control/reference, control/breeder-emphasis, port/reference, port/breeder-emphasis.",
+    "histories_per_case": 1000000,
+    "total_histories": 4000000,
+    "batches": 100,
+    "particles_per_batch": 10000,
+    "threads": 1,
+    "mesh_preset": "coarse",
+    "mesh_dimensions": [
+      12,
+      8,
+      12
+    ],
+    "seed_convention": "Distinct established four-case campaign seeds 81130011\u201381130014; see per-case records. The CLI default seed is overridden to preserve that convention.",
+    "timeout_seconds_per_case": 1800,
+    "aggregate_timeout_seconds": 7500,
+    "memory_cap_bytes": 4294967296,
+    "memory_margin_bytes": 1073741824,
+    "settings": [
+      "--setting memory.cap_mb=4096",
+      "--setting memory.margin_mb=1024"
+    ],
+    "input_identities": [
+      {
+        "case": "control_reference",
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_file_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "scenario_id": "arc-cold-coupled-control-001",
+        "physics_path": "scenarios/arc-inspired/cold-coupled-control.reference.physics.json",
+        "physics_file_sha256": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+        "physics_id": "cold-coupled-control-reference-physics-001",
+        "variant_id": "reference",
+        "prior_campaign_seed": 81130011,
+        "bound_physics_sha256_from_verified_campaign": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "prior_campaign_input_sha256": "6b103d44793d9240dc116a2adc2973b5dda37974023280884fb24327f5c6088d",
+        "prior_campaign_run_record_sha256": "51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+        "prior_campaign_run_record_path": "/tmp/faris-primary-control-reference-1m/run.json",
+        "prior_campaign_sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130011,
+          "threads": 1
+        }
+      },
+      {
+        "case": "control_breeder_emphasis",
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_file_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "scenario_id": "arc-cold-coupled-control-001",
+        "physics_path": "scenarios/arc-inspired/cold-coupled-control.breeder-emphasis.physics.json",
+        "physics_file_sha256": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+        "physics_id": "cold-coupled-control-breeder-emphasis-physics-001",
+        "variant_id": "breeder-emphasis",
+        "prior_campaign_seed": 81130012,
+        "bound_physics_sha256_from_verified_campaign": "487b545928987749b19f446b2f2ec709cd1f6b4f7c05df88b7e488f535400378",
+        "prior_campaign_input_sha256": "b1ed3b1c2199458cf49aa12124437e42a44931e7ee76db4d923a4b88b3e30cd0",
+        "prior_campaign_run_record_sha256": "70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+        "prior_campaign_run_record_path": "/tmp/faris-primary-control-breeder-1m/run.json",
+        "prior_campaign_sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130012,
+          "threads": 1
+        }
+      },
+      {
+        "case": "port_reference",
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_file_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "scenario_id": "arc-cold-reference-port-001",
+        "physics_path": "scenarios/arc-inspired/cold-reference-port.reference.physics.json",
+        "physics_file_sha256": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+        "physics_id": "cold-reference-port-reference-physics-001",
+        "variant_id": "reference",
+        "prior_campaign_seed": 81130013,
+        "bound_physics_sha256_from_verified_campaign": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "prior_campaign_input_sha256": "c30b6ef47ec23964f039cbcf45e0c9a5b899f22e9b3236621edfe4fda0de0bf1",
+        "prior_campaign_run_record_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+        "prior_campaign_run_record_path": "/tmp/faris-primary-port-reference-1m/run.json",
+        "prior_campaign_sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130013,
+          "threads": 1
+        },
+        "current_physics_source_nuclear_data_state": "unselected",
+        "prior_verified_run_binding_note": "The prior run input JSON matches the current source physics object except that its nuclear_data field records the audit-bound inventory. The prior bound physics SHA is recorded from the hash-bound campaign receipt; this new run must record its actual bound digest in run.json."
+      },
+      {
+        "case": "port_breeder_emphasis",
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_file_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "scenario_id": "arc-cold-reference-port-001",
+        "physics_path": "scenarios/arc-inspired/cold-reference-port.breeder-emphasis.physics.json",
+        "physics_file_sha256": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+        "physics_id": "cold-reference-port-breeder-emphasis-physics-001",
+        "variant_id": "breeder-emphasis",
+        "prior_campaign_seed": 81130014,
+        "bound_physics_sha256_from_verified_campaign": "7bd699f059df5bb7ff5a969384af5d078ab3769b31b16c3203d47afad14ac654",
+        "prior_campaign_input_sha256": "66c658ab5821c5d4bd166d7fbbe35eef01969eef4a7a95094bdf8451bc937a56",
+        "prior_campaign_run_record_sha256": "7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+        "prior_campaign_run_record_path": "/tmp/faris-primary-port-breeder-1m/run.json",
+        "prior_campaign_sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130014,
+          "threads": 1
+        }
+      }
+    ],
+    "runtime_inputs": {
+      "audit_path": "references/openmc-library-audit.json",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "cross_sections_path": "data/raw/combined-fendl32-endfbvii1/cross_sections.xml",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "python_path": "/home/connoravila/micromamba/envs/openmc0153dd/bin/python",
+      "python_sha256": "254873b41e0fbfb6bb08ea3e9aee6e14b32cb1111cfc1c5e01dd41ef8f981f20",
+      "openmc_path": "/home/connoravila/micromamba/envs/openmc0153dd/bin/openmc",
+      "openmc_sha256": "01493915fc795da2973d55d5fca680ccbfb067f4e415c0842b67e8589829d06f",
+      "openmc_c_api_path": "/home/connoravila/micromamba/envs/openmc0153dd/lib/libopenmc.so",
+      "openmc_c_api_sha256": "6633dcd0d05d0aa6e0193e45241b46e49261d3f79ed35944f31e0b936a5bd4b0"
+    }
+  },
+  "execution": {
+    "overall_status": "SUCCEEDED",
+    "case_count": 4,
+    "expected_case_count": 4,
+    "scope_unit": "faris-perf041-default-four-20261110.scope",
+    "systemd_invocation_id": "77dfee2919924a118004b5579d0a7166",
+    "scope_memory_max_bytes": 6442450944,
+    "scope_memory_peak_bytes": 725397504,
+    "scope_memory_current_bytes_at_final_sample": 226082816,
+    "scope_swap_max_bytes": 0,
+    "scope_memory_events": {
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0,
+      "sock_throttled": 0
+    },
+    "scope_cpu_quota_percent": 100,
+    "scope_cpu_usage_usec": 4220114110,
+    "scope_cpu_throttled_usec": 246402039,
+    "scope_initial_memory_current_bytes": 7630848,
+    "scope_initial_memory_peak_bytes": 7630848,
+    "scope_initial_headroom_bytes": 6434820096,
+    "scope_final_host_mem_available_bytes": 26104033280,
+    "scope_start_observation_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/cgroup-before.json",
+    "scope_start_observation_sha256": "2e13906af581f879abff666631bbb424aa9d031141820d5ef253695d11eaea95",
+    "scope_final_observation_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/cgroup-after.json",
+    "scope_final_observation_sha256": "c345e30d8cf931c1f5afbe3ed3de93c63bc41635596eb314aa468518024bed79",
+    "run_plan_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/run-plan.json",
+    "run_plan_sha256": "b2c1c2fa6f78249e3271f6b11b6367d1ed1311c9153e260eebdab80200a21937",
+    "study_result_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/study-result.json",
+    "study_result_sha256": "fa0f47632e9200d09c1daa14dcb2097ea553c434af67750f9966c25a771cb240",
+    "case_results": [
+      {
+        "case": "control-reference",
+        "result_status": "SUCCEEDED",
+        "cli_exit_code": 0,
+        "run_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/control-reference/run.json",
+        "run_json_sha256": "e87f66ec9763b5cd76b022ebced7ac4c4e57add5cd790d2bb4e67488c4efd317",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "input_sha256": "1816383d0f40335b0dbad507a5269188df5ee8361b8b665e6e78ecc9af18992d",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130011,
+          "threads": 1
+        },
+        "mesh": {
+          "id": "neutron-flux",
+          "dimensions": [
+            12,
+            8,
+            12
+          ],
+          "lower_left_m": [
+            -5.58,
+            -2.2800000000000002,
+            -5.58
+          ],
+          "upper_right_m": [
+            5.58,
+            2.2800000000000002,
+            5.58
+          ]
+        },
+        "histories": 1000000,
+        "lost_particle_events": 0,
+        "runner_process_group_peak_bytes": 541962240,
+        "runner_memory_check": "PASS: projected reservation 4.0 GiB, free 5.8 GiB, reserve 1.0 GiB; known workload lower bound 0.00 GiB (1152 mesh-bin scalars; 46 ordinary response scalars; 100 batches; 0 triangles; 297971 request/input bytes recorded for context but not counted as resident); solver/runtime overhead is unknown, hard cap 4.00 GiB",
+        "artifact_files_observed": 19,
+        "artifact_bytes_observed": 2618466,
+        "run_stdout_log_sha256": null,
+        "run_stderr_log_sha256": null,
+        "case_result_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/control-reference.result.json",
+        "case_result_json_sha256": "b72a9c777e91ffea3a171f9ebe14d70bd20a6eb955f104615ea2cbab842080c7"
+      },
+      {
+        "case": "control-breeder-emphasis",
+        "result_status": "SUCCEEDED",
+        "cli_exit_code": 0,
+        "run_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/control-breeder-emphasis/run.json",
+        "run_json_sha256": "d0082b710e4308ca8ec103ad19b9bb75394aed439977f8b0803d08e486b1bb43",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "physics_sha256": "487b545928987749b19f446b2f2ec709cd1f6b4f7c05df88b7e488f535400378",
+        "input_sha256": "0c2d4a1b89356a82992e2bb7ee5c33da0f5037c6ff0c0846e9ff60126944ebc1",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130012,
+          "threads": 1
+        },
+        "mesh": {
+          "id": "neutron-flux",
+          "dimensions": [
+            12,
+            8,
+            12
+          ],
+          "lower_left_m": [
+            -5.58,
+            -2.2800000000000002,
+            -5.58
+          ],
+          "upper_right_m": [
+            5.58,
+            2.2800000000000002,
+            5.58
+          ]
+        },
+        "histories": 1000000,
+        "lost_particle_events": 0,
+        "runner_process_group_peak_bytes": 543096832,
+        "runner_memory_check": "PASS: projected reservation 4.0 GiB, free 5.8 GiB, reserve 1.0 GiB; known workload lower bound 0.00 GiB (1152 mesh-bin scalars; 46 ordinary response scalars; 100 batches; 0 triangles; 297992 request/input bytes recorded for context but not counted as resident); solver/runtime overhead is unknown, hard cap 4.00 GiB",
+        "artifact_files_observed": 19,
+        "artifact_bytes_observed": 2624554,
+        "run_stdout_log_sha256": null,
+        "run_stderr_log_sha256": null,
+        "case_result_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/control-breeder-emphasis.result.json",
+        "case_result_json_sha256": "b4d7ca73b7048f0b1ff6feafe52066e75d88031b45e1d8a3ab0a8a47994395b6"
+      },
+      {
+        "case": "port-reference",
+        "result_status": "SUCCEEDED",
+        "cli_exit_code": 0,
+        "run_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/port-reference/run.json",
+        "run_json_sha256": "9f7cdbc017d6cb6de16d943a6867aeab8ecc9e4a2376c4fa57376bab0e7e816c",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "input_sha256": "bcd2f685db8ca6ccd787d0666744a387094d0ee674e6a266b22288eb8457c300",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130013,
+          "threads": 1
+        },
+        "mesh": {
+          "id": "neutron-flux",
+          "dimensions": [
+            12,
+            8,
+            12
+          ],
+          "lower_left_m": [
+            -5.58,
+            -2.2800000000000002,
+            -5.58
+          ],
+          "upper_right_m": [
+            5.58,
+            2.2800000000000002,
+            5.58
+          ]
+        },
+        "histories": 1000000,
+        "lost_particle_events": 0,
+        "runner_process_group_peak_bytes": 544702464,
+        "runner_memory_check": "PASS: projected reservation 4.0 GiB, free 5.8 GiB, reserve 1.0 GiB; known workload lower bound 0.00 GiB (1152 mesh-bin scalars; 46 ordinary response scalars; 100 batches; 0 triangles; 300777 request/input bytes recorded for context but not counted as resident); solver/runtime overhead is unknown, hard cap 4.00 GiB",
+        "artifact_files_observed": 19,
+        "artifact_bytes_observed": 2650708,
+        "run_stdout_log_sha256": null,
+        "run_stderr_log_sha256": null,
+        "case_result_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/port-reference.result.json",
+        "case_result_json_sha256": "3d1c7e1ba4d4327f06871b7706d5de1a3093ef836dee09063c0cd9c5d033cee1"
+      },
+      {
+        "case": "port-breeder-emphasis",
+        "result_status": "SUCCEEDED",
+        "cli_exit_code": 0,
+        "run_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/port-breeder-emphasis/run.json",
+        "run_json_sha256": "09b02882f25b78851f6727bb287983c0e152a91ba423a3edc49425819b455945",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "physics_sha256": "7bd699f059df5bb7ff5a969384af5d078ab3769b31b16c3203d47afad14ac654",
+        "input_sha256": "a4f7d8e43049054c1ec3c8a3b044ac353f737707a5fba1aadb8d378cf1c3ee8a",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130014,
+          "threads": 1
+        },
+        "mesh": {
+          "id": "neutron-flux",
+          "dimensions": [
+            12,
+            8,
+            12
+          ],
+          "lower_left_m": [
+            -5.58,
+            -2.2800000000000002,
+            -5.58
+          ],
+          "upper_right_m": [
+            5.58,
+            2.2800000000000002,
+            5.58
+          ]
+        },
+        "histories": 1000000,
+        "lost_particle_events": 0,
+        "runner_process_group_peak_bytes": 545484800,
+        "runner_memory_check": "PASS: projected reservation 4.0 GiB, free 5.8 GiB, reserve 1.0 GiB; known workload lower bound 0.00 GiB (1152 mesh-bin scalars; 46 ordinary response scalars; 100 batches; 0 triangles; 300798 request/input bytes recorded for context but not counted as resident); solver/runtime overhead is unknown, hard cap 4.00 GiB",
+        "artifact_files_observed": 19,
+        "artifact_bytes_observed": 2654432,
+        "run_stdout_log_sha256": null,
+        "run_stderr_log_sha256": null,
+        "case_result_json_path": "runs/continuation/perf041-default-size-four-arrangement-20261110-v1/port-breeder-emphasis.result.json",
+        "case_result_json_sha256": "9173e6453ebc745667d350e3d0460929dbe3a7b9125d88dc8a0682c8abe7bdc9"
+      }
+    ]
+  },
+  "interpretation": {
+    "default_size_peak_target": "Observed peak 725,397,504 bytes (approximately 0.675 GiB), below 4 GiB, across all four sequential 1M-history cases in this declared campaign and this 6 GiB no-swap cgroup.",
+    "hard_cap": "Each external solver job retained the configured 4 GiB address-space limit; process-group peaks were sampled by the runner and cgroup high-water was captured for the entire sequential scope.",
+    "failure_counters": "The private scope recorded memory.events low=0, high=0, max=0, oom=0, oom_kill=0, oom_group_kill=0.",
+    "scope_limitations": "This is one bounded workstation campaign. It does not test larger-than-default workloads, repeated/long-duration stress, concurrent jobs, or a wider machine/platform matrix. These are outside the declared PERF-041 default-size campaign and admission targets."
+  },
+  "limitations": [
+    "The four-run scope corresponds to the documented demo campaign, not every possible user-defined study size.",
+    "Runner process-group peak values use the existing 50ms sampler; the cgroup high-water is recorded separately and includes the entire CLI/campaign scope.",
+    "The older four-case receipt used local 24x12x24 meshes and omitted memory peaks; these fresh records use shipped coarse 12x8x12 mesh and bind current v100 CLI/data identities."
+  ],
+  "supporting_preexisting_receipt": "references/demo-workstation-resource-envelope.json"
+}

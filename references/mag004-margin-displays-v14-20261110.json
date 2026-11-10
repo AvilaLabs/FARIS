@@ -1,0 +1,197 @@
+{
+  "requirement": "MAG-004",
+  "scope": "Numeric magnet fluence, time-to-limit/first-swap, and swap-count margins. Generic fluence plots are excluded unless the plot claims a limit margin or verdict.",
+  "policy": "A displayed margin must show its typed two-sigma interval and the verdict must use the unfavourable edge; when the stored state has no interval, show its reason and next step. Comparison deltas may show the two source intervals and an overlap/separation verdict, but must not fabricate an interval of the difference.",
+  "surfaces": [
+    {
+      "id": "design_transport_cli_fluence_margin",
+      "quantity": "limit fluence and fluence margin",
+      "source": "crates/faris-engine/src/design/transport.rs",
+      "anchor": "pub fn render_transport_text",
+      "rendered_or_structural_fixture": "a_fluence_margin_is_shown_with_its_band_and_judged_on_the_unfavourable_edge",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "faris design transport command -> render_transport_text",
+      "interval_and_edge_expectation": "numeric fluence lower/upper bounds; PASS/FAIL evaluates the unfavourable (upper) edge; no interval stays unavailable with why/next",
+      "renderer_symbol": [
+        "pub fn render_transport_text"
+      ]
+    },
+    {
+      "id": "design_transport_app_limit_margin",
+      "quantity": "fluence/time-to-limit band and verdict",
+      "source": "crates/faris-app/src/design_transport_result.rs",
+      "anchor": "fn limit_view",
+      "rendered_or_structural_fixture": "a_limit_shows_status_fluence_years_and_the_why_and_next_text",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "design_transport_panel::view -> limit_ui / design_transport_result::result_view",
+      "interval_and_edge_expectation": "numeric two-sigma fluence and time bounds; verdict uses the unfavourable edge; missing SE has reason/next and no fabricated bound",
+      "renderer_symbol": [
+        "fn limit_ui"
+      ],
+      "renderer_source": "crates/faris-app/src/design_transport_panel.rs"
+    },
+    {
+      "id": "design_transport_app_bad_edge_and_legacy",
+      "quantity": "rendered app margin including bad unfavourable edge and absent-error fallback",
+      "source": "crates/faris-app/src/design_transport_panel.rs",
+      "anchor": "fn limit_ui",
+      "rendered_or_structural_fixture": "rendered_numeric_margin_shows_a_bad_two_sigma_edge_and_next_step;rendered_margin_with_legacy_missing_error_keeps_band_unavailable",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "design_transport_panel::view -> limit_ui",
+      "interval_and_edge_expectation": "rendered numeric band with an unfavourable edge beyond the authored limit and a separate absent-error fixture with no invented band",
+      "renderer_symbol": [
+        "fn limit_ui"
+      ]
+    },
+    {
+      "id": "history_event_trip_time",
+      "quantity": "replacement/permanent-stop time-to-limit",
+      "source": "crates/faris-engine/src/history.rs",
+      "anchor": "fn trip_time_band",
+      "rendered_or_structural_fixture": "operating_event_trip_time_text_keeps_numeric_band_and_legacy_reason",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "HistoryPanel::inspector -> Operating events -> trip_time_uncertainty_text",
+      "interval_and_edge_expectation": "numeric earliest/latest trip-time bounds (earliest is unfavourable); no interval renders stored why/next",
+      "renderer_symbol": [
+        "pub fn inspector"
+      ],
+      "fixture_source": "crates/faris-app/src/history_panel.rs",
+      "renderer_source": "crates/faris-app/src/history_panel.rs"
+    },
+    {
+      "id": "history_next_magnet_swap_headline",
+      "quantity": "time-to-first-swap headline",
+      "source": "crates/faris-app/src/history_panel.rs",
+      "anchor": "fn headline",
+      "rendered_or_structural_fixture": "next_magnet_swap_headline_shows_matching_numeric_calendar_year_band;legacy_next_magnet_swap_without_error_shows_reason_and_next_step",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "HistoryPanel::headline",
+      "interval_and_edge_expectation": "absolute event-time band in calendar years from history start; matching engine band, earliest edge first; missing state renders why/next",
+      "renderer_symbol": [
+        "fn headline(&self"
+      ]
+    },
+    {
+      "id": "app_compare_arrangement_swap_count_and_first_swap",
+      "quantity": "per-arrangement comparison swap-count and first-swap values",
+      "source": "crates/faris-app/src/compare_panel.rs",
+      "anchor": "fn cell_ui",
+      "rendered_or_structural_fixture": "rendered_compare_arrangement_cells_show_swap_count_and_first_swap_bands;rendered_comparison_swap_bars_attribute_each_magnet_count_band",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "compare_view -> contrast_row/cell_ui",
+      "interval_and_edge_expectation": "each arrangement has its 2σ count range or first-swap year interval next to the number; first-swap earliest edge is unfavourable",
+      "renderer_symbol": [
+        "fn cell_ui",
+        "fn paired_bars"
+      ]
+    },
+    {
+      "id": "app_compare_delta_swap_count_and_first_swap",
+      "quantity": "numeric arrangement-to-arrangement swap-count and first-swap deltas",
+      "source": "crates/faris-app/src/compare_panel.rs",
+      "anchor": "fn contrast_row",
+      "rendered_or_structural_fixture": "rendered_contrast_numbers_use_their_typed_quantity_statuses;rendered_magnet_margin_deltas_show_both_typed_two_sigma_inputs_and_verdict;rendered_magnet_margin_delta_keeps_missing_legacy_inputs_unqualified",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "compare_view -> contrast_row -> margin_delta_cell",
+      "interval_and_edge_expectation": "shows both typed source bands and separated/overlapping/NoBand verdict; explicitly no fabricated interval for the difference",
+      "renderer_symbol": [
+        "fn contrast_row"
+      ]
+    },
+    {
+      "id": "app_sweep_history_swap_count_and_first_swap",
+      "quantity": "per-history sweep replacements and first-swap year values",
+      "source": "crates/faris-app/src/sweep_panel.rs",
+      "anchor": "fn history_value_uncertainty",
+      "rendered_or_structural_fixture": "rendered_sweep_history_tooltip_attributes_ranges_and_deterministic_reason;rendered_sweep_history_tooltip_explains_legacy_missing_state",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "sweep_panel::view -> history tooltip",
+      "interval_and_edge_expectation": "per-point typed count/year interval with units and basis, or why/next for no stored interval",
+      "renderer_symbol": [
+        "fn tooltip"
+      ]
+    },
+    {
+      "id": "pdf_first_swap_margin",
+      "quantity": "comparison PDF first-swap values and bands",
+      "source": "crates/faris-report/src/pdf.rs",
+      "anchor": "fn two_sigma_swap_text",
+      "rendered_or_structural_fixture": "the_first_swap_cell_shows_the_two_sigma_band_earliest_edge_first",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "render_pdf -> comparison_cells -> two_sigma_swap_text",
+      "interval_and_edge_expectation": "numeric earliest/latest two-sigma first-swap bounds; earliest edge first; missing SE stays conditional",
+      "renderer_symbol": [
+        "fn comparison_cells"
+      ]
+    },
+    {
+      "id": "report_replacement_trip_csv",
+      "quantity": "per-trip replacement/permanent-stop time-to-limit",
+      "source": "crates/faris-report/src/tables.rs",
+      "anchor": "pub fn replacements_csv",
+      "rendered_or_structural_fixture": "the_replacement_table_gives_each_trip_its_limit_value_and_band",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "fixture_source": "crates/faris-report/src/tests.rs",
+      "production_renderer": "report export -> replacements_csv",
+      "interval_and_edge_expectation": "numeric earliest/latest trip year bounds and full typed state text; earliest trip edge is unfavourable; absent band has why/next",
+      "renderer_symbol": [
+        "pub fn replacements_csv"
+      ]
+    },
+    {
+      "id": "report_comparison_and_uncertainty_csv",
+      "quantity": "comparison swap-count/first-swap bands plus normalized states",
+      "source": "crates/faris-report/src/tables.rs",
+      "anchor": "pub fn uncertainty_csv",
+      "rendered_or_structural_fixture": "comparison_sweep_and_assumption_tables_carry_units_and_kinds;every_number_the_export_states_has_an_interval_or_a_reason",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "fixture_source": "crates/faris-report/src/tests.rs",
+      "production_renderer": "report export -> comparison_csv / uncertainty_csv",
+      "interval_and_edge_expectation": "count bounds and earliest/latest first-swap bounds; normalized uncertainty state provides basis or no-interval why/next",
+      "renderer_symbol": [
+        "pub fn comparison_csv",
+        "pub fn uncertainty_csv"
+      ]
+    },
+    {
+      "id": "report_summary_delta_verdicts",
+      "quantity": "PDF/CSV swap and first-swap difference verdicts",
+      "source": "crates/faris-report/src/tables.rs",
+      "anchor": "fn band_text",
+      "rendered_or_structural_fixture": "comparison_sweep_and_assumption_tables_carry_units_and_kinds",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "fixture_source": "crates/faris-report/src/tests.rs",
+      "production_renderer": "report export -> differences_csv -> band_text",
+      "interval_and_edge_expectation": "numeric delta carries the source-band separation/overlap/no-band verdict; source bounds remain in comparison rows and no difference band is invented",
+      "renderer_symbol": [
+        "pub fn differences_csv"
+      ]
+    },
+    {
+      "id": "pdf_swap_count_range",
+      "quantity": "per-arrangement PDF magnet swap count range",
+      "source": "crates/faris-report/src/pdf.rs",
+      "anchor": "fn comparison_cells",
+      "renderer_symbol": [
+        "fn comparison_cells"
+      ],
+      "rendered_or_structural_fixture": "the_pdf_swap_count_cell_shows_the_two_sigma_fewest_to_most_range",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "render_pdf -> comparison_cells",
+      "interval_and_edge_expectation": "numeric fewest-to-most count interval at 2σ; absent interval remains a bare central count only with the adjacent conditional no-flux-error label in the PDF table"
+    },
+    {
+      "id": "pdf_comparison_magnet_deltas",
+      "quantity": "PDF numeric swap-count and first-swap deltas",
+      "source": "crates/faris-report/src/pdf.rs",
+      "anchor": "fn delta_cells",
+      "renderer_symbol": [
+        "fn delta_cells"
+      ],
+      "rendered_or_structural_fixture": "pdf_magnet_delta_cells_show_band_verdicts_without_inventing_delta_intervals",
+      "coverage": "fixture executed and passed; registry freshness and MAG-004 scope review accepted",
+      "production_renderer": "render_pdf -> page_three -> delta_cells",
+      "interval_and_edge_expectation": "numeric delta is paired with the engine two-sigma input-band verdict (separated, overlapping, or no band); no unsupported interval of the delta is fabricated"
+    }
+  ]
+}

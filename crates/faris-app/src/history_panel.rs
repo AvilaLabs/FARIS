@@ -323,6 +323,45 @@ pub fn key(scenario: &str, variant: &str) -> String {
     format!("{scenario}::{variant}")
 }
 
+/// Render sensitivity outputs with their shared deterministic no-interval state.
+/// The authored probe coordinates are inputs; full-power years and net TWh are outputs.
+fn sensitivity_output_table(
+    ui: &mut egui::Ui,
+    points: &[faris_engine::comparison::HistorySensitivityPoint],
+) {
+    let state = faris_engine::output_uncertainty::OutputUncertainty::deterministic();
+    ui.small(format!(
+        "FP years and Net TWh are deterministic point outputs, not uncertainty bounds: {}.",
+        state.text(2)
+    ));
+    egui::ScrollArea::horizontal().show(ui, |ui| {
+        egui::Grid::new("sensitivity-points")
+            .striped(true)
+            .show(ui, |ui| {
+                for label in ["Recovery", "Delay ×", "Limit ×", "FP years", "Net TWh"] {
+                    ui.strong(label);
+                }
+                ui.end_row();
+                for point in points {
+                    ui.label(format!("{:.2}", point.recovery_fraction));
+                    ui.label(format!("{:.1}", point.delay_multiplier));
+                    ui.label(format!("{:.1}", point.service_limit_multiplier));
+                    ui.label(format!(
+                        "{:.4}",
+                        point.final_snapshot.cumulative_full_power_seconds / JULIAN_YEAR_SECONDS
+                    ));
+                    ui.label(
+                        point
+                            .final_snapshot
+                            .cumulative_net_electricity_mwh
+                            .map_or_else(|| "not recorded".into(), |v| format!("{:.4}", v / 1e6)),
+                    );
+                    ui.end_row();
+                }
+            });
+    });
+}
+
 impl HistoryPanel {
     pub fn new(path: Option<PathBuf>) -> Result<Self, String> {
         let assumptions = path
@@ -1251,16 +1290,7 @@ impl HistoryPanel {
             if let Some((assumptions, transport_sha256, result)) = self.sensitivities.get(&identity) {
                 if self.assumptions.as_ref() != Some(assumptions) { ui.colored_label(egui::Color32::YELLOW,"Sensitivity belongs to earlier assumptions."); }
                 if self.rates.get(&identity).is_none_or(|r| &r.transport_artifact_sha256 != transport_sha256) {ui.colored_label(egui::Color32::YELLOW,"Sensitivity belongs to earlier transport results.");}
-                egui::ScrollArea::horizontal().show(ui, |ui| {
-                    egui::Grid::new("sensitivity-points").striped(true).show(ui, |ui| {
-                        for label in ["Recovery","Delay ×","Limit ×","FP years","Net TWh"] { ui.strong(label); } ui.end_row();
-                        for point in &result.points {
-                            ui.label(format!("{:.2}",point.recovery_fraction)); ui.label(format!("{:.1}",point.delay_multiplier)); ui.label(format!("{:.1}",point.service_limit_multiplier));
-                            ui.label(format!("{:.4}",point.final_snapshot.cumulative_full_power_seconds/JULIAN_YEAR_SECONDS));
-                            ui.label(point.final_snapshot.cumulative_net_electricity_mwh.map_or_else(||"not recorded".into(),|v|format!("{:.4}",v/1e6)));ui.end_row();
-                        }
-                    });
-                });
+                sensitivity_output_table(ui, &result.points);
             }
         });
     }
@@ -1609,6 +1639,31 @@ impl HistoryPanel {
         ));
     }
 
+    fn plot_cursor_readout(&self, ordered: &[&Series], year: f64) -> String {
+        let t_cursor = year * JULIAN_YEAR_SECONDS;
+        let mut readout = format!("{} · Plot cursor {year:.2} y.", self.plot.title());
+        for series in ordered {
+            let history = self.results.get(&series.key);
+            let snapshot = history.and_then(|h| snapshot_at(h, t_cursor));
+            let value = history.and_then(|h| snapshot.and_then(|s| self.plot.value(h, s)));
+            readout.push_str(&format!(
+                " {}: {}",
+                arrangement_label(series.port, series.breeder),
+                value.map_or("no value".to_string(), |v| self.plot.format(v))
+            ));
+            if let (Some(history), Some(snapshot), Some(_)) = (history, snapshot, value) {
+                let state = snapshot_point_uncertainty_text(
+                    history,
+                    self.plot.uncertainty_field(),
+                    self.output_uncertainty_at(&series.key, self.plot, snapshot.time_s),
+                );
+                readout.push_str(&format!("; uncertainty: {state}"));
+            }
+            readout.push('.');
+        }
+        readout
+    }
+
     fn draw_plot(
         &self,
         ui: &mut egui::Ui,
@@ -1894,19 +1949,7 @@ impl HistoryPanel {
                 egui::Stroke::new(2.0, ui.visuals().selection.stroke.color),
                 egui::StrokeKind::Inside,
             );
-            let mut readout = format!("Plot cursor {:.2} y.", *year);
-            for s in &ordered {
-                let value = self
-                    .results
-                    .get(&s.key)
-                    .and_then(|h| snapshot_at(h, t_cursor).and_then(|snap| plot.value(h, snap)));
-                readout.push_str(&format!(
-                    " {}: {}.",
-                    arrangement_label(s.port, s.breeder),
-                    value.map_or("no value".to_string(), |v| plot.format(v))
-                ));
-            }
-            ui.label(readout);
+            ui.label(self.plot_cursor_readout(&ordered, *year));
         }
 
         // Hover.
@@ -1949,10 +1992,13 @@ impl HistoryPanel {
                             ui.colored_label(
                                 color,
                                 format!(
-                                    "   Magnet replacement #{} · {:.1}–{:.1} y",
-                                    index + 1,
-                                    start_y,
-                                    end_y
+                                    "   {}",
+                                    replacement_span_hover_text(
+                                        self.results.get(&s.key),
+                                        index + 1,
+                                        *start,
+                                        *end,
+                                    )
                                 ),
                             );
                         }
@@ -1989,14 +2035,32 @@ impl HistoryPanel {
         if let Some(snapshot) = self.snapshot(scenario, variant, time_s) {
             if let Some(value) = snapshot.component_fluence_n_m2.get(component) {
                 ui.label(format!("Accumulated mean fluence: {value:.3e} neutrons/m²"));
+                if let Some(history) = self.result(scenario, variant) {
+                    ui.small(format!(
+                        "Point-value uncertainty (accumulated mean fluence, neutrons/m²): {}",
+                        snapshot_uncertainty_text(history, "component_fluence_n_m2")
+                    ));
+                }
             }
             if let Some(count) = snapshot.component_replacements.get(component) {
-                ui.label(format!("Replacements completed: {count}"));
+                ui.label(format!("Replacements completed: {count} replacements"));
+                if let Some(history) = self.result(scenario, variant) {
+                    ui.small(format!(
+                        "Point-value uncertainty (count of replacements): {}",
+                        snapshot_uncertainty_text(history, "component_replacements")
+                    ));
+                }
             }
             ui.small(format!(
                 "Mass residual: {:.2e} kg",
                 snapshot.mass_balance_residual_kg
             ));
+            if let Some(history) = self.result(scenario, variant) {
+                ui.small(format!(
+                    "Point-value uncertainty (mass residual, kg): {}",
+                    snapshot_uncertainty_text(history, "mass_balance_residual_kg")
+                ));
+            }
         }
         if let Some(history) = self.result(scenario, variant) {
             let limits: Vec<_> = history
@@ -2144,6 +2208,46 @@ fn trip_time_uncertainty_text(trip: &faris_engine::history::LimitTrip) -> String
     crate::quantity_text::output_uncertainty(
         &trip.time_uncertainty_s.scaled(1.0 / JULIAN_YEAR_SECONDS),
         2,
+    )
+}
+
+fn replacement_span_hover_text(
+    history: Option<&HistoryResult>,
+    index: usize,
+    start_s: f64,
+    end_s: f64,
+) -> String {
+    let time_state = |kind, time_s, why: &str, next_step: &str| {
+        history
+            .and_then(|history| {
+                history.events.iter().find(|event| {
+                    event.kind == kind
+                        && event.component_id.as_deref() == Some("magnets")
+                        && event.time_s == time_s
+                })
+            })
+            .and_then(|event| event.trip.as_ref())
+            .map(trip_time_uncertainty_text)
+            .unwrap_or_else(|| {
+                faris_engine::output_uncertainty::OutputUncertainty::none(why, next_step).text(1)
+            })
+    };
+    let start_uncertainty = time_state(
+        EventKind::ReplacementStarted,
+        start_s,
+        "the matching replacement-start event has no recorded time uncertainty",
+        "rerun the history with event-time uncertainty recorded",
+    );
+    let end_uncertainty = time_state(
+        EventKind::ReplacementCompleted,
+        end_s,
+        "the displayed end boundary has no matching replacement-completed event or event-time uncertainty",
+        "extend the history through replacement completion and record its event-time uncertainty",
+    );
+    format!(
+        "Magnet replacement #{index} · outage start-to-end point span {:.1}–{:.1} y; start-event time uncertainty (calendar y): {start_uncertainty}; end-event time uncertainty (calendar y): {end_uncertainty}",
+        start_s / JULIAN_YEAR_SECONDS,
+        end_s / JULIAN_YEAR_SECONDS
     )
 }
 
@@ -2415,6 +2519,424 @@ mod tests {
             .bound_transport
             .insert(id, rates.transport_artifact_sha256.clone());
         (panel, rates)
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_sensitivity_outputs_carry_the_shared_deterministic_reason() {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        collect(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let (panel, _) = ready_panel();
+        let history = &panel.results["scenario::variant"];
+        let snapshot = history.snapshots.last().unwrap().clone();
+        let point = faris_engine::comparison::HistorySensitivityPoint {
+            recovery_fraction: 0.95,
+            delay_multiplier: 1.0,
+            service_limit_multiplier: 1.0,
+            outcome: history.outcome.clone(),
+            final_snapshot: snapshot.clone(),
+            event_count: history.events.len(),
+            maximum_absolute_mass_balance_residual_kg: history
+                .snapshots
+                .iter()
+                .map(|s| s.mass_balance_residual_kg.abs())
+                .fold(0.0, f64::max),
+        };
+        let expected_full_power = format!(
+            "{:.4}",
+            snapshot.cumulative_full_power_seconds / JULIAN_YEAR_SECONDS
+        );
+        let expected_net = snapshot
+            .cumulative_net_electricity_mwh
+            .map(|value| format!("{:.4}", value / 1e6))
+            .expect("fixture records net electricity");
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            sensitivity_output_table(ui, std::slice::from_ref(&point));
+        });
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        assert!(rendered.contains("FP years"), "{rendered}");
+        assert!(rendered.contains("Net TWh"), "{rendered}");
+        assert!(rendered.contains(&expected_full_power), "{rendered}");
+        assert!(rendered.contains(&expected_net), "{rendered}");
+        assert!(
+            rendered.contains("deterministic point outputs"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("no interval, because deterministic function"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("next step: run the history ensemble"),
+            "{rendered}"
+        );
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn rendered_keyboard_plot_cursor_pairs_nominal_values_with_the_exact_snapshot_state() {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        collect(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let (mut panel, _) = ready_panel();
+        for plot in [Plot::MagnetFluence, Plot::Electricity] {
+            panel.plot = plot;
+            let history = &panel.results["scenario::variant"];
+            let snapshot = history
+                .snapshots
+                .iter()
+                .find(|snapshot| plot.value(history, snapshot).is_some())
+                .unwrap();
+            let value = plot.value(history, snapshot).unwrap();
+            let time_s = snapshot.time_s;
+            let expected = plot.format(value);
+            let state = history.snapshot_uncertainty[plot.uncertainty_field()].text(2);
+            let all_series = panel.series_list();
+            let ordered: Vec<_> = all_series.iter().collect();
+            let readout = panel.plot_cursor_readout(&ordered, time_s / JULIAN_YEAR_SECONDS);
+
+            let ctx = egui::Context::default();
+            let mut output = ctx.run_ui(Default::default(), |ui| {
+                ui.label(&readout);
+            });
+            let mut rendered = String::new();
+            for clipped in &output.shapes {
+                collect(&clipped.shape, &mut rendered);
+            }
+            output.textures_delta.clear();
+            let flat = rendered.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(flat.contains(&expected), "{flat}");
+            assert!(flat.contains("uncertainty:"), "{flat}");
+            assert!(flat.contains(&state), "{flat}");
+            assert!(
+                flat.contains("no interval, because deterministic function"),
+                "{flat}"
+            );
+            assert!(
+                flat.contains("next step: run the history ensemble"),
+                "{flat}"
+            );
+            if plot == Plot::MagnetFluence {
+                assert!(
+                    flat.contains("Magnet fluence")
+                        && flat.contains("no interval, because deterministic function"),
+                    "MAG-004 cursor plot must state the fluence result and its bound status: {flat}"
+                );
+            }
+        }
+    }
+
+    // Verifies: UNC-080 and MAG-004. The hover uses the snapshot selected for
+    // the nominal point and reports that same point's stored uncertainty state.
+    #[test]
+    fn rendered_magnet_fluence_hover_uses_exact_snapshot_band_or_stored_state() {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        collect(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let (mut panel, _) = ready_panel();
+        panel.plot = Plot::MagnetFluence;
+        let id = "scenario::variant";
+        let history = panel.results.get_mut(id).unwrap();
+        let snapshot = history
+            .snapshots
+            .iter()
+            .rev()
+            .find(|snapshot| Plot::MagnetFluence.value(history, snapshot).is_some())
+            .unwrap();
+        let cursor_year = snapshot.time_s / JULIAN_YEAR_SECONDS + 0.1;
+        let selected = snapshot_at(history, cursor_year * JULIAN_YEAR_SECONDS).unwrap();
+        let nominal = Plot::MagnetFluence.value(history, selected).unwrap();
+        let expected_nominal = Plot::MagnetFluence.format(nominal);
+        history.snapshot_uncertainty.insert(
+            "limit_fluence_n_m2".into(),
+            faris_engine::output_uncertainty::OutputUncertainty::none(
+                "the selected magnet fluence snapshot has no sampled band",
+                "inspect the stored event state or recalculate the history ensemble",
+            ),
+        );
+        let expected_state = snapshot_uncertainty_text(history, "limit_fluence_n_m2");
+
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            ui.label(format!("Magnet fluence: {expected_nominal}"));
+            panel.band_hover(
+                ui,
+                id,
+                Plot::MagnetFluence,
+                cursor_year,
+                egui::Color32::WHITE,
+            );
+        });
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        let flat = rendered.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(flat.contains(&expected_nominal), "{flat}");
+        assert!(flat.contains("Magnet fluence"), "{flat}");
+        assert!(flat.contains(&expected_state), "{flat}");
+        assert!(
+            flat.contains("the selected magnet fluence snapshot has no sampled band"),
+            "{flat}"
+        );
+        assert!(
+            flat.contains(
+                "next step: inspect the stored event state or recalculate the history ensemble"
+            ),
+            "{flat}"
+        );
+    }
+
+    fn rendered_component_inspector(panel: &HistoryPanel, time_s: f64) -> String {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        collect(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            panel.inspector(ui, "scenario", "variant", "magnets", time_s);
+        });
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        rendered.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    // Verifies: UNC-080 and MAG-004 (component-inspector replacement count).
+    #[test]
+    fn rendered_component_inspector_pairs_fluence_count_and_residual_with_stored_states() {
+        let (panel, _) = ready_panel();
+        let history = &panel.results["scenario::variant"];
+        let snapshot = history.snapshots.last().unwrap();
+        let fluence = snapshot.component_fluence_n_m2["magnets"];
+        let replacements = snapshot.component_replacements["magnets"];
+        let mass_residual = snapshot.mass_balance_residual_kg;
+        let time_s = snapshot.time_s;
+        let fluence_state = history.snapshot_uncertainty["component_fluence_n_m2"].text(2);
+        let count_state = history.snapshot_uncertainty["component_replacements"].text(2);
+        let residual_state = history.snapshot_uncertainty["mass_balance_residual_kg"].text(2);
+
+        let rendered = rendered_component_inspector(&panel, time_s);
+        assert!(
+            rendered.contains(&format!(
+                "Accumulated mean fluence: {fluence:.3e} neutrons/m²"
+            )),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Point-value uncertainty (accumulated mean fluence, neutrons/m²)"),
+            "{rendered}"
+        );
+        assert!(rendered.contains(&fluence_state), "{rendered}");
+        assert!(
+            rendered.contains(&format!(
+                "Replacements completed: {replacements} replacements"
+            )),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Point-value uncertainty (count of replacements)"),
+            "{rendered}"
+        );
+        assert!(rendered.contains(&count_state), "{rendered}");
+        assert!(
+            rendered.contains(&format!("Mass residual: {mass_residual:.2e} kg")),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Point-value uncertainty (mass residual, kg)"),
+            "{rendered}"
+        );
+        assert!(rendered.contains(&residual_state), "{rendered}");
+        assert!(rendered.contains("no interval, because"), "{rendered}");
+        assert!(rendered.contains("next step:"), "{rendered}");
+    }
+
+    // Verifies: UNC-080 legacy-state fallback.
+    #[test]
+    fn rendered_component_inspector_explains_legacy_missing_states() {
+        let (mut panel, _) = ready_panel();
+        panel
+            .results
+            .get_mut("scenario::variant")
+            .unwrap()
+            .snapshot_uncertainty
+            .clear();
+        let history = &panel.results["scenario::variant"];
+        let time_s = history.snapshots.last().unwrap().time_s;
+        let rendered = rendered_component_inspector(&panel, time_s);
+        assert!(
+            rendered.contains(
+                "this saved history has no stored uncertainty state for the numeric field"
+            ),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains(
+                "rerun the history with this FARIS version to record its uncertainty state"
+            ),
+            "{rendered}"
+        );
+    }
+
+    // Verifies: UNC-080 and MAG-004 replacement-event chart hover.
+    #[test]
+    fn rendered_replacement_span_hover_carries_matching_event_time_state() {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        collect(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let (mut panel, _) = ready_panel();
+        let start_s = 10.0 * JULIAN_YEAR_SECONDS;
+        let end_s = start_s + 120.0 * DAY_S;
+        let state = faris_engine::output_uncertainty::OutputUncertainty::interval(
+            9.0 * JULIAN_YEAR_SECONDS,
+            Some(11.0 * JULIAN_YEAR_SECONDS),
+            "2 sigma of the flux that drives this limit",
+        );
+        panel
+            .results
+            .get_mut("scenario::variant")
+            .unwrap()
+            .events
+            .push(HistoryEvent {
+                time_s: start_s,
+                order: u32::MAX,
+                kind: EventKind::ReplacementStarted,
+                component_id: Some("magnets".into()),
+                response_id: None,
+                mass_kg: None,
+                note: "rendered replacement-span fixture".into(),
+                trip: Some(faris_engine::history::LimitTrip {
+                    criterion: "magnet fluence".into(),
+                    response_id: "magnet-limit".into(),
+                    accumulated_value: 1.0,
+                    limit: 1.0,
+                    unit: "n/m²".into(),
+                    time_uncertainty_s: state.clone(),
+                }),
+            });
+        panel
+            .results
+            .get_mut("scenario::variant")
+            .unwrap()
+            .events
+            .push(HistoryEvent {
+                time_s: end_s,
+                order: u32::MAX,
+                kind: EventKind::ReplacementCompleted,
+                component_id: Some("magnets".into()),
+                response_id: None,
+                mass_kg: None,
+                note: "rendered replacement-span completion fixture".into(),
+                trip: Some(faris_engine::history::LimitTrip {
+                    criterion: "magnet fluence".into(),
+                    response_id: "magnet-limit".into(),
+                    accumulated_value: 1.0,
+                    limit: 1.0,
+                    unit: "n/m²".into(),
+                    time_uncertainty_s: state,
+                }),
+            });
+        let label =
+            replacement_span_hover_text(panel.results.get("scenario::variant"), 1, start_s, end_s);
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            ui.label(&label);
+            ui.label(replacement_span_hover_text(None, 1, start_s, end_s));
+        });
+        let mut rendered = String::new();
+        for clipped in &output.shapes {
+            collect(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        let flat = rendered.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            flat.contains("outage start-to-end point span 10.0–10.3 y"),
+            "{flat}"
+        );
+        assert!(
+            flat.contains("start-event time uncertainty (calendar y): 9.00 to 11.00"),
+            "{flat}"
+        );
+        assert!(
+            flat.contains("end-event time uncertainty (calendar y): 9.00 to 11.00"),
+            "{flat}"
+        );
+        assert!(flat.contains("no interval, because the matching replacement-start event has no recorded time uncertainty"), "{flat}");
+        assert!(
+            flat.contains("next step: rerun the history with event-time uncertainty recorded"),
+            "{flat}"
+        );
+        assert!(flat.contains("end-event time uncertainty (calendar y): no interval, because the displayed end boundary has no matching replacement-completed event or event-time uncertainty"), "{flat}");
+        assert!(flat.contains("next step: extend the history through replacement completion and record its event-time uncertainty"), "{flat}");
     }
 
     fn rendered_headline_with_next_magnet_trip(
