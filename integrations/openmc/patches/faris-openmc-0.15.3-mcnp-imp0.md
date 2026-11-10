@@ -93,7 +93,11 @@ python integrations/openmc/risk_tests/imp0_entry_control.py \
 
 The script refuses a reused output directory, checks the exact CLI-linked
 library capability, and records CLI, linked library, Python, cross-section index, final geometry,
-and statepoint identities. The report includes a canonical `receipt_sha256`
+and statepoint identities. It accepts any bounded regular `cross_sections.xml`
+that lists neutron and photon catalogues and whose referenced library files
+resolve. This is an index/path preflight only; it neither authenticates nor
+qualifies the nuclear data. The file bytes and resolved library paths are
+rechecked after the controls. The report includes a canonical `receipt_sha256`
 covering the JSON record without that field; the validating runner recomputes
 it. Each statepoint must report one completed batch, 1,000 particles per batch,
 and one tally realization (OpenMC's `n_realizations` counts batches here). It runs four fixed-source cases with one batch of
@@ -127,7 +131,8 @@ tally, and uncertainty evidence.
 
 ## Coordinator-owned isolated build and control
 
-After reviewing the local disk reserve and the actual combined library path, the
+After reviewing the local disk reserve and selecting the full FENDL neutron
+index with the photon overlay used by the FNS material catalogue, the
 coordinator can prepare a fresh AIM-patched source snapshot, apply only the
 importance-zero patch to that copy, build with one job, check the runtime-linked
 shared library, and run the live control with:
@@ -135,10 +140,13 @@ shared library, and run the live control with:
 ```bash
 /home/connoravila/micromamba/envs/openmc0153dd/bin/python \
   integrations/openmc/risk_tests/build_mcnp_imp0_runtime.py \
-  --cross-sections data/raw/combined-fendl32-endfbvii1/cross_sections.xml
+  --cross-sections /path/to/fns-fendl32-with-photon-overlay/cross_sections.xml
 ```
 
-The driver refuses to reuse its output directory and requires at least 12 GiB
+Use the actual full neutron catalogue needed by FNS (including C, N, O and Pb);
+the smaller historical 22-neutron/8-photon overlay is insufficient for that
+model. The void control only checks index structure and path existence. The
+driver refuses to reuse its output directory and requires at least 12 GiB
 free before building, preserving an 8 GiB reserve plus 4 GiB build headroom. It
 uses the full pinned OpenMC checkout at `27e38e894697bb32a1dac7848d2618818b6b8daf`;
 the checked-in AIM patch must exactly match that checkout's nine-file working

@@ -24,6 +24,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "integrations/openmc"))
 import reactor_transport as WORKER  # noqa: E402
+from imp0_cross_sections import validate_cross_sections_index  # noqa: E402
 
 HISTORIES = 1000
 BATCHES = 1
@@ -244,9 +245,9 @@ def main() -> int:
     executable = args.openmc_executable.resolve(strict=True)
     python = Path(sys.executable).resolve(strict=True)
     output_dir = args.output_dir.expanduser().resolve(strict=False)
-    cross_sections = args.cross_sections.expanduser().resolve(strict=True)
-    if not cross_sections.is_file():
-        raise ValueError("--cross-sections must name a regular file")
+    cross_sections_identity = validate_cross_sections_index(args.cross_sections)
+    cross_sections = Path(str(cross_sections_identity["path"]))
+    cross_sections_sha256 = str(cross_sections_identity["sha256"])
     if output_dir.exists():
         raise ValueError("output directory must be new; refusing to overwrite prior controls")
 
@@ -256,7 +257,6 @@ def main() -> int:
     library, library_sha256 = WORKER.selected_openmc_library(executable, python, env)
     cli_sha256 = sha256(executable)
     python_sha256 = sha256(python)
-    cross_sections_sha256 = sha256(cross_sections)
     dll = ctypes.CDLL(str(library))
     try:
         patch_version = ctypes.c_int.in_dll(dll, KILL_VERSION_SYMBOL).value
@@ -276,10 +276,12 @@ def main() -> int:
         {"name": "marked_photon", "particle": "photon", "source_in_zero_cell": False, "marked": True},
         {"name": "unmarked_neutron", "particle": "neutron", "source_in_zero_cell": False, "marked": False},
     ]
+    cross_sections_identity_before = cross_sections_identity.copy()
     env["OPENMC_CROSS_SECTIONS"] = str(cross_sections)
     results = [run_case(openmc, executable, output_dir, case, env) for case in cases]
+    cross_sections_identity_after = validate_cross_sections_index(cross_sections)
     if (sha256(executable) != cli_sha256 or sha256(python) != python_sha256 or
-            sha256(cross_sections) != cross_sections_sha256):
+            cross_sections_identity_after != cross_sections_identity_before):
         raise RuntimeError("selected CLI, Python, or cross-section index changed during the control")
     library_after, library_sha256_after = WORKER.selected_openmc_library(executable, python, env)
     if library_after.resolve() != library.resolve() or library_sha256_after != library_sha256:
@@ -304,6 +306,7 @@ def main() -> int:
             "openmc_python_module_sha256": sha256(Path(openmc.__file__).resolve(strict=True)),
             "cross_sections_path": str(cross_sections),
             "cross_sections_sha256": cross_sections_sha256,
+            "cross_sections_catalogue": cross_sections_identity,
         },
         "cases": results,
     }

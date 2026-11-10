@@ -18,7 +18,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
+from imp0_cross_sections import validate_cross_sections_index
 
 ROOT = Path(__file__).resolve().parents[3]
 SOURCE_REPO = Path("/home/connoravila/.cache/avila-night/openmc-presplit/src")
@@ -145,40 +145,6 @@ def protected_install_hashes() -> dict[str, str]:
     return {str(path): sha256_file(path) for path in paths}
 
 
-def verify_cross_sections(path: Path) -> tuple[Path, str]:
-    selected = path.expanduser().resolve(strict=True)
-    if not selected.is_file() or selected.name != "cross_sections.xml":
-        raise ValueError("--cross-sections must be an existing cross_sections.xml file")
-    if "combined-fendl32-endfbvii1" not in selected.as_posix():
-        raise ValueError(
-            "--cross-sections must point to the audited combined-fendl32-endfbvii1 library"
-        )
-    root = ET.parse(selected).getroot()
-    if root.tag != "cross_sections":
-        raise ValueError("cross_sections.xml has an unexpected root element")
-    libraries = root.findall("library")
-    neutron_materials = {
-        material
-        for node in libraries if node.get("type") == "neutron"
-        for material in node.get("materials", "").split()
-    }
-    photon_materials = {
-        material
-        for node in libraries if node.get("type") == "photon"
-        for material in node.get("materials", "").split()
-    }
-    if len(neutron_materials) != 22:
-        raise ValueError(
-            f"combined FENDL-3.2 index must list 22 neutron nuclides; found {len(neutron_materials)}"
-        )
-    expected_photons = {"H", "Li", "Be", "F", "Ti", "Fe", "Cu", "W"}
-    if photon_materials != expected_photons:
-        raise ValueError(
-            "combined ENDF/B-VII.1 overlay must list exactly H, Li, Be, F, Ti, Fe, Cu, W"
-        )
-    return selected, sha256_file(selected)
-
-
 def verify_source_identity(source: Path) -> tuple[str, list[str], dict[str, str]]:
     head = run(["git", "-C", str(source), "rev-parse", "HEAD"])
     if head != SOURCE_HEAD:
@@ -236,7 +202,9 @@ def main() -> int:
                       check=False).returncode != 0:
         raise RuntimeError("toolchain output path is not ignored by Git")
 
-    cross_sections, cross_sections_sha = verify_cross_sections(args.cross_sections)
+    cross_sections_identity = validate_cross_sections_index(args.cross_sections)
+    cross_sections = Path(str(cross_sections_identity["path"]))
+    cross_sections_sha = str(cross_sections_identity["sha256"])
     openmc_python = args.openmc_python.expanduser().resolve(strict=True)
     if not openmc_python.is_file() or not os.access(openmc_python, os.X_OK):
         raise RuntimeError("--openmc-python must name an executable file")
@@ -343,6 +311,11 @@ def main() -> int:
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
     if receipt_digest != sha256_bytes(canonical) or control.get("status") != "PASS":
         raise RuntimeError("the live imp0 control receipt failed its status or canonical digest check")
+    control_runtime = control.get("runtime", {})
+    if (control_runtime.get("cross_sections_sha256") != cross_sections_sha or
+            control_runtime.get("cross_sections_path") != str(cross_sections) or
+            control_runtime.get("cross_sections_catalogue") != cross_sections_identity):
+        raise RuntimeError("the live control used a different cross-sections index than the build request")
     protected_after = protected_install_hashes()
     if protected_after != protected_before:
         raise RuntimeError("an installed OpenMC runtime or shared dependency changed during the build")
@@ -386,6 +359,7 @@ def main() -> int:
             "file_sha256": sha256_file(control_path),
             "cross_sections_path": str(cross_sections),
             "cross_sections_sha256": cross_sections_sha,
+            "cross_sections_catalogue": cross_sections_identity,
         },
         "disk": {
             "initial_free_bytes": initial_free,
