@@ -259,7 +259,7 @@ fn designs_file_paths_are_relative_to_the_file() {
     let dir = tree();
     let got = parse_designs(&designs_json(|_| {}), dir.path()).unwrap();
     let d = &got["ref"];
-    assert_eq!(d.scenario, dir.path().join("ref/s.json"));
+    assert_eq!(d.scenario, Some(dir.path().join("ref/s.json")));
     assert_eq!(d.history_assumptions, dir.path().join("h.json"));
     assert_eq!(d.files().len(), 5);
     // An absolute path is kept.
