@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import itertools
 import json
 import os
 from pathlib import Path
@@ -201,6 +202,47 @@ class R3SourceSerializationTest(unittest.TestCase):
             manager = openmc.deplete.R2SManager(neutron, activation, photon_model=photon)
             self.assertIs(manager.domains, activation)
             self.assertIs(photon.tallies[0].filters[0].mesh, response)
+
+    def test_r2s_material_volume_sampling_aux_world_contains_mesh_without_changing_transport_geometry(self):
+        """Pinned OpenMC objects prove the aligned full-H5M mesh fits the auxiliary void sampling world."""
+        import xml.etree.ElementTree as ET
+
+        with tempfile.TemporaryDirectory() as temp:
+            h5m = Path(temp) / "rm_m.h5m"
+            with h5py.File(h5m, "w") as data:
+                data.create_group("tstt/nodes").create_dataset(
+                    "coordinates", data=numpy.array([[-645.0, -645.0, -380.0], [645.0, 645.0, 380.0]]))
+            dag = openmc.DAGMCUniverse(str(h5m))
+            material = openmc.Material(material_id=991)
+            material.add_nuclide("H1", 1.0)
+            material.set_density("atom/b-cm", 0.01)
+            transport_sphere = openmc.Sphere(
+                surface_id=RM.SPHERE_SURFACE_ID, r=1000.0, boundary_type="vacuum")
+            transport_cell = openmc.Cell(cell_id=10000, fill=dag, region=-transport_sphere)
+            transport_model = openmc.Model(
+                geometry=openmc.Geometry([transport_cell]), materials=openmc.Materials([material]))
+            transport_xml = ET.tostring(transport_model.geometry.to_xml_element(), encoding="unicode")
+
+            activation = openmc.RegularMesh(name="full-H5M-aligned-100cm")
+            activation.lower_left = (-700.0, -700.0, -400.0)
+            activation.upper_right = (700.0, 700.0, 400.0)
+            activation.dimension = (14, 14, 8)
+            sample_model, info = R2S.material_volume_sampling_model(openmc, transport_model, dag, activation)
+
+            sample_sphere = sample_model.geometry.get_all_surfaces()[RM.SPHERE_SURFACE_ID + 1]
+            corner_radius = max(
+                float(numpy.linalg.norm(point))
+                for point in itertools.product(
+                    *[(activation.lower_left[i], activation.upper_right[i]) for i in range(3)]))
+            self.assertIsNot(sample_model, transport_model)
+            self.assertIs(sample_model.geometry.get_all_cells()[10001].fill, dag)
+            self.assertEqual([m.id for m in sample_model.materials], [m.id for m in transport_model.materials])
+            self.assertGreater(sample_sphere.r, corner_radius)
+            self.assertAlmostEqual(sample_sphere.r - corner_radius, 100.0)
+            self.assertEqual(transport_model.geometry.get_all_surfaces()[RM.SPHERE_SURFACE_ID].r, 1000.0)
+            self.assertEqual(ET.tostring(transport_model.geometry.to_xml_element(), encoding="unicode"), transport_xml)
+            self.assertFalse(info["transport_model_geometry_changed"])
+            self.assertEqual(info["used_only_for"], "Mesh.material_volumes geometric sampling")
 
     def test_actual_r3_bases_share_all_six_physical_hashes_across_mesh_id_orders(self):
         """Build actual OpenMC model/source objects; synthetic H5M/card are identity fixtures only."""

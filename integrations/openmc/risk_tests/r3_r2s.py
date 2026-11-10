@@ -24,6 +24,7 @@ activation.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import math
 import os
@@ -290,6 +291,61 @@ def activation_domain(openmc, model_dir: Path, dag, cell_cm: float,
     return mesh, domain
 
 
+def material_volume_sampling_model(openmc, transport_model, dag, mesh, clearance_cm: float = 100.0):
+    """Make an auxiliary bounded void world only when the activation mesh exceeds the transport vacuum sphere.
+
+    OpenMC's mesh material-volume estimator requires the complete mesh to be inside the geometry's
+    root universe. The R3 full-H5M mesh is aligned outward to whole cells and may extend past the
+    unchanged transport vacuum sphere even though the extra mesh cells contain no DAGMC material.
+    This auxiliary model reuses the same DAGMC universe and materials, enlarges only the vacuum
+    sampling boundary for geometric sampling; neutron/photon transport always exports and uses
+    the original model geometry.
+    """
+    if not math.isfinite(float(clearance_cm)) or clearance_cm <= 0.0:
+        raise ValueError("auxiliary mesh sampling world requires a positive finite void clearance")
+    surfaces = transport_model.geometry.get_all_surfaces()
+    source_surface = surfaces.get(RM.SPHERE_SURFACE_ID)
+    if not isinstance(source_surface, openmc.Sphere) or source_surface.boundary_type != "vacuum":
+        raise ValueError("R3 transport model does not contain its expected vacuum bounding sphere")
+    lower = tuple(float(x) for x in mesh.lower_left)
+    upper = tuple(float(x) for x in mesh.upper_right)
+    if len(lower) != 3 or len(upper) != 3 or any(not math.isfinite(x) for x in (*lower, *upper)):
+        raise ValueError("activation mesh has invalid bounds for auxiliary material-volume sampling")
+    if any(upper[i] <= lower[i] for i in range(3)):
+        raise ValueError("activation mesh bounds are not strictly increasing")
+    corner_radius = max(math.sqrt(sum(c[i] * c[i] for i in range(3)))
+                        for c in itertools.product(*[(lower[i], upper[i]) for i in range(3)]))
+    required_radius = corner_radius + float(clearance_cm)
+    if required_radius <= float(source_surface.r):
+        return transport_model, {
+            "kind": "original transport geometry",
+            "used_only_for": "Mesh.material_volumes geometric sampling",
+            "transport_model_geometry_changed": False,
+            "transport_vacuum_sphere_radius_cm": float(source_surface.r),
+            "mesh_corner_radius_cm": corner_radius,
+            "sampling_vacuum_sphere_radius_cm": float(source_surface.r),
+        }
+
+    sampling_sphere = openmc.Sphere(
+        surface_id=RM.SPHERE_SURFACE_ID + 1, r=required_radius, boundary_type="vacuum")
+    sampling_cell = openmc.Cell(cell_id=10001, fill=dag, region=-sampling_sphere)
+    sampling_model = openmc.Model(
+        geometry=openmc.Geometry([sampling_cell]), materials=transport_model.materials)
+    sampling_model.settings = transport_model.settings
+    return sampling_model, {
+        "kind": "auxiliary DAGMC material-volume sampling world",
+        "used_only_for": "Mesh.material_volumes geometric sampling",
+        "transport_model_geometry_changed": False,
+        "transport_vacuum_sphere_radius_cm": float(source_surface.r),
+        "sampling_vacuum_sphere_radius_cm": required_radius,
+        "mesh_corner_radius_cm": corner_radius,
+        "void_clearance_beyond_mesh_cm": required_radius - corner_radius,
+        "same_dagmc_universe": True,
+        "same_material_collection": True,
+        "neutron_photon_transport_model_retains_original_geometry": True,
+    }
+
+
 def timed(record, name, fn):
     t0 = time.time()
     entry = {"ok": False, "seconds": None, "peak_rss_mb": None, "error": None}
@@ -515,6 +571,9 @@ def main() -> int:
 
     activation_mesh, activation_domain_data = activation_domain(openmc, args.model_dir, dag, args.activation_cell_cm,
                                                                 group_count)
+    material_volume_model, material_volume_world = material_volume_sampling_model(
+        openmc, neutron, dag, activation_mesh)
+    record["material_volume_sampling_world"] = material_volume_world
     activation_domain_data["activation_group_structure"] = args.activation_groups
     domain_bytes = DX._json_bytes(activation_domain_data)
     record["activation_domain"] = {**DX._write_bytes(out / "activation_domain.json", domain_bytes),
@@ -533,7 +592,7 @@ def main() -> int:
     def step1():
         if args.activation_backend == "direct":
             estimate_volumes = activation_mesh.material_volumes(
-                neutron, n_samples=args.mat_vol_samples, output=False)
+                material_volume_model, n_samples=args.mat_vol_samples, output=False)
             direct_domains = int(np.count_nonzero(np.asarray(estimate_volumes._materials) > -1))
             direct_estimate = BM.collapse_resource_estimate(
                 direct_domains, len(coverage["required_microxs_nuclides"]),
@@ -551,11 +610,33 @@ def main() -> int:
                 "memory_budget_bytes": int(args.microxs_memory_budget_mib * 1024 ** 2),
                 "disk_reserve_bytes": int(args.disk_reserve_gib * BM.GIB)}
             save()
-            with DS.NeutronManagerRunEvidence(openmc, neutron_dir / "model.xml") as evidence:
-                mgr.step1_neutron_transport(neutron_dir, mat_vol_kwargs={"n_samples": args.mat_vol_samples},
-                                            micro_kwargs={"nuclides": coverage["required_microxs_nuclides"],
-                                                          "energies": sc.ACTIVATION_GROUPS,
-                                                          "chain_file": str(CHAIN), "run_kwargs": {"output": False}})
+            # R2SManager computes the mesh material volumes internally. Route only that
+            # geometric estimate through the auxiliary world; restore the original bound
+            # method before any neutron transport call.
+            original_material_volumes = activation_mesh.material_volumes
+            had_instance_override = "material_volumes" in activation_mesh.__dict__
+            instance_material_volumes = activation_mesh.__dict__.get("material_volumes")
+            def restore_material_volumes():
+                if had_instance_override:
+                    activation_mesh.material_volumes = instance_material_volumes
+                elif "material_volumes" in activation_mesh.__dict__:
+                    del activation_mesh.material_volumes
+
+            def sample_in_auxiliary_world(_model, *a, **kw):
+                try:
+                    return original_material_volumes(material_volume_model, *a, **kw)
+                finally:
+                    restore_material_volumes()
+
+            activation_mesh.material_volumes = sample_in_auxiliary_world
+            try:
+                with DS.NeutronManagerRunEvidence(openmc, neutron_dir / "model.xml") as evidence:
+                    mgr.step1_neutron_transport(neutron_dir, mat_vol_kwargs={"n_samples": args.mat_vol_samples},
+                                                micro_kwargs={"nuclides": coverage["required_microxs_nuclides"],
+                                                              "energies": sc.ACTIVATION_GROUPS,
+                                                              "chain_file": str(CHAIN), "run_kwargs": {"output": False}})
+            finally:
+                restore_material_volumes()
             record["neutron_transport_integrity"] = evidence.result()
             if record["neutron_transport_integrity"].get("status") != "PASS":
                 raise RuntimeError("R2S neutron transport integrity is " +
@@ -576,7 +657,8 @@ def main() -> int:
             return
 
         volume_path = neutron_dir / "mesh_material_volumes.npz"
-        mmv = activation_mesh.material_volumes(neutron, n_samples=args.mat_vol_samples, output=False)
+        mmv = activation_mesh.material_volumes(material_volume_model,
+                                               n_samples=args.mat_vol_samples, output=False)
         mmv.save(volume_path)
         volume_layout = BM.mesh_material_volumes_preflight(volume_path)
         with np.load(volume_path, allow_pickle=False) as saved:
