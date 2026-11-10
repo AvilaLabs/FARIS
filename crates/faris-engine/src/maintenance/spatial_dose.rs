@@ -43,7 +43,7 @@ fn valid_design_input_sha256_keys(schema: &str, actual: &BTreeSet<&str>) -> bool
     }
     let mut legacy_with_dose = legacy.clone();
     legacy_with_dose.insert("dose_physics");
-    let cad_dose: BTreeSet<&str> = [
+    let cad_dose_legacy: BTreeSet<&str> = [
         "scenario",
         "history_run",
         "history_assumptions",
@@ -51,7 +51,18 @@ fn valid_design_input_sha256_keys(schema: &str, actual: &BTreeSet<&str>) -> bool
     ]
     .into_iter()
     .collect();
-    actual == &legacy || actual == &legacy_with_dose || actual == &cad_dose
+    let cad_dose: BTreeSet<&str> = [
+        "design_file",
+        "history_run",
+        "history_assumptions",
+        "dose_physics",
+    ]
+    .into_iter()
+    .collect();
+    actual == &legacy
+        || actual == &legacy_with_dose
+        || actual == &cad_dose_legacy
+        || actual == &cad_dose
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -1088,7 +1099,7 @@ mod tests {
     #[test]
     fn cad_dose_curve_identity_uses_only_the_four_consumed_design_inputs() {
         let cad: BTreeSet<&str> = [
-            "scenario",
+            "design_file",
             "history_run",
             "history_assumptions",
             "dose_physics",
@@ -1100,6 +1111,19 @@ mod tests {
         let mut missing = cad.clone();
         missing.remove("dose_physics");
         assert!(!valid_design_input_sha256_keys(CURVES_SCHEMA, &missing));
+        let legacy_cad: BTreeSet<&str> = [
+            "scenario",
+            "history_run",
+            "history_assumptions",
+            "dose_physics",
+        ]
+        .into_iter()
+        .collect();
+        assert!(valid_design_input_sha256_keys(CURVES_SCHEMA, &legacy_cad));
+        assert!(!valid_design_input_sha256_keys(
+            CURVES_SCHEMA_V1,
+            &legacy_cad
+        ));
         let legacy: BTreeSet<&str> = [
             "scenario",
             "physics",

@@ -357,6 +357,20 @@ impl TransportDrivingRates {
         reference_fusion_power_mw: f64,
         transport_artifact_sha256: &str,
     ) -> Result<Self, String> {
+        Self::from_normalized_with_cad_identity(
+            normalized,
+            reference_fusion_power_mw,
+            transport_artifact_sha256,
+            None,
+        )
+    }
+
+    pub fn from_normalized_with_cad_identity(
+        normalized: &NormalizedTransportResult,
+        reference_fusion_power_mw: f64,
+        transport_artifact_sha256: &str,
+        cad_source_identity: Option<faris_model::design::CadSourceIdentity>,
+    ) -> Result<Self, String> {
         let breeder = normalized
             .results
             .iter()
@@ -476,9 +490,13 @@ impl TransportDrivingRates {
             component_average_flux_n_m2_s: flux,
             region_flux_n_m2_s: region_flux,
             transport_deposited_heat_w,
-            cad_source_identity: None,
+            cad_source_identity: cad_source_identity.clone(),
             supplemental_heating: None,
-            scenario_sha256: normalized.scenario_sha256.clone(),
+            scenario_sha256: if cad_source_identity.is_some() {
+                String::new()
+            } else {
+                normalized.scenario_sha256.clone()
+            },
             transport_artifact_sha256: transport_artifact_sha256.into(),
             solver_digest: normalized.solver.digest.clone(),
             nuclear_data_digest: normalized.nuclear_data.digest.clone(),

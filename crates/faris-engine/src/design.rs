@@ -63,11 +63,12 @@ pub use geometry::{
 };
 pub use heating::{
     DESIGN_HEATING_OUTPUTS, DesignHeatingOptions, DesignHeatingReport, ELEMENTARY_CHARGE_C,
-    HISTORY_ENERGY_RATES_OUTPUTS, HISTORY_ENERGY_RATES_VERSION, HeatingEstimate, HeatingPeak,
-    HeatingProgress, HeatingProgressFn, HeatingScore, HistoryEnergyClosure,
-    HistoryEnergyRatesArtifact, HistoryEnergyResponse, HistoryEnergyScore, SolidHeating,
-    VolumeEstimator, VoxelHeating, combine_history_energy_rates, design_heating,
-    design_heating_with_history_rates, load_history_energy_rates, normalize_heating_ev_per_source,
+    HISTORY_ENERGY_RATES_CAD_VERSION, HISTORY_ENERGY_RATES_OUTPUTS, HISTORY_ENERGY_RATES_VERSION,
+    HeatingEstimate, HeatingPeak, HeatingProgress, HeatingProgressFn, HeatingScore,
+    HistoryEnergyClosure, HistoryEnergyRatesArtifact, HistoryEnergyResponse, HistoryEnergyScore,
+    SolidHeating, VolumeEstimator, VoxelHeating, combine_cad_history_energy_rates,
+    combine_history_energy_rates, design_heating, design_heating_with_history_rates,
+    load_cad_history_energy_rates, load_history_energy_rates, normalize_heating_ev_per_source,
     power_density_kw_m3, render_design_heating_text,
 };
 pub use life::{
@@ -80,8 +81,8 @@ pub use transport::{
     DESIGN_HISTORY_RATES_VERSION, DesignHistoryRatesArtifact, DesignTransportOptions,
     DesignTransportReport, FluenceLimit, HistoryRatesArtifactRef, NotEvaluated, PeakFlux,
     SolidFlux, TransportProgress, TransportProgressFn, VarianceReduction, design_transport,
-    flux_n_m2_s, fuzz_helper_outputs, leading_peak, load_design_history_rates,
-    render_transport_text, resolve_cad_operating_context, span_text,
+    flux_n_m2_s, fuzz_helper_outputs, leading_peak, load_cad_design_history_rates,
+    load_design_history_rates, render_transport_text, resolve_cad_operating_context, span_text,
 };
 pub use transport_progress::{
     SamplingEstimate, StopsAt, duration_text, estimate_sampling, estimate_text, histories_text,

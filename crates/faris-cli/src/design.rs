@@ -6,9 +6,9 @@ use clap::{Args, Subcommand};
 use faris_engine::design::{
     CadReader, DesignHeatingOptions, DesignHistoryRatesArtifact, DesignTransportOptions,
     GeometryOptions, ImportReport, ToolPaths, check_design_with_tools,
-    combine_history_energy_rates, design_heating, design_heating_with_history_rates,
-    design_init_with_tools, design_transport, render_design_heating_text, render_text,
-    render_transport_text,
+    combine_cad_history_energy_rates, combine_history_energy_rates, design_heating,
+    design_heating_with_history_rates, design_init_with_tools, design_transport,
+    render_design_heating_text, render_text, render_transport_text,
 };
 use faris_model::design::LengthUnit;
 use std::{
@@ -171,11 +171,11 @@ pub enum DesignCommand {
         /// Repeat as `--history-component component_id=solid_id[,solid_id]` for every active solid.
         #[arg(long = "history-component", value_name = "COMPONENT=SOLID[,SOLID]", action = clap::ArgAction::Append)]
         history_component: Vec<String>,
-        /// Exact scenario whose authored operating power is bound to the CAD history rates.
-        #[arg(long, value_name = "SCENARIO.json", requires_all = ["history_component", "h3_component"])]
+        /// Legacy explicit scenario source binding. Omit for native CAD source identity/power.
+        #[arg(long, value_name = "SCENARIO.json")]
         history_scenario: Option<PathBuf>,
         /// Component receiving the H3-production tally; requires an explicit Li6-bearing CAD domain.
-        #[arg(long, value_name = "ID", requires_all = ["history_component", "history_scenario"])]
+        #[arg(long, value_name = "ID", requires = "history_component")]
         h3_component: Option<String>,
         /// Where weight windows and the channel search are kept, so that a later run on the same
         /// model starts sampling at once [default: `faris-transport-cache` beside the design file].
@@ -512,14 +512,26 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             {
                 let base_bytes = std::fs::read(base_path)?;
                 let base: DesignHistoryRatesArtifact = serde_json::from_slice(&base_bytes)?;
-                let scenario = faris_model::LoadedScenario::load(Path::new(&base.scenario_path))?;
                 let energy_path = run_dir.join("history-energy-rates.json");
-                combine_history_energy_rates(
-                    base_path,
-                    &run_dir.join("report.json"),
-                    &scenario,
-                    &energy_path,
-                )?;
+                if base.schema_version == faris_engine::design::DESIGN_HISTORY_RATES_CAD_VERSION {
+                    combine_cad_history_energy_rates(
+                        base_path,
+                        &run_dir.join("report.json"),
+                        &design,
+                        &energy_path,
+                    )?;
+                } else {
+                    let scenario_path = base.scenario_path.as_deref().ok_or_else(|| {
+                        "legacy CAD history-rate artifact lacks scenario_path".to_owned()
+                    })?;
+                    let scenario = faris_model::LoadedScenario::load(Path::new(scenario_path))?;
+                    combine_history_energy_rates(
+                        base_path,
+                        &run_dir.join("report.json"),
+                        &scenario,
+                        &energy_path,
+                    )?;
+                }
                 println!(
                     "Whole-model history-energy rates written to {}",
                     energy_path.display()

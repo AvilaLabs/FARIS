@@ -84,23 +84,24 @@ A designs file names each design and its five files. Paths are relative to the f
 }
 ```
 
-For a CAD-native dose run, use the separate `faris-maintenance-cad-dose-designs/v0.1` format. It names only the files this route consumes: scenario, verified CAD history-rate sidecar, operating-history assumptions, and the native `dose_physics` manifest. The ordinary five-file `faris-maintenance-designs/v0.1` format remains supported for existing heat and dose runs. The CAD-only schema refuses `physics` or `spectrum_run` fields rather than asking for unused placeholders.
+For a CAD-native dose run, use `faris-maintenance-cad-dose-designs/v0.2`. It names the actual CAD design, verified CAD history-rate sidecar, optional operating-history assumptions override, and native `dose_physics` manifest. If `history_assumptions` is omitted, FARIS resolves and hash-checks the `OperatingHistoryAssumptions` file linked by the CAD design. Source power comes from `design.plasma.fusion_power_mw`; no reactor CSG scenario is substituted for the checked CAD geometry. Planning assumptions remain separate from neutron-response identity, so comparing a different operating schedule does not rewrite the CAD/source response. The scenario-bound CAD dose format `v0.1` remains available as an explicit legacy path. The ordinary five-file `faris-maintenance-designs/v0.1` format also remains supported for existing heat and dose runs.
+
+When whole-model heating is available, `faris design heating --history-rates <cad-history-rates>` writes a CAD-bound `faris-cad-history-energy-rates/v0.2` sidecar. It retains the typed CAD source identity and supplemental heat provenance, while keeping the separate heating-run covariance with flux and H3 unknown. Scenario-bound v0.1 history-energy sidecars remain readable only through the legacy scenario route.
 
 ```json
 {
-  "schema_version": "faris-maintenance-cad-dose-designs/v0.1",
+  "schema_version": "faris-maintenance-cad-dose-designs/v0.2",
   "designs": {
     "synthetic-tiny-tokamak-control": {
-      "scenario": "synthetic-tiny-tokamak.scenario.json",
+      "design_file": "synthetic-tiny-tokamak.faris-design.json",
       "history_run": "runs/cad-history/history-driving-rates.json",
-      "history_assumptions": "synthetic-tiny-tokamak.operating-history.json",
       "dose_physics": "runs/cad-dose/dose-physics.json"
     }
   }
 }
 ```
 
-The scenario's `operating_plan.fusion_power_mw` must exactly match the checked CAD design source power. `dose_physics` must be the native, hash-bound CAD preparation manifest for that same design and its checked import report. On a synthetic four-solid control, the CAD is a void plasma, first wall, Li-6 blanket, and TF winding pack; the three material solids are each mapped exactly once in `faris design transport`. The dose run then uses those CAD rates and the native spatial photon worker. It does not consume reactor CSG physics or a reactor 709-group spectrum file. CAD prompt/deposited heating and net-energy accounting remain unavailable.
+`dose_physics` must be the native, hash-bound CAD preparation manifest for the same design and checked import report. On a synthetic four-solid control, the CAD is a void plasma, first wall, Li-6 blanket, and TF winding pack; the three material solids are each mapped exactly once in `faris design transport`. The dose run then uses those CAD rates and the native spatial photon worker. It does not consume reactor CSG physics or a reactor 709-group spectrum file. CAD prompt/deposited heating and net-energy accounting remain unavailable unless a separate identity-bound whole-model heating receipt is supplied.
 
 ### The maintenance assumptions file
 

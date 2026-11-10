@@ -392,6 +392,22 @@ struct WorkerHistoryRate {
     standard_error_raw_per_source: f64,
 }
 
+#[derive(Clone, Debug)]
+enum HistorySourceContext {
+    LegacyScenario {
+        scenario: faris_model::LoadedScenario,
+        path: PathBuf,
+        sha256: String,
+    },
+    CadDesign(faris_model::design::CadSourceIdentity),
+}
+
+#[derive(Clone, Debug)]
+struct HistorySetup {
+    response: serde_json::Value,
+    source: HistorySourceContext,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryNuclearDataIdentity {
@@ -416,9 +432,14 @@ pub struct HistoryNuclearDataTable {
 #[serde(deny_unknown_fields)]
 pub struct DesignHistoryRatesArtifact {
     pub schema_version: String,
-    pub scenario_path: String,
-    pub scenario_id: String,
-    pub scenario_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cad_source_identity: Option<faris_model::design::CadSourceIdentity>,
     pub design_path: String,
     pub design_sha256: String,
     pub check_report_path: String,
@@ -1432,32 +1453,48 @@ pub fn design_transport(
         options.h3_component_id.as_deref(),
     ) {
         (None, None, None) => None,
-        (Some(components), Some(scenario_path), Some(h3_component)) => {
+        (Some(components), scenario_path, Some(h3_component)) => {
             if options.window_python.is_some() {
                 return Err(tool(
                     "weight windows are prepared for the legacy fluence response only; history responses currently require analog transport",
                 ));
             }
-            let scenario_path = scenario_path
-                .canonicalize()
-                .map_err(|e| io_error(scenario_path, e))?;
-            let bytes = read_bounded(&scenario_path)?;
-            let scenario = faris_model::LoadedScenario::from_bytes(&bytes)
-                .map_err(|e| tool(format!("history scenario {}: {e}", scenario_path.display())))?;
-            if !same_source_power_binding(
-                scenario.scenario.operating_plan.fusion_power_mw,
-                fusion_power_mw,
-            ) {
-                return Err(tool(
-                    "the CAD source fusion power does not exactly match the history scenario",
-                ));
-            }
+            let source = if let Some(scenario_path) = scenario_path {
+                let scenario_path = scenario_path
+                    .canonicalize()
+                    .map_err(|e| io_error(scenario_path, e))?;
+                let bytes = read_bounded(&scenario_path)?;
+                let scenario = faris_model::LoadedScenario::from_bytes(&bytes).map_err(|e| {
+                    tool(format!("history scenario {}: {e}", scenario_path.display()))
+                })?;
+                if !same_source_power_binding(
+                    scenario.scenario.operating_plan.fusion_power_mw,
+                    fusion_power_mw,
+                ) {
+                    return Err(tool(
+                        "the CAD source fusion power does not exactly match the history scenario",
+                    ));
+                }
+                HistorySourceContext::LegacyScenario {
+                    scenario,
+                    path: scenario_path,
+                    sha256: sha256_hex(&bytes),
+                }
+            } else {
+                let design_identity = faris_model::design::CadSourceIdentity {
+                    design_id: design.id.clone(),
+                    design_sha256: design_sha256.clone(),
+                    fusion_power_mw,
+                };
+                design_identity.validate().map_err(tool)?;
+                HistorySourceContext::CadDesign(design_identity)
+            };
             let response = history_response_request(&design, &report, components, h3_component)?;
-            Some((response, scenario, sha256_hex(&bytes), scenario_path))
+            Some(HistorySetup { response, source })
         }
         _ => {
             return Err(tool(
-                "all three history inputs are required together: --history-component, --history-scenario, and --h3-component",
+                "CAD history responses require --history-component for every material solid and --h3-component; --history-scenario is optional and retained for the explicit legacy source-binding route",
             ));
         }
     };
@@ -1494,13 +1531,20 @@ pub fn design_transport(
             "energy_min_ev": chosen.energy_min_ev,
             "peak_voxel_cm": chosen.peak_voxel_m.map(|v| v.map(|d| d.map(|m| m * 100.0))),
         },
-        "history_response": history_setup.as_ref().map(|(response, _, _, _)| response),
-        "history_scenario": history_setup.as_ref().map(|(_, scenario, sha256, path)| serde_json::json!({
-            "path": path.display().to_string(),
-            "id": scenario.scenario.id,
-            "sha256": sha256,
-            "fusion_power_mw": scenario.scenario.operating_plan.fusion_power_mw,
-        })),
+        "history_response": history_setup.as_ref().map(|setup| &setup.response),
+        "history_scenario": history_setup.as_ref().and_then(|setup| match &setup.source {
+            HistorySourceContext::LegacyScenario { scenario, path, sha256 } => Some(serde_json::json!({
+                "path": path.display().to_string(),
+                "id": scenario.scenario.id,
+                "sha256": sha256,
+                "fusion_power_mw": scenario.scenario.operating_plan.fusion_power_mw,
+            })),
+            HistorySourceContext::CadDesign(_) => None,
+        }),
+        "history_cad_source": history_setup.as_ref().and_then(|setup| match &setup.source {
+            HistorySourceContext::CadDesign(identity) => Some(identity),
+            HistorySourceContext::LegacyScenario { .. } => None,
+        }),
         "sampling": {
             "target_relative_error": options.target_relative_error,
             "particles_per_batch": options.particles_per_batch,
@@ -1661,7 +1705,7 @@ pub fn design_transport(
     let worker_bytes = read_bounded(&result_path)?;
     let worker: WorkerResult = serde_json::from_slice(&worker_bytes)
         .map_err(|e| tool(format!("{}: {e}", result_path.display())))?;
-    let history_rates_artifact = if let Some((_, scenario, scenario_sha256, _)) = &history_setup {
+    let history_rates_artifact = if let Some(setup) = &history_setup {
         let components = options
             .history_components
             .as_ref()
@@ -1677,8 +1721,7 @@ pub fn design_transport(
             &request_bytes,
             components,
             h3_component_id,
-            scenario,
-            scenario_sha256,
+            &setup.source,
             &design,
             &design_path
                 .canonicalize()
@@ -1778,8 +1821,7 @@ fn build_history_rates_artifact(
     request_bytes: &[u8],
     component_map: &BTreeMap<String, Vec<String>>,
     h3_component_id: &str,
-    scenario: &faris_model::LoadedScenario,
-    scenario_sha256: &str,
+    source_context: &HistorySourceContext,
     design: &Design,
     design_path: &Path,
     check_report_path: &Path,
@@ -2056,15 +2098,31 @@ fn build_history_rates_artifact(
     let response_definitions_bytes =
         serde_json::to_vec(expected).map_err(|e| tool(e.to_string()))?;
     let worker_result_sha256 = sha256_hex(worker_bytes);
+    let (scenario_id, scenario_sha256, variant_id, source_identity) = match source_context {
+        HistorySourceContext::LegacyScenario {
+            scenario, sha256, ..
+        } => (
+            scenario.scenario.id.clone(),
+            sha256.clone(),
+            scenario
+                .scenario
+                .variants
+                .first()
+                .map_or_else(|| "cad-history".into(), |v| v.id.clone()),
+            None,
+        ),
+        HistorySourceContext::CadDesign(identity) => (
+            String::new(),
+            String::new(),
+            "cad-design-history".into(),
+            Some(identity.clone()),
+        ),
+    };
     let normalized = NormalizedTransportResult {
         schema_version: "faris-normalized-transport/v0.1".into(),
-        scenario_id: scenario.scenario.id.clone(),
-        scenario_sha256: scenario_sha256.into(),
-        variant_id: scenario
-            .scenario
-            .variants
-            .first()
-            .map_or_else(|| "cad-history".into(), |v| v.id.clone()),
+        scenario_id,
+        scenario_sha256,
+        variant_id,
         source: faris_model::transport::DtSource {
             energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
             neutron_energy_ev: D_T_NEUTRON_ENERGY_EV,
@@ -2098,21 +2156,36 @@ fn build_history_rates_artifact(
         }),
     };
     let normalized_validation = ValidationMarks(normalized.validation());
-    let driving_rates =
-        TransportDrivingRates::from_normalized(&normalized, fusion_power_mw, &worker_result_sha256)
-            .map_err(|e| fail(&e))?;
+    let driving_rates = TransportDrivingRates::from_normalized_with_cad_identity(
+        &normalized,
+        fusion_power_mw,
+        &worker_result_sha256,
+        source_identity.clone(),
+    )
+    .map_err(|e| fail(&e))?;
     driving_rates.validate().map_err(|e| fail(&e))?;
     let rel_model = xml_path
         .strip_prefix(run_dir)
         .map_err(|_| fail("model XML escapes the run folder"))?;
+    let (schema_version, scenario_path, scenario_id, scenario_sha256) = match source_context {
+        HistorySourceContext::LegacyScenario {
+            scenario,
+            path,
+            sha256,
+        } => (
+            DESIGN_HISTORY_RATES_VERSION,
+            Some(path.display().to_string()),
+            Some(scenario.scenario.id.clone()),
+            Some(sha256.clone()),
+        ),
+        HistorySourceContext::CadDesign(_) => (DESIGN_HISTORY_RATES_CAD_VERSION, None, None, None),
+    };
     Ok(DesignHistoryRatesArtifact {
-        schema_version: DESIGN_HISTORY_RATES_VERSION.into(),
-        scenario_path: request["history_scenario"]["path"]
-            .as_str()
-            .ok_or_else(|| fail("history scenario path is missing from the request"))?
-            .into(),
-        scenario_id: scenario.scenario.id.clone(),
-        scenario_sha256: scenario_sha256.into(),
+        schema_version: schema_version.into(),
+        scenario_path,
+        scenario_id,
+        scenario_sha256,
+        cad_source_identity: source_identity,
         design_path: design_path.display().to_string(),
         design_sha256: sha256_file(design_path)?,
         check_report_path: check_report_path.display().to_string(),
@@ -2243,12 +2316,131 @@ pub fn load_design_history_rates(
     artifact_path: &Path,
     scenario: &faris_model::LoadedScenario,
 ) -> Result<TransportDrivingRates, String> {
+    load_design_history_rates_from_source(
+        artifact_path,
+        ExpectedHistorySource::LegacyScenario(scenario.clone()),
+    )
+}
+
+/// Re-read and re-bind CAD-native history rates to the exact CAD design. Operating-history
+/// assumptions remain independent planning inputs and do not identify the neutron response.
+pub fn load_cad_design_history_rates(
+    artifact_path: &Path,
+    design_path: &Path,
+) -> Result<TransportDrivingRates, String> {
+    load_design_history_rates_from_source(
+        artifact_path,
+        ExpectedHistorySource::CadDesign(design_path.to_path_buf()),
+    )
+}
+
+#[derive(Clone, Debug)]
+enum ExpectedHistorySource {
+    LegacyScenario(faris_model::LoadedScenario),
+    CadDesign(PathBuf),
+}
+
+fn load_design_history_rates_from_source(
+    artifact_path: &Path,
+    expected_source: ExpectedHistorySource,
+) -> Result<TransportDrivingRates, String> {
     let bytes = read_bounded(artifact_path).map_err(|e| e.to_string())?;
     let artifact: DesignHistoryRatesArtifact = serde_json::from_slice(&bytes)
         .map_err(|e| format!("CAD history rates artifact JSON: {e}"))?;
     let fail = |why: &str| format!("CAD history rates artifact is not bound to this run: {why}");
-    if artifact.schema_version != DESIGN_HISTORY_RATES_VERSION
-        || artifact.driving_rates.transport_artifact_sha256 != artifact.worker_result_sha256
+    let source_context = match expected_source {
+        ExpectedHistorySource::LegacyScenario(scenario) => {
+            if artifact.schema_version != DESIGN_HISTORY_RATES_VERSION
+                || artifact.cad_source_identity.is_some()
+            {
+                return Err(fail(
+                    "legacy route requires a v0.1 scenario-bound CAD record",
+                ));
+            }
+            validate_history_scenario_binding(
+                artifact
+                    .scenario_id
+                    .as_deref()
+                    .ok_or_else(|| fail("legacy history artifact has no scenario ID"))?,
+                artifact
+                    .scenario_sha256
+                    .as_deref()
+                    .ok_or_else(|| fail("legacy history artifact has no scenario hash"))?,
+                artifact.fusion_power_mw,
+                &artifact.driving_rates.scenario_sha256,
+                artifact.driving_rates.reference_fusion_power_mw,
+                &scenario,
+            )
+            .map_err(|e| fail(&e))?;
+            let path = PathBuf::from(
+                artifact
+                    .scenario_path
+                    .as_deref()
+                    .ok_or_else(|| fail("legacy history artifact has no scenario path"))?,
+            );
+            if !path.is_absolute()
+                || !sha256_file(&path)
+                    .map_err(|e| e.to_string())?
+                    .eq_ignore_ascii_case(artifact.scenario_sha256.as_deref().unwrap_or_default())
+            {
+                return Err(fail(
+                    "history scenario file does not match its recorded source identity",
+                ));
+            }
+            HistorySourceContext::LegacyScenario {
+                scenario,
+                path,
+                sha256: artifact.scenario_sha256.clone().unwrap_or_default(),
+            }
+        }
+        ExpectedHistorySource::CadDesign(expected_path) => {
+            if artifact.schema_version != DESIGN_HISTORY_RATES_CAD_VERSION
+                || artifact.scenario_path.is_some()
+                || artifact.scenario_id.is_some()
+                || artifact.scenario_sha256.is_some()
+            {
+                return Err(fail(
+                    "CAD-native route requires a v0.2 design-bound record without scenario identity",
+                ));
+            }
+            let expected_path = expected_path.canonicalize().map_err(|e| e.to_string())?;
+            let artifact_design_path = Path::new(&artifact.design_path)
+                .canonicalize()
+                .map_err(|e| e.to_string())?;
+            if expected_path != artifact_design_path {
+                return Err(fail("CAD design path differs from the history artifact"));
+            }
+            let design_bytes = read_bounded(&expected_path).map_err(|e| e.to_string())?;
+            if sha256_hex(&design_bytes) != artifact.design_sha256 {
+                return Err(fail("CAD design bytes changed after the transport run"));
+            }
+            let design = design::parse_design(&design_bytes)
+                .design
+                .ok_or_else(|| fail("CAD design does not parse"))?;
+            let identity = faris_model::design::CadSourceIdentity {
+                design_id: design.id,
+                design_sha256: artifact.design_sha256.clone(),
+                fusion_power_mw: design
+                    .plasma
+                    .fusion_power_mw
+                    .ok_or_else(|| fail("CAD design has no fusion source power"))?,
+            };
+            identity.validate().map_err(|e| fail(&e))?;
+            if artifact.cad_source_identity.as_ref() != Some(&identity)
+                || artifact.driving_rates.cad_source_identity.as_ref() != Some(&identity)
+                || !artifact.driving_rates.scenario_sha256.is_empty()
+                || artifact.fusion_power_mw.to_bits() != identity.fusion_power_mw.to_bits()
+                || artifact.driving_rates.reference_fusion_power_mw.to_bits()
+                    != identity.fusion_power_mw.to_bits()
+            {
+                return Err(fail(
+                    "CAD source identity or source power differs from the history rates",
+                ));
+            }
+            HistorySourceContext::CadDesign(identity)
+        }
+    };
+    if artifact.driving_rates.transport_artifact_sha256 != artifact.worker_result_sha256
         || artifact.flux_energy_min_ev != 0.0
         || artifact.h3_score != "H3-production"
         || artifact.h3_component_id != "blanket"
@@ -2256,25 +2448,6 @@ pub fn load_design_history_rates(
     {
         return Err(fail(
             "scenario, power, response definition, or sampling provenance differs",
-        ));
-    }
-    validate_history_scenario_binding(
-        &artifact.scenario_id,
-        &artifact.scenario_sha256,
-        artifact.fusion_power_mw,
-        &artifact.driving_rates.scenario_sha256,
-        artifact.driving_rates.reference_fusion_power_mw,
-        scenario,
-    )
-    .map_err(|e| fail(&e))?;
-    let scenario_path = Path::new(&artifact.scenario_path);
-    if !scenario_path.is_absolute()
-        || !sha256_file(scenario_path)
-            .map_err(|e| e.to_string())?
-            .eq_ignore_ascii_case(&artifact.scenario_sha256)
-    {
-        return Err(fail(
-            "history scenario file does not match its recorded source identity",
         ));
     }
     let base = artifact_path
@@ -2370,16 +2543,30 @@ pub fn load_design_history_rates(
         &artifact.h3_component_id,
     )
     .map_err(|e| e.to_string())?;
-    let expected_scenario = serde_json::json!({
-        "path": artifact.scenario_path,
-        "id": artifact.scenario_id,
-        "sha256": artifact.scenario_sha256,
-        "fusion_power_mw": artifact.fusion_power_mw,
-    });
+    let (expected_scenario, expected_cad_source) = match &source_context {
+        HistorySourceContext::LegacyScenario {
+            scenario,
+            path,
+            sha256,
+        } => (
+            serde_json::json!({
+                "path": path.display().to_string(),
+                "id": scenario.scenario.id,
+                "sha256": sha256,
+                "fusion_power_mw": scenario.scenario.operating_plan.fusion_power_mw,
+            }),
+            serde_json::Value::Null,
+        ),
+        HistorySourceContext::CadDesign(identity) => (
+            serde_json::Value::Null,
+            serde_json::to_value(identity).map_err(|e| e.to_string())?,
+        ),
+    };
     let expected_plasma = serde_json::to_value(&design.plasma).map_err(|e| e.to_string())?;
     let expected_solids = solid_entries(&design, &check).map_err(|e| e.to_string())?;
     let expected_materials = material_entries(&design, &check).map_err(|e| e.to_string())?;
     if transport_request.get("history_scenario") != Some(&expected_scenario)
+        || transport_request.get("history_cad_source") != Some(&expected_cad_source)
         || transport_request.get("history_response") != Some(&request)
         || transport_request.get("plasma") != Some(&expected_plasma)
         || transport_request.get("solids") != Some(&serde_json::Value::Array(expected_solids))
@@ -2414,8 +2601,7 @@ pub fn load_design_history_rates(
         &request_bytes,
         &artifact.component_map,
         &artifact.h3_component_id,
-        scenario,
-        &artifact.scenario_sha256,
+        &source_context,
         &design,
         design_path,
         check_path,

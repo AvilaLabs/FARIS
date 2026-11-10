@@ -27,7 +27,8 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 pub const DESIGNS_VERSION: &str = "faris-maintenance-designs/v0.1";
-pub const CAD_DOSE_DESIGNS_VERSION: &str = "faris-maintenance-cad-dose-designs/v0.1";
+pub const CAD_DOSE_DESIGNS_LEGACY_VERSION: &str = "faris-maintenance-cad-dose-designs/v0.1";
+pub const CAD_DOSE_DESIGNS_VERSION: &str = "faris-maintenance-cad-dose-designs/v0.2";
 
 // ------------------------------------------------------------------ builder --
 
@@ -95,21 +96,26 @@ struct DesignsFile {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DesignEntry {
-    scenario: PathBuf,
+    #[serde(default)]
+    scenario: Option<PathBuf>,
+    #[serde(default)]
+    design_file: Option<PathBuf>,
     #[serde(default)]
     physics: Option<PathBuf>,
     history_run: PathBuf,
     #[serde(default)]
     spectrum_run: Option<PathBuf>,
-    history_assumptions: PathBuf,
+    #[serde(default)]
+    history_assumptions: Option<PathBuf>,
     #[serde(default)]
     dose_physics: Option<PathBuf>,
 }
 
-/// One design with its five files resolved against the designs file's folder.
+/// One design with inputs resolved against the designs file's folder.
 #[derive(Debug, PartialEq)]
 pub struct ResolvedDesign {
-    pub scenario: PathBuf,
+    pub scenario: Option<PathBuf>,
+    pub design_file: Option<PathBuf>,
     pub physics: Option<PathBuf>,
     pub history_run: PathBuf,
     pub spectrum_run: Option<PathBuf>,
@@ -117,11 +123,18 @@ pub struct ResolvedDesign {
     /// Optional native OpenMC event-dose adapter manifest; absent means dose NOT_EVALUATED.
     pub dose_physics: Option<PathBuf>,
     pub cad_dose_only: bool,
+    pub cad_design_native: bool,
 }
 
 impl ResolvedDesign {
     pub fn files(&self) -> Vec<(&'static str, &Path)> {
-        let mut files = vec![("scenario", self.scenario.as_path())];
+        let mut files = Vec::new();
+        if let Some(path) = &self.scenario {
+            files.push(("scenario", path.as_path()));
+        }
+        if let Some(path) = &self.design_file {
+            files.push(("design_file", path.as_path()));
+        }
         if let Some(path) = &self.physics {
             files.push(("physics", path));
         }
@@ -140,12 +153,13 @@ pub fn parse_designs(
     base: &Path,
 ) -> Result<BTreeMap<String, ResolvedDesign>, String> {
     let file: DesignsFile = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-    let cad_dose_only = match file.schema_version.as_str() {
-        DESIGNS_VERSION => false,
-        CAD_DOSE_DESIGNS_VERSION => true,
+    let (cad_dose_only, cad_design_native) = match file.schema_version.as_str() {
+        DESIGNS_VERSION => (false, false),
+        CAD_DOSE_DESIGNS_LEGACY_VERSION => (true, false),
+        CAD_DOSE_DESIGNS_VERSION => (true, true),
         _ => {
             return Err(format!(
-                "designs file schema_version must be {DESIGNS_VERSION} or {CAD_DOSE_DESIGNS_VERSION}"
+                "designs file schema_version must be {DESIGNS_VERSION}, {CAD_DOSE_DESIGNS_LEGACY_VERSION}, or {CAD_DOSE_DESIGNS_VERSION}"
             ));
         }
     };
@@ -172,14 +186,36 @@ pub fn parse_designs(
                 "design {name}: {CAD_DOSE_DESIGNS_VERSION} requires dose_physics"
             ));
         }
+        if cad_design_native && (entry.scenario.is_some() || entry.design_file.is_none()) {
+            return Err(format!(
+                "design {name}: {CAD_DOSE_DESIGNS_VERSION} requires design_file and forbids scenario"
+            ));
+        }
+        if !cad_design_native && (entry.scenario.is_none() || entry.design_file.is_some()) {
+            return Err(format!(
+                "design {name}: legacy design formats require scenario and forbid design_file"
+            ));
+        }
+        let design_file = entry.design_file.map(|path| base.join(path));
+        let linked_assumptions = if cad_design_native && entry.history_assumptions.is_none() {
+            let design_path = design_file
+                .as_deref()
+                .ok_or("CAD-native designs require design_file")?;
+            let context = crate::design::resolve_cad_operating_context(design_path, None)?;
+            Some(context.history_assumptions_path)
+        } else {
+            None
+        };
         let resolved = ResolvedDesign {
-            scenario: base.join(entry.scenario),
+            scenario: entry.scenario.map(|path| base.join(path)),
+            design_file,
             physics: entry.physics.map(|path| base.join(path)),
             history_run: base.join(entry.history_run),
             spectrum_run: entry.spectrum_run.map(|path| base.join(path)),
-            history_assumptions: base.join(entry.history_assumptions),
+            history_assumptions: entry.history_assumptions.map(|path| base.join(path)).or(linked_assumptions).ok_or_else(|| format!("design {name}: history_assumptions is required or must be linked in design_file"))?,
             dose_physics: entry.dose_physics.map(|path| base.join(path)),
             cad_dose_only,
+            cad_design_native,
         };
         for (what, path) in resolved.files() {
             if !path.is_file() {
@@ -283,6 +319,28 @@ pub fn rates_from_run(
             .ok_or("verified run lacks raw artifact identity")?,
     )
     .map_err(|e| e.to_string())
+}
+
+/// CAD-native rate records bind directly to the CAD design source identity, not a parallel CSG
+/// scenario. Non-CAD formats remain on [`rates_from_run`] for compatibility.
+pub fn rates_from_cad_design(
+    design_path: &Path,
+    run_path: &Path,
+) -> Result<TransportDrivingRates, String> {
+    let bytes = read_bounded(run_path)?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    match value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_str)
+    {
+        Some(crate::design::DESIGN_HISTORY_RATES_CAD_VERSION) => {
+            crate::design::load_cad_design_history_rates(run_path, design_path)
+        }
+        Some(crate::design::HISTORY_ENERGY_RATES_CAD_VERSION) => {
+            crate::design::load_cad_history_energy_rates(run_path, design_path)
+        }
+        _ => Err("CAD-native maintenance design requires a v0.2 CAD history-rate artifact".into()),
+    }
 }
 
 // ---------------------------------------------------------------------- run --
@@ -412,8 +470,12 @@ pub fn run_from_files_with(
             0,
             "binding transport rates from the history run",
         ));
-        let scenario = LoadedScenario::from_bytes(&read_bounded(&design.scenario)?)
-            .map_err(|e| e.to_string())?;
+        let scenario_path = design
+            .scenario
+            .as_deref()
+            .ok_or_else(|| format!("design {name} has no scenario on the legacy heat path"))?;
+        let scenario =
+            LoadedScenario::from_bytes(&read_bounded(scenario_path)?).map_err(|e| e.to_string())?;
         rates.insert(name.clone(), rates_for(&scenario, &design.history_run)?);
         let history_assumptions: OperatingHistoryAssumptions =
             serde_json::from_slice(&read_bounded(&design.history_assumptions)?)
@@ -428,7 +490,7 @@ pub fn run_from_files_with(
         files.insert(
             name.clone(),
             DesignFiles {
-                scenario: design.scenario.clone(),
+                scenario: scenario_path.to_path_buf(),
                 physics: design
                     .physics
                     .clone()
@@ -557,9 +619,23 @@ pub fn run_dose_from_files(
             actinv_runs: 0,
             cache_hits: 0,
         });
-        let scenario = LoadedScenario::from_bytes(&read_bounded(&design.scenario)?)
-            .map_err(|e| e.to_string())?;
-        let design_rates = rates_from_run(&scenario, &design.history_run)?;
+        let design_rates = if design.cad_design_native {
+            rates_from_cad_design(
+                design
+                    .design_file
+                    .as_deref()
+                    .ok_or_else(|| format!("design {name} has no design_file"))?,
+                &design.history_run,
+            )?
+        } else {
+            let scenario_path = design
+                .scenario
+                .as_deref()
+                .ok_or_else(|| format!("design {name} has no legacy scenario"))?;
+            let scenario = LoadedScenario::from_bytes(&read_bounded(scenario_path)?)
+                .map_err(|e| e.to_string())?;
+            rates_from_run(&scenario, &design.history_run)?
+        };
         rates.insert(name.clone(), design_rates.clone());
         if let Some(context) = &design.dose_physics {
             dose_contexts.insert(

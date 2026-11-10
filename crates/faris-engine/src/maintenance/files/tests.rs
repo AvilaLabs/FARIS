@@ -14,6 +14,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::sync::Mutex;
 
 const SCENARIO: &[u8] = include_bytes!("../../../../../scenarios/arc-inspired/scenario.json");
+const CAD_DESIGN: &[u8] = include_bytes!("../../../../../scenarios/rm-m/rm-m.faris-design.json");
+const CAD_LINKED_HISTORY: &[u8] =
+    include_bytes!("../../../../../scenarios/rm-m/rm-m.operating-history.json");
 
 #[test]
 fn cad_history_rate_sidecar_is_dispatched_to_its_bound_reader_without_changing_reactor_run_path() {
@@ -47,20 +50,42 @@ fn cad_history_energy_sidecar_is_dispatched_to_its_hash_bound_reader() {
 }
 
 #[test]
+fn cad_design_dispatch_uses_typed_design_identity_for_energy_rates() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("cad-design.json"), CAD_DESIGN).unwrap();
+    std::fs::write(
+        dir.path().join("rm-m.operating-history.json"),
+        CAD_LINKED_HISTORY,
+    )
+    .unwrap();
+    let path = dir.path().join("energy-rates.json");
+    std::fs::write(
+        &path,
+        br#"{"schema_version":"faris-cad-history-energy-rates/v0.2"}"#,
+    )
+    .unwrap();
+    let error = rates_from_cad_design(&dir.path().join("cad-design.json"), &path).unwrap_err();
+    assert!(
+        error.contains("CAD history-energy artifact JSON"),
+        "{error}"
+    );
+}
+
+#[test]
 fn cad_dose_design_format_requires_only_consumed_provenance_files() {
     let dir = tempfile::tempdir().unwrap();
-    for name in [
-        "scenario.json",
-        "history.json",
-        "assumptions.json",
-        "dose-physics.json",
-    ] {
+    std::fs::write(dir.path().join("cad-design.json"), CAD_DESIGN).unwrap();
+    std::fs::write(
+        dir.path().join("rm-m.operating-history.json"),
+        CAD_LINKED_HISTORY,
+    )
+    .unwrap();
+    for name in ["history.json", "dose-physics.json"] {
         std::fs::write(dir.path().join(name), b"{}").unwrap();
     }
     let entry = serde_json::json!({
-        "scenario": "scenario.json",
+        "design_file": "cad-design.json",
         "history_run": "history.json",
-        "history_assumptions": "assumptions.json",
         "dose_physics": "dose-physics.json"
     });
     let bytes = serde_json::to_vec(&serde_json::json!({
@@ -71,15 +96,22 @@ fn cad_dose_design_format_requires_only_consumed_provenance_files() {
     let parsed = parse_designs(&bytes, dir.path()).unwrap();
     let design = &parsed["synthetic-cad"];
     assert!(design.cad_dose_only);
+    assert!(design.cad_design_native);
+    assert!(design.scenario.is_none());
     assert!(design.physics.is_none());
     assert!(design.spectrum_run.is_none());
+    assert!(
+        design
+            .history_assumptions
+            .ends_with("rm-m.operating-history.json")
+    );
     assert_eq!(
         design
             .files()
             .iter()
             .map(|(name, _)| *name)
             .collect::<Vec<_>>(),
-        vec!["scenario", "history_run", "history_assumptions"]
+        vec!["design_file", "history_run", "history_assumptions"]
     );
     assert!(
         design
@@ -91,9 +123,8 @@ fn cad_dose_design_format_requires_only_consumed_provenance_files() {
     let with_unused = serde_json::json!({
         "schema_version": CAD_DOSE_DESIGNS_VERSION,
         "designs": {"synthetic-cad": {
-            "scenario": "scenario.json", "history_run": "history.json",
-            "history_assumptions": "assumptions.json", "dose_physics": "dose-physics.json",
-            "physics": "no-physics-file.json"
+            "design_file": "cad-design.json", "history_run": "history.json",
+            "dose_physics": "dose-physics.json", "physics": "no-physics-file.json"
         }}
     });
     let error = parse_designs(&serde_json::to_vec(&with_unused).unwrap(), dir.path()).unwrap_err();
@@ -102,13 +133,60 @@ fn cad_dose_design_format_requires_only_consumed_provenance_files() {
     let without_manifest = serde_json::json!({
         "schema_version": CAD_DOSE_DESIGNS_VERSION,
         "designs": {"synthetic-cad": {
-            "scenario": "scenario.json", "history_run": "history.json",
-            "history_assumptions": "assumptions.json"
+            "design_file": "cad-design.json", "history_run": "history.json"
         }}
     });
     let error =
         parse_designs(&serde_json::to_vec(&without_manifest).unwrap(), dir.path()).unwrap_err();
     assert!(error.contains("requires dose_physics"), "{error}");
+
+    let mut bad_design: serde_json::Value = serde_json::from_slice(CAD_DESIGN).unwrap();
+    bad_design["operating_scenario"]["sha256"] = serde_json::json!("0".repeat(64));
+    std::fs::write(
+        dir.path().join("bad-design.json"),
+        serde_json::to_vec(&bad_design).unwrap(),
+    )
+    .unwrap();
+    let bad_link = serde_json::to_vec(&serde_json::json!({
+        "schema_version": CAD_DOSE_DESIGNS_VERSION,
+        "designs": {"synthetic-cad": {
+            "design_file": "bad-design.json", "history_run": "history.json",
+            "dose_physics": "dose-physics.json"
+        }}
+    }))
+    .unwrap();
+    let error = parse_designs(&bad_link, dir.path()).unwrap_err();
+    assert!(error.contains("declared hash"), "{error}");
+}
+
+#[test]
+fn legacy_scenario_bound_cad_dose_design_v01_remains_readable() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in [
+        "scenario.json",
+        "history.json",
+        "assumptions.json",
+        "dose-physics.json",
+    ] {
+        std::fs::write(dir.path().join(name), b"{}").unwrap();
+    }
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "schema_version": CAD_DOSE_DESIGNS_LEGACY_VERSION,
+        "designs": {"legacy-cad": {
+            "scenario": "scenario.json", "history_run": "history.json",
+            "history_assumptions": "assumptions.json", "dose_physics": "dose-physics.json"
+        }}
+    }))
+    .unwrap();
+    let parsed = parse_designs(&bytes, dir.path()).unwrap();
+    assert!(!parsed["legacy-cad"].cad_design_native);
+    assert!(
+        parsed["legacy-cad"]
+            .scenario
+            .as_deref()
+            .unwrap()
+            .ends_with("scenario.json")
+    );
 }
 
 #[test]
@@ -166,11 +244,12 @@ fn legacy_design_format_still_requires_and_resolves_all_five_inputs() {
 #[test]
 fn heat_maintenance_rejects_cad_dose_only_designs_before_actinv_setup() {
     let t = tree();
+    std::fs::write(t.path("cad-design.json"), CAD_DESIGN).unwrap();
+    std::fs::write(t.path("rm-m.operating-history.json"), CAD_LINKED_HISTORY).unwrap();
     std::fs::write(t.path("dose-physics.json"), b"{}").unwrap();
     let entry = serde_json::json!({
-        "scenario": "scenario.json",
+        "design_file": "cad-design.json",
         "history_run": "run.json",
-        "history_assumptions": "history.json",
         "dose_physics": "dose-physics.json"
     });
     std::fs::write(
@@ -194,7 +273,12 @@ fn heat_maintenance_rejects_cad_dose_only_designs_before_actinv_setup() {
 #[test]
 fn dose_run_dispatches_minimal_cad_design_to_the_history_sidecar_reader() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("scenario.json"), SCENARIO).unwrap();
+    std::fs::write(dir.path().join("cad-design.json"), CAD_DESIGN).unwrap();
+    std::fs::write(
+        dir.path().join("rm-m.operating-history.json"),
+        CAD_LINKED_HISTORY,
+    )
+    .unwrap();
     std::fs::write(
         dir.path().join("history.json"),
         serde_json::to_vec(&fixtures::assumptions()).unwrap(),
@@ -211,7 +295,7 @@ fn dose_run_dispatches_minimal_cad_design_to_the_history_sidecar_reader() {
         serde_json::to_vec(&serde_json::json!({
             "schema_version": CAD_DOSE_DESIGNS_VERSION,
             "designs": {"cad": {
-                "scenario": "scenario.json",
+                "design_file": "cad-design.json",
                 "history_run": "history-driving-rates.json",
                 "history_assumptions": "history.json",
                 "dose_physics": "dose-physics.json"
@@ -254,7 +338,10 @@ fn dose_run_dispatches_minimal_cad_design_to_the_history_sidecar_reader() {
         Arc::new(|_| {}),
     )
     .unwrap_err();
-    assert!(error.contains("CAD history rates artifact JSON"), "{error}");
+    assert!(
+        error.contains("requires a v0.2 CAD history-rate artifact"),
+        "{error}"
+    );
 }
 
 /// Writes, for every continuation asked for, a spec, its provenance and the result the fake

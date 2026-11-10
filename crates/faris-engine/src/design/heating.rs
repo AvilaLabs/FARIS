@@ -244,13 +244,19 @@ pub struct HistoryEnergyClosure {
 }
 
 pub const HISTORY_ENERGY_RATES_VERSION: &str = "faris-cad-history-energy-rates/v0.1";
+/// CAD-native energy-rate receipt bound to a checked design rather than a CSG scenario.
+pub const HISTORY_ENERGY_RATES_CAD_VERSION: &str = "faris-cad-history-energy-rates/v0.2";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryEnergyRatesArtifact {
     pub schema_version: String,
-    pub scenario_id: String,
-    pub scenario_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cad_source_identity: Option<faris_model::design::CadSourceIdentity>,
     pub base_rates_path: String,
     pub base_rates_sha256: String,
     pub heating_report_path: String,
@@ -657,12 +663,27 @@ pub fn design_heating_with_history_rates(
     let bytes = read_bounded(base_history_rates_path)?;
     let base: super::transport::DesignHistoryRatesArtifact = serde_json::from_slice(&bytes)
         .map_err(|e| DesignError::Tool(format!("CAD history-rate artifact: {e}")))?;
-    let scenario_path = Path::new(&base.scenario_path);
-    let scenario_bytes = read_bounded(scenario_path)?;
-    let scenario = faris_model::LoadedScenario::from_bytes(&scenario_bytes)
-        .map_err(|e| DesignError::Tool(format!("recorded history scenario: {e}")))?;
-    super::transport::load_design_history_rates(base_history_rates_path, &scenario)
-        .map_err(DesignError::Tool)?;
+    match base.schema_version.as_str() {
+        super::transport::DESIGN_HISTORY_RATES_VERSION => {
+            let scenario_path = base.scenario_path.as_deref().ok_or_else(|| {
+                DesignError::Tool("legacy CAD history rates lack a scenario path".into())
+            })?;
+            let scenario_bytes = read_bounded(Path::new(scenario_path))?;
+            let scenario = faris_model::LoadedScenario::from_bytes(&scenario_bytes)
+                .map_err(|e| DesignError::Tool(format!("recorded history scenario: {e}")))?;
+            super::transport::load_design_history_rates(base_history_rates_path, &scenario)
+                .map_err(DesignError::Tool)?;
+        }
+        super::transport::DESIGN_HISTORY_RATES_CAD_VERSION => {
+            super::transport::load_cad_design_history_rates(base_history_rates_path, design_path)
+                .map_err(DesignError::Tool)?;
+        }
+        _ => {
+            return Err(DesignError::Tool(
+                "unsupported CAD history-rate schema".into(),
+            ));
+        }
+    }
     let base_sha256 = sha256_hex(&bytes);
     if !base_sha256.eq_ignore_ascii_case(&sha256_file(base_history_rates_path)?) {
         return Err(DesignError::Tool(
@@ -1526,9 +1547,38 @@ pub fn combine_history_energy_rates(
     scenario: &faris_model::LoadedScenario,
     output_path: &Path,
 ) -> Result<HistoryEnergyRatesArtifact, String> {
-    let artifact =
-        build_history_energy_rates(base_history_rates_path, heating_report_path, scenario)?;
-    let bytes = serde_json::to_vec_pretty(&artifact).map_err(|e| e.to_string())?;
+    let artifact = build_history_energy_rates(
+        base_history_rates_path,
+        heating_report_path,
+        EnergySourceContext::LegacyScenario(scenario),
+    )?;
+    write_history_energy_rates(&artifact, output_path)?;
+    Ok(artifact)
+}
+
+/// Bind whole-model heating to CAD history rates using the checked CAD design identity.
+/// Operating-history assumptions do not enter the transport response identity.
+pub fn combine_cad_history_energy_rates(
+    base_history_rates_path: &Path,
+    heating_report_path: &Path,
+    design_path: &Path,
+    output_path: &Path,
+) -> Result<HistoryEnergyRatesArtifact, String> {
+    let context = super::transport::resolve_cad_operating_context(design_path, None)?;
+    let artifact = build_history_energy_rates(
+        base_history_rates_path,
+        heating_report_path,
+        EnergySourceContext::CadDesign(&context),
+    )?;
+    write_history_energy_rates(&artifact, output_path)?;
+    Ok(artifact)
+}
+
+fn write_history_energy_rates(
+    artifact: &HistoryEnergyRatesArtifact,
+    output_path: &Path,
+) -> Result<(), String> {
+    let bytes = serde_json::to_vec_pretty(artifact).map_err(|e| e.to_string())?;
     if bytes.len() as u64 > MAX_JSON_BYTES {
         return Err("combined history-energy receipt exceeds the JSON size limit".into());
     }
@@ -1540,7 +1590,7 @@ pub fn combine_history_energy_rates(
         .map_err(|e| format!("{}: {e}", output_path.display()))?;
     file.write_all(&bytes)
         .map_err(|e| format!("{}: {e}", output_path.display()))?;
-    Ok(artifact)
+    Ok(())
 }
 
 /// Revalidate the base rates, heating report and both their physical input identities before
@@ -1549,16 +1599,34 @@ pub fn load_history_energy_rates(
     path: &Path,
     scenario: &faris_model::LoadedScenario,
 ) -> Result<TransportDrivingRates, String> {
+    load_history_energy_rates_impl(path, EnergySourceContext::LegacyScenario(scenario))
+}
+
+/// Load and revalidate a CAD-native heating receipt against its checked design.
+pub fn load_cad_history_energy_rates(
+    path: &Path,
+    design_path: &Path,
+) -> Result<TransportDrivingRates, String> {
+    let context = super::transport::resolve_cad_operating_context(design_path, None)?;
+    load_history_energy_rates_impl(path, EnergySourceContext::CadDesign(&context))
+}
+
+enum EnergySourceContext<'a> {
+    LegacyScenario(&'a faris_model::LoadedScenario),
+    CadDesign(&'a super::transport::CadOperatingContext),
+}
+
+fn load_history_energy_rates_impl(
+    path: &Path,
+    context: EnergySourceContext<'_>,
+) -> Result<TransportDrivingRates, String> {
     let bytes = read_bounded(path).map_err(|e| e.to_string())?;
     let artifact: HistoryEnergyRatesArtifact = serde_json::from_slice(&bytes)
         .map_err(|e| format!("CAD history-energy artifact JSON: {e}"))?;
-    if artifact.schema_version != HISTORY_ENERGY_RATES_VERSION {
-        return Err("CAD history-energy artifact has an unsupported schema".into());
-    }
     let expected = build_history_energy_rates(
         Path::new(&artifact.base_rates_path),
         Path::new(&artifact.heating_report_path),
-        scenario,
+        context,
     )?;
     if expected != artifact {
         return Err("CAD history-energy artifact differs from its hash-bound source runs".into());
@@ -1569,7 +1637,7 @@ pub fn load_history_energy_rates(
 fn build_history_energy_rates(
     base_history_rates_path: &Path,
     heating_report_path: &Path,
-    scenario: &faris_model::LoadedScenario,
+    context: EnergySourceContext<'_>,
 ) -> Result<HistoryEnergyRatesArtifact, String> {
     let base_path = base_history_rates_path
         .canonicalize()
@@ -1581,7 +1649,48 @@ fn build_history_energy_rates(
     let base_sha = sha256_hex(&base_bytes);
     let base: super::transport::DesignHistoryRatesArtifact = serde_json::from_slice(&base_bytes)
         .map_err(|e| format!("CAD history-rate artifact JSON: {e}"))?;
-    let rates = super::transport::load_design_history_rates(&base_path, scenario)?;
+    let (rates, schema_version, scenario_id, scenario_sha256, cad_source_identity) = match context {
+        EnergySourceContext::LegacyScenario(scenario) => {
+            let rates = super::transport::load_design_history_rates(&base_path, scenario)?;
+            if base.schema_version != super::transport::DESIGN_HISTORY_RATES_VERSION {
+                return Err("legacy history-energy receipt requires CAD history rates v0.1".into());
+            }
+            if Some(scenario.source_sha256.as_str()) != base.scenario_sha256.as_deref()
+                || base.scenario_id.as_deref() != Some(scenario.scenario.id.as_str())
+            {
+                return Err("legacy history scenario identity differs from its CAD rates".into());
+            }
+            (
+                rates,
+                HISTORY_ENERGY_RATES_VERSION,
+                Some(scenario.scenario.id.clone()),
+                Some(scenario.source_sha256.clone()),
+                None,
+            )
+        }
+        EnergySourceContext::CadDesign(context) => {
+            let rates =
+                super::transport::load_cad_design_history_rates(&base_path, &context.design_path)?;
+            let identity = base
+                .cad_source_identity
+                .as_ref()
+                .ok_or("CAD history-energy receipt requires typed CAD source identity")?;
+            if base.schema_version != super::transport::DESIGN_HISTORY_RATES_CAD_VERSION
+                || identity.design_id != context.design_id
+                || identity.design_sha256 != context.design_sha256
+                || identity.fusion_power_mw != context.fusion_power_mw
+            {
+                return Err("CAD design source identity differs from its history rates".into());
+            }
+            (
+                rates,
+                HISTORY_ENERGY_RATES_CAD_VERSION,
+                None,
+                None,
+                Some(identity.clone()),
+            )
+        }
+    };
     let report_bytes = read_bounded(&report_path).map_err(|e| e.to_string())?;
     let report_sha = sha256_hex(&report_bytes);
     let report: DesignHeatingReport = serde_json::from_slice(&report_bytes)
@@ -1603,9 +1712,7 @@ fn build_history_energy_rates(
         .execution_identity
         .as_ref()
         .is_some_and(|identity| verify_execution_identity(identity, heating_run_dir));
-    if scenario.source_sha256 != base.scenario_sha256
-        || base.scenario_id != scenario.scenario.id
-        || report.schema_version != RESULT_SCHEMA
+    if report.schema_version != RESULT_SCHEMA
         || response.status != "CALCULATED"
         || !response.target_reached
         || !response.closure_residual.within_3se
@@ -1740,9 +1847,10 @@ fn build_history_energy_rates(
         );
     }
     Ok(HistoryEnergyRatesArtifact {
-        schema_version: HISTORY_ENERGY_RATES_VERSION.into(),
-        scenario_id: base.scenario_id,
-        scenario_sha256: base.scenario_sha256,
+        schema_version: schema_version.into(),
+        scenario_id,
+        scenario_sha256,
+        cad_source_identity,
         base_rates_path: canonical_file(&base_path)?,
         base_rates_sha256: base_sha,
         heating_report_path: canonical_file(&report_path)?,
