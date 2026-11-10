@@ -77,3 +77,43 @@ This is a bounded numerical implementation check, not nuclear-data
 qualification or VAL043 evidence. The composite cross-section index must pass
 the existing exact full-chain coverage guard before any R2S neutron transport
 or depletion run.
+
+## Serial whole-workflow replicate collection
+
+`r3_campaign.py` freezes the replicate count, all stage seeds, the exact three
+activation grids, model dependencies, cross-section index, and implementation
+hashes before launching any transport. It runs one D1S calculation per
+replicate and one independent bounded R2S calculation at each 100, 50, and
+25 cm activation grid, then writes the existing pairwise `r3_compare.py`
+reports. All commands run serially. The grids are retained as separate
+activation-discretization evidence; the response mesh remains the fixed R3
+mesh described above. The driver does not add a convergence tolerance, change
+the 0.85–1.15 point band, aggregate a campaign verdict, or claim physical data
+qualification. `r3_compare.py` continues to report the D1S/R2S covariance as
+unknown. Replicate records preserve the independent stage seeds for a later
+predeclared uncertainty analysis.
+
+The runner requires at least two replicates and a seed base. Within each
+replicate it assigns disjoint seeds to D1S, R2S neutron transport, and R2S
+photon transport; seed blocks for different replicates are also disjoint. It
+refuses an existing output directory, stops on the first failed command, and
+does not resume or overwrite a partial campaign. For the current conditional
+method-control composite and fresh RM-M model, a coordinator can predeclare and
+start the collection with:
+
+```bash
+OPENMC_PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python
+PYTHONPATH=integrations/openmc/risk_tests "$OPENMC_PY" integrations/openmc/risk_tests/r3_campaign.py \
+  --model-dir runs/continuation/s0g-rm-m-v3 \
+  --cross-sections runs/continuation/r3-ce-review-20261109-v2/cross_sections.method-control.xml \
+  --python "$OPENMC_PY" \
+  --out-dir runs/continuation/r3-method-control-replicates-v1 \
+  --replicates 2 --seed-base 20261401 --purpose conditional-method-control
+```
+
+`campaign-plan.json` is immutable pre-run configuration; `campaign-state.json`
+records its plan hash and each command, log, exit code, and output-record hash. An
+`ALL_COMMANDS_EXITED_ZERO` status means only that commands completed and
+expected records were written. It is not a convergence, uncertainty, VAL043,
+or physical-validation verdict. Source-response mesh convergence and
+activation-grid convergence remain distinct questions.
