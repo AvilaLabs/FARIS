@@ -1263,6 +1263,128 @@ mod tests {
         assert!(app.message.contains("Next step:"), "{}", app.message);
     }
 
+    /// Runs a real egui panel window through repeated Tab events and records the
+    /// rendered AccessKit focus target. This complements the command/state tests:
+    /// it exercises widgets after layout and makes missing focus metadata visible.
+    fn rendered_focus_walk(panel_name: &str, render: impl FnMut(&egui::Context)) -> Vec<String> {
+        use std::collections::HashMap;
+
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let mut render = render;
+        let mut nodes: HashMap<egui::accesskit::NodeId, (String, String, String)> = HashMap::new();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1100.0, 900.0));
+        let mut focused = Vec::new();
+
+        // Settle the first layout before asking egui to move focus.
+        for frame in 0..3_u32 {
+            let output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    time: Some(f64::from(frame) / 30.0),
+                    ..Default::default()
+                },
+                |ui| render(ui.ctx()),
+            );
+            if let Some(update) = &output.platform_output.accesskit_update {
+                for (id, node) in &update.nodes {
+                    nodes.insert(
+                        *id,
+                        (
+                            format!("{:?}", node.role()),
+                            node.label().unwrap_or_default().to_owned(),
+                            format!("{:?}", node.bounds()),
+                        ),
+                    );
+                }
+            }
+            output.drop_without_applying_deltas();
+        }
+
+        for index in 0..32_u32 {
+            let output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    time: Some(f64::from(index + 3) / 30.0),
+                    events: vec![egui::Event::Key {
+                        key: Key::Tab,
+                        physical_key: Some(Key::Tab),
+                        pressed: true,
+                        repeat: false,
+                        modifiers: Modifiers::NONE,
+                    }],
+                    ..Default::default()
+                },
+                |ui| render(ui.ctx()),
+            );
+            if let Some(update) = &output.platform_output.accesskit_update {
+                for (id, node) in &update.nodes {
+                    nodes.insert(
+                        *id,
+                        (
+                            format!("{:?}", node.role()),
+                            node.label().unwrap_or_default().to_owned(),
+                            format!("{:?}", node.bounds()),
+                        ),
+                    );
+                }
+            }
+            let focused_id = ctx
+                .memory(|memory| memory.focused())
+                .map(|id| id.accesskit_id());
+            if let Some(id) = focused_id {
+                let description = nodes.get(&id).map_or_else(
+                    || format!("{panel_name}: {id:?} (no AccessKit node in rendered tree)"),
+                    |(role, label, bounds)| {
+                        format!("{panel_name}: {id:?} role={role} label={label:?} bounds={bounds}")
+                    },
+                );
+                focused.push(description);
+            }
+            // Always release texture deltas before any test assertion can panic.
+            output.drop_without_applying_deltas();
+        }
+        focused
+    }
+
+    // Verifies rendered keyboard focus can enter the native CAD panels. This is
+    // an egui/AccessKit widget audit, not an OS screen-reader or native-dialog test.
+    #[test]
+    fn cad_panels_expose_rendered_focus_targets_to_tab_walk() {
+        let mut transport_panel = crate::design_transport_panel::DesignTransportPanel::default();
+        transport_panel.open = true;
+        let transport = rendered_focus_walk("CAD flux", |ctx| transport_panel.window(ctx));
+        let mut heating_panel = crate::design_heating_panel::DesignHeatingPanel::default();
+        heating_panel.open = true;
+        let heating = rendered_focus_walk("CAD heating", |ctx| heating_panel.window(ctx));
+        let mut maintenance_panel = crate::maintenance_dose_panel::MaintenanceDosePanel::default();
+        maintenance_panel.open = true;
+        let maintenance =
+            rendered_focus_walk("CAD maintenance dose", |ctx| maintenance_panel.window(ctx));
+
+        for (name, walk) in [
+            ("CAD flux", transport),
+            ("CAD heating", heating),
+            ("CAD maintenance dose", maintenance),
+        ] {
+            let distinct: BTreeSet<_> = walk.iter().collect();
+            assert!(
+                distinct.len() >= 2,
+                "{name} focus did not visit multiple rendered widgets: {walk:#?}"
+            );
+            assert!(
+                walk.iter()
+                    .all(|sample| !sample.contains("no AccessKit node")),
+                "{name} has a focused widget missing from the rendered accessibility tree: {walk:#?}"
+            );
+            assert!(
+                walk.iter().all(|sample| sample.contains("bounds=Some(")),
+                "{name} has a focused widget without rendered bounds: {walk:#?}"
+            );
+            eprintln!("rendered focus walk {name}: {walk:#?}");
+        }
+    }
+
     // Verifies: A11Y-001, A11Y-008
     #[test]
     fn the_viewport_and_plot_keys_move_the_view_and_the_cursor_year() {
