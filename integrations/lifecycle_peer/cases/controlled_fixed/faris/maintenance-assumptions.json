@@ -7,7 +7,7 @@
         "blanket"
       ],
       "threshold": {
-        "design": "faris-one-boundary-control",
+        "design": "no-port-breeder-one-boundary-outage-control",
         "kind": "calibrate",
         "target_cooldown_s": 2592000.0
       },

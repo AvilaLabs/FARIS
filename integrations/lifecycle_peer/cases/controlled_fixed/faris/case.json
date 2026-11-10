@@ -21,7 +21,7 @@
     },
     "maintenance_assumptions": {
       "path": "maintenance-assumptions.json",
-      "sha256": "86f18382cd174fc7349a5476b18ce0006e3b8e1565fdd31353f9f7f18c4e0304"
+      "sha256": "62d7b41d33fc15a27835edb4a6af54bc8b527d46a10bbb4c709ae56dbaf706bf"
     },
     "physics": {
       "path": "physics.json",

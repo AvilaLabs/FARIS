@@ -25,6 +25,15 @@ class FarisNativeLifecycleCaseTests(unittest.TestCase):
         self.assertIn("not experimentally validated", native.CASE["scope"])
         self.assertEqual(set(files), {"scenario", "physics", "history_template", "maintenance_assumptions"})
 
+    def test_preflight_rejects_calibration_target_not_generated_by_runner(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "assumptions.json"
+            assumptions = json.loads(native.verify_case_files()["maintenance_assumptions"].read_text())
+            assumptions["classes"]["blanket"]["threshold"]["design"] = "stale-design-id"
+            path.write_text(json.dumps(assumptions))
+            with self.assertRaisesRegex(ValueError, "stale-design-id.*generated designs"):
+                native.validate_calibration_targets(path, {native.CASE["case_id"]})
+
     def test_threshold_comes_from_native_transport_rate_and_authored_interval(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -39,7 +39,25 @@ def verify_case_files() -> dict[str, Path]:
         if sha256(path) != item["sha256"]:
             raise ValueError(f"FARIS {name} input SHA-256 mismatch")
         out[name] = path
+    validate_calibration_targets(out["maintenance_assumptions"], {CASE["case_id"]})
     return out
+
+
+def validate_calibration_targets(assumptions_path: Path, generated_design_ids: set[str]) -> None:
+    """Reject authored calibration references that the runner will not generate."""
+    assumptions = json.loads(assumptions_path.read_text(encoding="utf-8"))
+    for class_name, spec in assumptions.get("classes", {}).items():
+        threshold = spec.get("threshold", {}) if isinstance(spec, dict) else {}
+        if not isinstance(threshold, dict):
+            continue
+        if threshold.get("kind") != "calibrate":
+            continue
+        design_id = threshold.get("design")
+        if design_id not in generated_design_ids:
+            raise ValueError(
+                f"FARIS calibration for class {class_name!r} targets design {design_id!r}, "
+                f"but generated designs are {sorted(generated_design_ids)!r}"
+            )
 
 
 def bounded_cli(argv: list[str], cwd: Path, timeout: int, output_limit: int) -> dict[str, Any]:
