@@ -799,6 +799,19 @@ fn validation_hover_text(quantity: faris_model::validation::Quantity) -> String 
     )
 }
 
+fn validation_tag(quantity: faris_model::validation::Quantity) -> String {
+    faris_model::validation::ValidationMark::current(quantity).tag()
+}
+
+fn validated_value(
+    ui: &mut egui::Ui,
+    value: impl Into<String>,
+    quantity: faris_model::validation::Quantity,
+) {
+    ui.monospace(format!("{} {}", value.into(), validation_tag(quantity)))
+        .on_hover_text(validation_hover_text(quantity));
+}
+
 /// A time in service in the unit the user chose (years until they choose), unit attached.
 fn years_text(seconds: f64, decimals: usize) -> String {
     crate::quantity_text::quantity("service_time", "yr", seconds, decimals)
@@ -1108,7 +1121,11 @@ fn summary_table(ui: &mut egui::Ui, result: &MaintenanceResult) {
 fn net_cell(ui: &mut egui::Ui, summary: &HistorySummary) {
     match net_text(summary) {
         Some(text) => {
-            ui.monospace(text);
+            validated_value(
+                ui,
+                text,
+                faris_model::validation::Quantity::NetElectricPower,
+            );
         }
         None => {
             ui.weak("unavailable").on_hover_text(NET_UNAVAILABLE);
@@ -1121,13 +1138,29 @@ fn summary_row(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
     ui.strong(name);
     ui.label(years_text(fixed.history_end_s, 1))
         .on_hover_text(outcome_label(&fixed.outcome));
-    ui.monospace(format!("{:.1}", days(fixed.total_replacement_downtime_s)));
+    validated_value(
+        ui,
+        format!("{:.1}", days(fixed.total_replacement_downtime_s)),
+        faris_model::validation::Quantity::Availability,
+    );
     let computed = design.computed.summary.as_ref();
     match (design.computed.status, computed) {
         (Status::Evaluated, Some(c)) => {
-            ui.monospace(format!("{:.1}", days(c.total_replacement_downtime_s)));
-            ui.monospace(availability_text(fixed));
-            ui.monospace(availability_text(c));
+            validated_value(
+                ui,
+                format!("{:.1}", days(c.total_replacement_downtime_s)),
+                faris_model::validation::Quantity::Availability,
+            );
+            validated_value(
+                ui,
+                availability_text(fixed),
+                faris_model::validation::Quantity::Availability,
+            );
+            validated_value(
+                ui,
+                availability_text(c),
+                faris_model::validation::Quantity::Availability,
+            );
             net_cell(ui, fixed);
             net_cell(ui, c);
             badge::badge(
@@ -1145,7 +1178,11 @@ fn summary_row(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
         }
         _ => {
             ui.weak("\u{2014}");
-            ui.monospace(availability_text(fixed));
+            validated_value(
+                ui,
+                availability_text(fixed),
+                faris_model::validation::Quantity::Availability,
+            );
             ui.weak("\u{2014}");
             net_cell(ui, fixed);
             ui.weak("\u{2014}");
@@ -1445,7 +1482,7 @@ fn event_row(ui: &mut egui::Ui, event: &EventRecord) {
         }
         (None, Some(total), Some(cool)) => {
             ui.horizontal(|ui| {
-                ui.monospace(format!("{:.1}", days(total)));
+                validated_value(ui, format!("{:.1}", days(total)), faris_model::validation::Quantity::DecayHeat);
                 if event.window_limited {
                     badge::badge(
                         ui,
@@ -1455,7 +1492,11 @@ fn event_row(ui: &mut egui::Ui, event: &EventRecord) {
                     );
                 }
             });
-            ui.monospace(format!("{:.1}", days(cool)));
+            validated_value(
+                ui,
+                format!("{:.1}", days(cool)),
+                faris_model::validation::Quantity::DecayHeat,
+            );
             ui.monospace(format!("{:.1}", days(event.work_s)));
             match &event.why {
                 Some(why) => {
@@ -1494,7 +1535,11 @@ fn iteration_list(ui: &mut egui::Ui, computed: &ComputedResult) {
             ui.end_row();
             for iteration in &computed.iterations {
                 ui.monospace(iteration.iteration.to_string());
-                ui.monospace(format!("{:.2}", days(iteration.max_change_s)));
+                validated_value(
+                    ui,
+                    format!("{:.2}", days(iteration.max_change_s)),
+                    faris_model::validation::Quantity::DecayHeat,
+                );
                 ui.label(if iteration.window_limited {
                     "yes"
                 } else {
@@ -1515,7 +1560,9 @@ fn iteration_list(ui: &mut egui::Ui, computed: &ComputedResult) {
                     })
                     .collect::<Vec<_>>()
                     .join("; ");
-                ui.label(text);
+                ui.label(text).on_hover_text(validation_hover_text(
+                    faris_model::validation::Quantity::DecayHeat,
+                ));
                 ui.end_row();
             }
         });
@@ -1608,12 +1655,14 @@ mod tests {
         for quantity in [
             faris_model::validation::Quantity::Availability,
             faris_model::validation::Quantity::NetElectricPower,
+            faris_model::validation::Quantity::DecayHeat,
         ] {
             let note = faris_model::validation::note(quantity);
             let detail = validation_hover_text(quantity);
             assert!(detail.contains(&note.scope));
             assert!(detail.contains(&note.why));
             assert!(detail.contains(&note.next_step));
+            assert!(validation_tag(quantity).contains(note.state.label()));
         }
     }
 
