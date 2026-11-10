@@ -1165,21 +1165,57 @@ mod tests {
     use super::*;
 
     #[test]
-    fn completed_run_is_detectably_stale_when_visible_inputs_change() {
+    fn completed_worker_result_is_tied_to_its_input_snapshot() {
+        let result = parse_result(include_bytes!(
+            "../../../fuzz/entries/tests/fixtures/dose-maintenance-result-v02.json"
+        ))
+        .unwrap();
         let snapshot = DoseInputs {
             designs: "designs.json".into(),
             assumptions: "assumptions.json".into(),
             curves: "curves.json".into(),
             output: "result.json".into(),
         };
-        assert!(!run_inputs_changed(Some(&snapshot), &snapshot));
-
-        let changed = DoseInputs {
-            assumptions: "other-assumptions.json".into(),
-            ..snapshot.clone()
+        let output = PathBuf::from("result.json");
+        let (sender, receiver) = mpsc::channel();
+        sender.send(Ok((output.clone(), result.clone()))).unwrap();
+        let mut panel = MaintenanceDosePanel {
+            open: true,
+            inputs: snapshot.clone(),
+            run: Some(DoseRunState {
+                cancel: Cancellation::default(),
+                receiver,
+                progress: Arc::default(),
+                inputs: snapshot.clone(),
+            }),
+            ..MaintenanceDosePanel::default()
         };
-        assert!(run_inputs_changed(Some(&snapshot), &changed));
-        assert!(!run_inputs_changed(None, &changed));
+
+        panel.window(&egui::Context::default());
+
+        assert_eq!(panel.interface_status()["result_state"], "ready");
+        assert_eq!(
+            panel.interface_status()["result_inputs_changed_since_run"],
+            false
+        );
+        assert_eq!(panel.file_name, output.display().to_string());
+        let LoadState::Ready(loaded) = &panel.state else {
+            panic!("worker completion should retain its result")
+        };
+        assert_eq!(loaded, &result);
+
+        panel.inputs.assumptions = "other-assumptions.json".into();
+        assert_eq!(
+            panel.interface_status()["result_inputs_changed_since_run"],
+            true
+        );
+        assert!(matches!(panel.state, LoadState::Ready(_)));
+
+        panel.inputs = snapshot;
+        assert_eq!(
+            panel.interface_status()["result_inputs_changed_since_run"],
+            false
+        );
     }
 
     #[test]
