@@ -514,6 +514,86 @@
       "retrospective_test": "e220f54",
       "disposition": "Opening the whole-life mapping lengthened the form beyond the floating window, leaving Run below its visible edge. The form now scrolls with visible scrollbars while Run and Cancel stay in a footer. A settled-frame clipping regression and actual 980 by 640 native captures show Run remains visible with the mapping expanded. CAD calculation identity is also distinguished from the background study scene. OS-level input routing and full accessibility compliance are not established by these app-owned captures.",
       "regression_test": "crates/faris-app/src/design_transport_panel.rs::expanded_cad_mapping_keeps_run_visible_in_a_small_window"
+    },
+    {
+      "id": "FARIS-040",
+      "title": "CAD volume check inspected an unselected conversion attempt",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "00eecd1",
+      "retrospective_test": "8e7755a",
+      "disposition": "When CAD conversion refined its chord, the volume check could inspect a different conversion attempt directory from the mesh selected for reporting. The check now uses the selected attempt directory and its H5M identity. The test pins the selected attempt and file hash. No physical qualification or control PASS is implied.",
+      "regression_test": "crates/faris-engine/src/design/geometry/tests.rs::default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_chord"
+    },
+    {
+      "id": "FARIS-041",
+      "title": "Peer comparison read Bluemira timeline metrics from the wrong JSON source",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "714f4fe",
+      "disposition": "The peer runner routed Bluemira timeline metrics from the wrong JSON source, causing an actual v2 parent-process crash. The runner now reads the worker\u2019s final JSON stdout line and cross-checks its timeline against saved native arrays; absent or non-finite metrics leave comparison incomplete. The 23 pure checks pass; native v3 rerun is pending, and no native control PASS or physical qualification is claimed.",
+      "regression_test": "integrations/lifecycle_peer/test_controlled_case.py::test_bluemira_metrics_are_routed_from_worker_stdout_and_checked_against_native_timeline"
+    },
+    {
+      "id": "FARIS-042",
+      "title": "Completed dose results could be presented after their inputs changed",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "352b1ef",
+      "retrospective_test": "d94abd9",
+      "disposition": "A completed maintenance-dose worker result was not reliably tied to the input snapshot that produced it, allowing edited visible inputs to leave a stale result presented as current. The panel now binds results to their input snapshot and marks changed inputs stale. The completed-worker regression exercises result loading and snapshot identity; added native checks are pending. No physical dose qualification is implied.",
+      "regression_test": "crates/faris-app/src/maintenance_dose_panel.rs::completed_worker_result_is_tied_to_its_input_snapshot"
+    },
+    {
+      "id": "FARIS-043",
+      "title": "ACTINV dose run could proceed without matching the manifest-selected program",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "8b124f1",
+      "disposition": "A prepared dose manifest did not require the currently selected ACTINV executable path and SHA-256 to match the program identity recorded by the manifest. Dose runs now require both to match before execution. The bounded authority regression checks path and hash mismatch rejection; this is a preventive authority check, with no actual exploit event claimed.",
+      "regression_test": "crates/faris-engine/src/maintenance/spatial_dose_worker.rs::actinv_authority_requires_the_current_path_and_hash_to_match_the_manifest_identity"
+    },
+    {
+      "id": "FARIS-044",
+      "title": "CAD deviation report assembly raised a NameError on a small native run",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "eda7a59",
+      "disposition": "A small native CAD deviation run failed during DeviationReportAssembly with a NameError after 105.9 seconds. The report assembly now keeps each solid\u2019s certification bound to that solid. A regression covers separate per-solid global certifications. This was a tool failure, not a geometric qualification result.",
+      "regression_test": "integrations/cad/test_faris_deviation.py::test_each_solid_gets_its_own_global_certification"
+    },
+    {
+      "id": "FARIS-045",
+      "title": "Process audit missed launches in inline tests and the prepared-cache path",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "3cff2d5",
+      "disposition": "The process audit stopped scanning a Rust file at the first inline test module and did not account for the prepared-cache launch path, leaving some launches outside its reviewed inventory. The scanner now excludes inline test blocks without ending the file scan and audits prepared-cache launches. Its synthetic regression places production launches after inline tests and checks both launch forms. This was an audit coverage gap; no process exploit or incident is claimed.",
+      "regression_test": "crates/faris-engine/tests/process_audit.rs::the_scanner_sees_a_new_spawn_in_a_synthetic_file"
     }
   ]
 }
