@@ -146,10 +146,6 @@ impl Settings {
         }
     }
 
-    pub fn has_any_tool(&self) -> bool {
-        Tool::ALL.iter().any(|t| self.tool(*t).is_some())
-    }
-
     /// A shared setting kept in the file's `values` section (for example `ui.scale`), as text.
     pub fn value(&self, key: &str) -> Option<String> {
         match self.other.get("values")?.get(key)? {
@@ -537,10 +533,8 @@ mod tests {
         settings.set_tool(Tool::CadPython, "  /a/python  ");
         assert_eq!(settings.tool(Tool::CadPython), Some("/a/python"));
         assert_eq!(settings.raw(Tool::CadPython), "  /a/python  ");
-        assert!(settings.has_any_tool());
         settings.set_tool(Tool::CadPython, "   ");
         assert_eq!(settings.tool(Tool::CadPython), None, "blank is not set");
-        assert!(!settings.has_any_tool());
         settings.set_tool(Tool::CadPython, "");
         assert!(settings.tools.is_empty());
     }

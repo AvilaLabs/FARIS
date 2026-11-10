@@ -395,6 +395,8 @@ struct ActinvEventOutputs {
     total_photons_by_cooling: Vec<f64>,
 }
 
+// Keep current executable authority separate from the saved physics manifest.
+#[allow(clippy::too_many_arguments)]
 fn run_actinv_event_batches(
     manifest: &DosePhysicsManifest,
     actinv_executable: &Path,
