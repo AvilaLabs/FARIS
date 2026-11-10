@@ -28,10 +28,9 @@ solid, it cannot raise the maximum and is settled. The rest go to OpenCASCADE.
 
 Coverage is reported per solid. A solid whose every point was settled or measured has a
 "maximum over all points": exact over the sample points, not a bound over the points between
-them. Otherwise the result is a "sampled maximum". Triangle coverage uses a vertex-distance
-bound for verified convex planar faces and the 1-Lipschitz subdivision bound otherwise. The
-convex-face check assumes OpenCASCADE's stored line and vertex geometry is accurate within the
-declared shape-unit slack; uncertain trims are excluded from that shortcut.
+them. Otherwise the result is a "sampled maximum". Triangle coverage uses vertex-distance
+bounds for verified convex planar faces and topology-proven full tori, and the 1-Lipschitz
+subdivision bound otherwise. The analytic shortcuts exclude uncertain trims.
 """
 from __future__ import annotations
 
@@ -513,6 +512,66 @@ class SolidFaces:
             self.slot[ids] = np.arange(len(ids))
         self._classifiers = {}
         self._convex_planar_faces = None
+        self._full_torus_faces = None
+
+    def full_torus_faces(self):
+        """Return torus parameters only for faces proven to be the whole periodic surface.
+
+        A full UV range alone is not enough: trims can include holes or notches. The accepted
+        topology is one wire made from exactly two distinct periodic seam edges, both closed
+        on the face, plus full canonical U and V periods.
+        """
+        if self._full_torus_faces is not None:
+            return self._full_torus_faces
+        from OCP.BRep import BRep_Tool
+        from OCP.BRepCheck import BRepCheck_Analyzer
+        from OCP.TopAbs import TopAbs_EDGE, TopAbs_WIRE
+        from OCP.TopExp import TopExp_Explorer
+        from OCP.TopoDS import TopoDS
+
+        result = []
+        period_slack = 1.0e-8
+        for i, face in enumerate(self.faces):
+            if self.kind[i] != "torus":
+                continue
+            if not BRepCheck_Analyzer(face).IsValid():
+                continue
+            major, minor = self.params[i]["major"], self.params[i]["minor"]
+            if not (math.isfinite(major) and math.isfinite(minor) and major > minor > 0.0):
+                continue
+            u0, u1, v0, v1 = (self.params[i][key] for key in ("u0", "u1", "v0", "v1"))
+            if (not all(math.isfinite(x) for x in (u0, u1, v0, v1))
+                    or abs((u1-u0) - TWO_PI) > period_slack
+                    or abs((v1-v0) - TWO_PI) > period_slack):
+                continue
+            wires = TopExp_Explorer(face, TopAbs_WIRE)
+            if not wires.More():
+                continue
+            wire = wires.Current()
+            wires.Next()
+            if wires.More():
+                continue
+            edges = TopExp_Explorer(wire, TopAbs_EDGE)
+            unique_edges = []
+            edge_uses = []
+            valid = True
+            while edges.More():
+                edge = TopoDS.Edge_s(edges.Current())
+                if not BRep_Tool.IsClosed_s(edge, face):
+                    valid = False
+                    break
+                edge_uses.append(edge)
+                if not any(edge.IsSame(prior) for prior in unique_edges):
+                    unique_edges.append(edge)
+                edges.Next()
+            # A torus fundamental rectangle has two seam curves, each used twice
+            # in the wire. Anything else can encode an unrecognized trim.
+            if (valid and len(edge_uses) == 4 and len(unique_edges) == 2
+                    and all(sum(edge.IsSame(candidate) for candidate in edge_uses) == 2
+                            for edge in unique_edges)):
+                result.append(self.params[i])
+        self._full_torus_faces = result
+        return result
 
     def convex_planar_faces(self):
         """Return verified single-wire convex planar faces as (origin, normal, polygon).
@@ -1000,6 +1059,47 @@ def convex_planar_triangle_bound(triangle, face):
     return max(bounds) + kernel_slack + 64.0 * np.finfo(np.float64).eps * scale
 
 
+def full_torus_triangle_bounds(triangles, params):
+    """Certified distance upper bounds for triangles against complete analytic tori.
+
+    On a full torus, boundary distance is ``abs(f-r)`` where
+    ``f=hypot(rho-major, axial)``. Away from the axis and from the major circle,
+    the Hessian norm of f is bounded by the expression below. Taylor's theorem
+    and barycentric variance then bound its deviation from linear interpolation
+    on a triangle by K * max_edge**2 / 6.
+    """
+    tris = np.asarray(triangles, dtype=np.float64)
+    if tris.ndim != 3 or tris.shape[1:] != (3, 3) or not np.isfinite(tris).all():
+        return np.full(len(tris) if tris.ndim else 0, np.inf)
+    out = np.full(len(tris), np.inf)
+    for face in params:
+        origin, axis = face["o"], face["z"]
+        rel = tris - origin
+        axial = np.einsum("ntk,k->nt", rel, axis)
+        perp = rel - axial[..., None] * axis
+        rho = np.linalg.norm(perp, axis=2)
+        f = np.hypot(rho - face["major"], axial)
+        edges = np.stack((tris[:, 0]-tris[:, 1], tris[:, 1]-tris[:, 2], tris[:, 2]-tris[:, 0]), axis=1)
+        diameter = np.linalg.norm(edges, axis=2).max(axis=1)
+        rho_lo = rho.min(axis=1) - diameter
+        rho_hi = rho.max(axis=1)
+        f_lo = f.min(axis=1) - diameter
+        valid = (np.isfinite(rho_lo) & np.isfinite(rho_hi) & np.isfinite(f_lo)
+                 & (rho_lo > 0.0) & (f_lo > 0.0))
+        if not valid.any():
+            continue
+        curvature = np.maximum(1.0 / f_lo[valid],
+            np.maximum(np.abs(rho_lo[valid]-face["major"]),
+                       np.abs(rho_hi[valid]-face["major"])) / (rho_lo[valid]*f_lo[valid]))
+        vertex_deviation = np.abs(f - face["minor"]).max(axis=1)
+        scale = np.maximum(1.0, np.maximum(np.abs(tris).max(axis=(1, 2)),
+                                          np.maximum(face["major"], face["minor"])))
+        bound = vertex_deviation[valid] + curvature * diameter[valid]**2 / 6.0
+        bound += max(CLASSIFY_TOLERANCE, FAST_MARGIN) + 64.0*np.finfo(np.float64).eps*scale[valid]
+        out[valid] = np.minimum(out[valid], bound)
+    return out
+
+
 def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_depth=18):
     """Bound distance to the CAD boundary over every point of every facet triangle.
 
@@ -1030,8 +1130,11 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
     if planar_faces:
         for i, tri in enumerate(triangles):
             planar_upper[i] = min(convex_planar_triangle_bound(tri, face) for face in planar_faces)
-    planar_done = planar_upper <= tolerance
-    certified_upper = float(np.max(planar_upper[planar_done])) if planar_done.any() else 0.0
+    torus_faces = solid.full_torus_faces() if hasattr(solid, "full_torus_faces") else ()
+    torus_upper = full_torus_triangle_bounds(triangles, torus_faces) if torus_faces else np.full(len(triangles), np.inf)
+    analytic_upper = np.minimum(planar_upper, torus_upper)
+    planar_done = analytic_upper <= tolerance
+    certified_upper = float(np.max(analytic_upper[planar_done])) if planar_done.any() else 0.0
     # Largest unresolved upper bound first, so each query reduces the current global bound.
     pending = []
     serial = 0
@@ -1041,7 +1144,15 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
     unresolved = False
 
     def evaluate(tri, depth):
-        nonlocal queries, sampled_distance_upper
+        nonlocal queries, sampled_distance_upper, certified_upper
+        analytic_bound = math.inf
+        if planar_faces:
+            analytic_bound = min(convex_planar_triangle_bound(tri, face) for face in planar_faces)
+        if torus_faces:
+            analytic_bound = min(analytic_bound, float(full_torus_triangle_bounds(tri[None], torus_faces)[0]))
+        if analytic_bound <= tolerance:
+            certified_upper = max(certified_upper, analytic_bound)
+            return analytic_bound, None, depth
         center = tri.mean(axis=0)
         value, _calls = solid.point_distance(center, floor=0.0)
         queries += 1

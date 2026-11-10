@@ -124,6 +124,49 @@ else:
             return abs(float(point[2])), 0
 
     class CertifiedTriangleBound(unittest.TestCase):
+        def test_full_torus_hessian_bound_covers_dense_barycentric_samples(self):
+            params = {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 30., "minor": 5.}
+            tri = np.array([[[35., 0., 0.], [34., 1., .4], [34., -1., -.4]]])
+            bound = fd.full_torus_triangle_bounds(tri, [params])[0]
+            self.assertTrue(math.isfinite(bound))
+            for i in range(41):
+                for j in range(41-i):
+                    a, b = i/40, j/40
+                    p = (1-a-b)*tri[0, 0] + a*tri[0, 1] + b*tri[0, 2]
+                    rho = math.hypot(p[0], p[1])
+                    exact = abs(math.hypot(rho-30., p[2])-5.)
+                    self.assertLessEqual(exact, bound + 1e-12)
+
+        def test_full_torus_bound_rejects_triangles_near_singular_sets(self):
+            params = {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 30., "minor": 5.}
+            tri = np.array([[[30., 0., 0.], [30., 1., 0.], [30., 0., 1.]]])
+            self.assertTrue(math.isinf(fd.full_torus_triangle_bounds(tri, [params])[0]))
+
+        def test_torus_bound_is_rechecked_on_children_without_point_queries(self):
+            params = {"o": np.zeros(3), "z": np.array([0., 0., 1.]), "major": 30., "minor": 5.}
+
+            class FullTorusOracle:
+                calls = 0
+
+                def full_torus_faces(self):
+                    return [params]
+
+                def convex_planar_faces(self):
+                    return []
+
+                def point_distance(self, point, floor=0.0):
+                    self.calls += 1
+                    rho = math.hypot(point[0], point[1])
+                    return abs(math.hypot(rho-params["major"], point[2])-params["minor"]), 0
+
+            angles = np.deg2rad([0., 2., -2.])
+            tri = np.array([[[35*np.cos(a), 35*np.sin(a), 0.] for a in angles]])
+            oracle = FullTorusOracle()
+            result = fd.certify_triangles(oracle, tri, .1, max_queries=100, max_depth=12)
+            self.assertEqual(result["status"], "certified")
+            self.assertEqual(result["queries"], 1)
+            self.assertEqual(oracle.calls, 1)
+
         def test_subdivision_certifies_every_point_when_global_upper_is_under_tolerance(self):
             triangles = np.array([[[0.0, 0.0, 0.09], [0.2, 0.0, 0.09], [0.0, 0.2, 0.09]]])
             result = fd.certify_triangles(PlaneOracle(), triangles, 0.1, max_queries=1000, max_depth=8)
@@ -242,6 +285,14 @@ else:
         return profile.extrude(20).val()
 
     class ClosedForms(unittest.TestCase):
+        def test_full_torus_topology_guard_rejects_trimmed_torus(self):
+            full = fd.SolidFaces(cq.Solid.makeTorus(30, 5).wrapped)
+            self.assertGreaterEqual(len(full.full_torus_faces()), 1)
+            trimmed_shape = cq.Solid.makeTorus(30, 5).intersect(
+                cq.Workplane().box(80, 40, 40).translate((25, 0, 0)).val())
+            trimmed = fd.SolidFaces(trimmed_shape.wrapped)
+            self.assertEqual(len(trimmed.full_torus_faces()), 0)
+
         def test_the_closed_form_distance_agrees_with_opencascade_on_every_surface_type(self):
             rng = np.random.default_rng(1)
             for name, shape in shapes().items():
