@@ -44,8 +44,8 @@ pub fn parent_directory(path: &Path) -> &Path {
 }
 
 /// Flush the directory entry so a completed rename is durable. A no-op where
-/// directories cannot be opened for syncing (Windows); the result is ignored
-/// by callers that already committed the rename.
+/// directories cannot be opened for syncing (Windows). Unix errors propagate:
+/// a rename whose directory entry was not synced is not reported as durable.
 pub fn sync_directory(directory: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -76,17 +76,81 @@ pub fn write_with(
     bytes: &[u8],
     observe: &mut dyn FnMut(Step),
 ) -> io::Result<()> {
+    write_with_ops(path, existing, bytes, observe, &mut SystemOps)
+}
+
+/// Operations used by the writer state machine. The test backend models volatile and durable
+/// directory state while exercising this same sequence as the production filesystem backend.
+trait AtomicFileOps {
+    type Temporary;
+
+    fn create_temporary(&mut self, directory: &Path) -> io::Result<Self::Temporary>;
+    fn write_data(&mut self, temporary: &mut Self::Temporary, bytes: &[u8]) -> io::Result<()>;
+    fn sync_file(&mut self, temporary: &mut Self::Temporary) -> io::Result<()>;
+    fn rename(
+        &mut self,
+        temporary: Self::Temporary,
+        path: &Path,
+        existing: Existing,
+    ) -> io::Result<()>;
+    fn sync_directory(&mut self, directory: &Path) -> io::Result<()>;
+}
+
+struct SystemOps;
+
+impl AtomicFileOps for SystemOps {
+    type Temporary = tempfile::NamedTempFile;
+
+    fn create_temporary(&mut self, directory: &Path) -> io::Result<Self::Temporary> {
+        tempfile::Builder::new()
+            .prefix(".faris-save-")
+            .suffix(".tmp")
+            .tempfile_in(directory)
+    }
+
+    fn write_data(&mut self, temporary: &mut Self::Temporary, bytes: &[u8]) -> io::Result<()> {
+        temporary.write_all(bytes)
+    }
+
+    fn sync_file(&mut self, temporary: &mut Self::Temporary) -> io::Result<()> {
+        temporary.as_file().sync_all()
+    }
+
+    fn rename(
+        &mut self,
+        temporary: Self::Temporary,
+        path: &Path,
+        existing: Existing,
+    ) -> io::Result<()> {
+        match existing {
+            Existing::Replace => temporary.persist(path).map(|_| ()).map_err(|e| e.error),
+            Existing::Refuse => temporary
+                .persist_noclobber(path)
+                .map(|_| ())
+                .map_err(|e| e.error),
+        }
+    }
+
+    fn sync_directory(&mut self, directory: &Path) -> io::Result<()> {
+        sync_directory(directory)
+    }
+}
+
+fn write_with_ops<O: AtomicFileOps>(
+    path: &Path,
+    existing: Existing,
+    bytes: &[u8],
+    observe: &mut dyn FnMut(Step),
+    ops: &mut O,
+) -> io::Result<()> {
     let directory = parent_directory(path);
-    let mut temporary = tempfile::Builder::new()
-        .prefix(".faris-save-")
-        .suffix(".tmp")
-        .tempfile_in(directory)?;
+    let mut temporary = ops.create_temporary(directory)?;
     observe(Step::CreateTemporary);
-    temporary.write_all(bytes)?;
+    ops.write_data(&mut temporary, bytes)?;
     observe(Step::WriteData);
-    temporary.as_file().sync_all()?;
+    ops.sync_file(&mut temporary)?;
     observe(Step::FsyncFile);
-    commit_with(temporary, path, existing, observe)
+    commit_with_ops(temporary, path, existing, observe, ops)
 }
 
 /// Rename an already written and fsynced temporary file onto `path`, then
@@ -105,17 +169,19 @@ fn commit_with(
     existing: Existing,
     observe: &mut dyn FnMut(Step),
 ) -> io::Result<()> {
-    match existing {
-        Existing::Replace => temporary.persist(path).map(|_| ()).map_err(|e| e.error)?,
-        Existing::Refuse => temporary
-            .persist_noclobber(path)
-            .map(|_| ())
-            .map_err(|e| e.error)?,
-    }
+    commit_with_ops(temporary, path, existing, observe, &mut SystemOps)
+}
+
+fn commit_with_ops<O: AtomicFileOps>(
+    temporary: O::Temporary,
+    path: &Path,
+    existing: Existing,
+    observe: &mut dyn FnMut(Step),
+    ops: &mut O,
+) -> io::Result<()> {
+    ops.rename(temporary, path, existing)?;
     observe(Step::Rename);
-    // The rename is done; a failure to sync the directory only weakens
-    // durability, so it is not reported as a failed save.
-    let _ = sync_directory(parent_directory(path));
+    ops.sync_directory(parent_directory(path))?;
     observe(Step::FsyncDirectory);
     Ok(())
 }
@@ -151,19 +217,15 @@ mod tests {
         assert!(!missing.exists());
     }
 
-    /// A model of a filesystem that may lose anything not yet fsynced: after
-    /// any prefix of the recorded steps, every unsynced step may or may not
-    /// have reached the disk, in any combination. The destination must then be
-    /// the previous file or the complete new file.
+    /// Check that the recorded writer sequence cannot persist a rename without the data.
+    /// The sequence comes from the real production filesystem backend; persistence choices
+    /// below are the crash model, not a test of an actual block device.
     fn crash_states_are_safe(steps: &[Step]) -> Result<usize, String> {
         let mut checked = 0;
         for prefix in 0..=steps.len() {
             let done = &steps[..prefix];
-            // Steps at or before the last barrier that covers them are durable.
-            let has = |s: Step| done.contains(&s);
+            let has = |step: Step| done.contains(&step);
             let data_durable = has(Step::FsyncFile);
-            // Unsynced steps: data (if no fsync yet) and the rename (if no
-            // directory fsync yet) may each be lost independently.
             for rename_persisted in [false, true] {
                 if rename_persisted && !has(Step::Rename) {
                     continue;
@@ -181,7 +243,7 @@ mod tests {
                     checked += 1;
                     if rename_persisted && !data_persisted && !data_durable {
                         return Err(format!(
-                            "crash after {done:?}: the new name can survive without its data"
+                            "crash after {done:?}: rename may outlive file data"
                         ));
                     }
                 }
@@ -192,14 +254,14 @@ mod tests {
 
     // Verifies: REL-010
     #[test]
-    fn modelled_power_loss_states_never_expose_partial_data() {
+    fn production_filesystem_writer_reports_its_operation_order() {
         let mut steps = Vec::new();
         let dir = tempfile::tempdir().unwrap();
         write_with(
             &dir.path().join("a.json"),
             Existing::Replace,
-            b"{}",
-            &mut |s| steps.push(s),
+            b"complete payload",
+            &mut |step| steps.push(step),
         )
         .unwrap();
         assert_eq!(
@@ -212,8 +274,202 @@ mod tests {
                 Step::FsyncDirectory
             ]
         );
-        let states = crash_states_are_safe(&steps).unwrap();
-        assert!(states >= 6, "model explored only {states} states");
+        assert!(crash_states_are_safe(&steps).unwrap() >= 6);
+    }
+
+    /// Volatile/durable filesystem state for testing crash/reopen outcomes through the
+    /// production writer state machine. Data and directory entries become durable only at
+    /// their respective sync operations; a crash may retain or drop an unsynced rename.
+    #[derive(Clone)]
+    struct ModelSnapshot {
+        temporary: Option<Vec<u8>>,
+        durable_temporary: Option<Vec<u8>>,
+        target: Vec<u8>,
+        rename_pending: bool,
+        directory_synced: bool,
+    }
+
+    struct ModelOps {
+        snapshot: ModelSnapshot,
+        history: Vec<ModelSnapshot>,
+        fail_directory_sync: bool,
+        lose_file_sync: bool,
+    }
+
+    impl ModelOps {
+        fn new(previous: &[u8]) -> Self {
+            Self {
+                snapshot: ModelSnapshot {
+                    temporary: None,
+                    durable_temporary: None,
+                    target: previous.to_vec(),
+                    rename_pending: false,
+                    directory_synced: false,
+                },
+                history: Vec::new(),
+                fail_directory_sync: false,
+                lose_file_sync: false,
+            }
+        }
+
+        fn record(&mut self) {
+            self.history.push(self.snapshot.clone());
+        }
+
+        /// Reopening after a crash returns only durable names. Before directory sync, the
+        /// rename may have reached disk or may have been lost; both outcomes are represented.
+        fn crash_reopens(&self, state: &ModelSnapshot, previous: &[u8]) -> Vec<Vec<u8>> {
+            if state.directory_synced {
+                vec![state.target.clone()]
+            } else if state.rename_pending {
+                // An invalid writer order or lost file barrier can leave a surviving
+                // rename pointing at absent or incomplete data. Model that as corruption.
+                let new = state
+                    .durable_temporary
+                    .clone()
+                    .unwrap_or_else(|| b"<partial-or-missing-data>".to_vec());
+                vec![previous.to_vec(), new]
+            } else {
+                vec![previous.to_vec()]
+            }
+        }
+    }
+
+    impl AtomicFileOps for ModelOps {
+        type Temporary = ();
+
+        fn create_temporary(&mut self, _directory: &Path) -> io::Result<Self::Temporary> {
+            self.snapshot.temporary = Some(Vec::new());
+            self.record();
+            Ok(())
+        }
+
+        fn write_data(&mut self, _temporary: &mut Self::Temporary, bytes: &[u8]) -> io::Result<()> {
+            self.snapshot.temporary = Some(bytes.to_vec());
+            self.record();
+            Ok(())
+        }
+
+        fn sync_file(&mut self, _temporary: &mut Self::Temporary) -> io::Result<()> {
+            if !self.lose_file_sync {
+                self.snapshot.durable_temporary = self.snapshot.temporary.clone();
+            }
+            self.record();
+            Ok(())
+        }
+
+        fn rename(
+            &mut self,
+            _temporary: Self::Temporary,
+            _path: &Path,
+            _existing: Existing,
+        ) -> io::Result<()> {
+            self.snapshot.target = self
+                .snapshot
+                .temporary
+                .take()
+                .expect("temporary is created before rename");
+            self.snapshot.rename_pending = true;
+            self.record();
+            Ok(())
+        }
+
+        fn sync_directory(&mut self, _directory: &Path) -> io::Result<()> {
+            if self.fail_directory_sync {
+                return Err(io::Error::other("injected directory sync failure"));
+            }
+            self.snapshot.directory_synced = true;
+            self.record();
+            Ok(())
+        }
+    }
+
+    // Verifies: REL-010
+    #[test]
+    fn writer_state_machine_crash_reopen_model_keeps_old_or_complete_new_data() {
+        let previous = b"previous complete version";
+        let next = b"new complete version";
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = ModelOps::new(previous);
+        write_with_ops(
+            &dir.path().join("a.json"),
+            Existing::Replace,
+            next,
+            &mut |_| {},
+            &mut model,
+        )
+        .unwrap();
+
+        assert_eq!(model.history.len(), 5);
+        for state in &model.history {
+            for reopened in model.crash_reopens(state, previous) {
+                assert!(
+                    reopened == previous || reopened == next,
+                    "crash/reopen exposed partial data: {reopened:?}"
+                );
+            }
+        }
+        assert_eq!(
+            model.crash_reopens(&model.snapshot, previous),
+            vec![next.to_vec()]
+        );
+    }
+
+    // Verifies: REL-010 (model sensitivity to missing file-data durability)
+    #[test]
+    fn crash_model_flags_rename_when_file_sync_did_not_make_data_durable() {
+        let previous = b"previous complete version";
+        let next = b"new complete version";
+        let mut model = ModelOps::new(previous);
+        model.lose_file_sync = true;
+        write_with_ops(
+            Path::new("a.json"),
+            Existing::Replace,
+            next,
+            &mut |_| {},
+            &mut model,
+        )
+        .unwrap();
+
+        let after_rename = &model.history[3];
+        let reopened = model.crash_reopens(after_rename, previous);
+        assert!(
+            reopened
+                .iter()
+                .any(|value| value != previous && value != next),
+            "the model did not expose the invalid rename's missing/partial data"
+        );
+    }
+
+    // Verifies: REL-010
+    #[test]
+    fn directory_sync_failure_is_reported_and_not_observed_as_a_barrier() {
+        let mut model = ModelOps::new(b"previous");
+        model.fail_directory_sync = true;
+        let mut steps = Vec::new();
+        let error = write_with_ops(
+            Path::new("a.json"),
+            Existing::Replace,
+            b"next",
+            &mut |step| steps.push(step),
+            &mut model,
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::Other);
+        assert_eq!(
+            steps,
+            vec![
+                Step::CreateTemporary,
+                Step::WriteData,
+                Step::FsyncFile,
+                Step::Rename
+            ]
+        );
+        assert!(!model.snapshot.directory_synced);
+        assert_eq!(
+            model.crash_reopens(&model.snapshot, b"previous"),
+            vec![b"previous".to_vec(), b"next".to_vec()]
+        );
     }
 
     // Verifies: REL-010

@@ -393,7 +393,8 @@ def main() -> int:
                 material_cell_ids.append(int(cell.get("id", "")))
         if not material_cell_ids:
             raise ValueError("geometry contains no explicitly material-filled cells")
-        validate_material_cell_coverage(material_cell_ids, cell_volumes)
+        material_cell_volumes = {cell_id: cell_volumes[cell_id] for cell_id in material_cell_ids}
+        validate_material_cell_coverage(material_cell_ids, material_cell_volumes)
         record["geometry_audit"] = {
             "cell_count": len(geometry_root.findall("cell")),
             "material_cell_ids": material_cell_ids,
@@ -604,7 +605,7 @@ def main() -> int:
                 stds = tally.std_dev.ravel().tolist()
                 if len(means) != len(material_cell_ids) or len(stds) != len(material_cell_ids):
                     raise RuntimeError(f"unexpected tally bin count for {expected_name}")
-                bins = map_material_cell_tally(tally_cell_ids, material_cell_ids, cell_volumes, means, stds)
+                bins = map_material_cell_tally(tally_cell_ids, material_cell_ids, material_cell_volumes, means, stds)
                 results[expected_name] = {"score": expected_score, "estimator": expected_estimator,
                                           "filter_cell_ids": tally_cell_ids, "bins": bins}
             record["response_coverage"] = {

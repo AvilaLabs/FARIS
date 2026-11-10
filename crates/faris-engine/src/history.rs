@@ -1589,6 +1589,22 @@ pub fn run_operating_history_cancellable(
     let mut next_snapshot_s = 0.0;
     let mut captured_event_count = 0usize;
     let mut segments = 0usize;
+    // Service-limit tie breaking is invariant across the run. Sort once rather
+    // than allocating and sorting the same list for every history segment.
+    let mut ordered_limits: Vec<&ServiceLimit> = assumptions.service_limits.iter().collect();
+    ordered_limits.sort_by(|a, b| {
+        let rank = |c: ComponentClass| {
+            if c == ComponentClass::Permanent {
+                0_u8
+            } else {
+                1_u8
+            }
+        };
+        rank(a.class)
+            .cmp(&rank(b.class))
+            .then(a.component_id.cmp(&b.component_id))
+            .then(a.response_id.cmp(&b.response_id))
+    });
 
     loop {
         if cancellation.is_cancelled() {
@@ -2058,21 +2074,7 @@ pub fn run_operating_history_cancellable(
             };
             curve.push(time + dt, power);
         }
-        let mut ordered_limits: Vec<&ServiceLimit> = assumptions.service_limits.iter().collect();
-        ordered_limits.sort_by(|a, b| {
-            let rank = |c: ComponentClass| {
-                if c == ComponentClass::Permanent {
-                    0_u8
-                } else {
-                    1_u8
-                }
-            };
-            rank(a.class)
-                .cmp(&rank(b.class))
-                .then(a.component_id.cmp(&b.component_id))
-                .then(a.response_id.cmp(&b.response_id))
-        });
-        for limit in ordered_limits {
+        for limit in &ordered_limits {
             if requested > 0.0 {
                 let state = components.get_mut(&limit.component_id).unwrap();
                 // The first limit of a component to be reached trips it; the
@@ -3261,6 +3263,87 @@ mod tests {
         // Mass balance is untouched by which limit trips.
         let last = run.snapshots.last().unwrap();
         assert!(last.mass_balance_residual_kg.abs() <= run.mass_balance_tolerance_kg);
+    }
+
+    #[test]
+    fn invariant_limit_order_preserves_simultaneous_trips_across_outage_and_authored_order() {
+        let mut a = assumptions(40.0);
+        a.maximum_step_s = 10.0;
+        a.snapshot_interval_s = 10.0;
+        a.operation = vec![faris_model::history::PowerPeriod {
+            start_s: 0.0,
+            end_s: 40.0,
+            power_fraction: 1.0,
+        }];
+        a.planned_outages = vec![faris_model::history::TimeInterval {
+            start_s: 5.0,
+            end_s: 15.0,
+            reason: "short control outage".into(),
+        }];
+        let make_limit = |component: &str, class| ServiceLimit {
+            component_id: component.into(),
+            class,
+            response_id: format!("flux-{component}"),
+            metric: ENERGY_INTEGRATED_FLUX_METRIC.into(),
+            unit: "neutrons/m²".into(),
+            limit: 200.0,
+            replacement_duration_s: (class == ComponentClass::Replaceable).then_some(3.0),
+            replacement_durations_s: None,
+            provenance: "analytic event-order control".into(),
+        };
+        // Authored in reverse of the documented tie-break order. Both tracks
+        // accumulate 50 units before the outage and reach 200 at t=30 s.
+        a.service_limits = vec![
+            make_limit("a-replaceable", ComponentClass::Replaceable),
+            make_limit("z-permanent", ComponentClass::Permanent),
+        ];
+        let mut r = rates();
+        for component in ["a-replaceable", "z-permanent"] {
+            r.component_average_flux_n_m2_s
+                .insert(component.into(), scalar(10.0, &format!("flux-{component}")));
+        }
+
+        let run = run_operating_history(&a, &r).unwrap();
+        let trips: Vec<_> = run
+            .events
+            .iter()
+            .filter(|event| event.kind == EventKind::ServiceLimitReached)
+            .map(|event| (event.time_s, event.component_id.as_deref().unwrap()))
+            .collect();
+        assert_eq!(trips, [(30.0, "z-permanent"), (30.0, "a-replaceable")]);
+        let outage_events: Vec<_> = run
+            .events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event.kind,
+                    EventKind::PlannedOutageStarted | EventKind::PlannedOutageEnded
+                )
+            })
+            .map(|event| (event.time_s, event.kind.clone()))
+            .collect();
+        assert_eq!(
+            outage_events,
+            [
+                (5.0, EventKind::PlannedOutageStarted),
+                (15.0, EventKind::PlannedOutageEnded),
+            ]
+        );
+        assert_eq!(run.outcome, HistoryOutcome::PermanentComponentLimit);
+
+        // Sorting is independent of authored list order and leaves event
+        // metadata, trip times, and snapshots exactly unchanged.
+        a.service_limits.reverse();
+        let reversed = run_operating_history(&a, &r).unwrap();
+        assert_eq!(
+            serde_json::to_value(&run.events).unwrap(),
+            serde_json::to_value(&reversed.events).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&run.snapshots).unwrap(),
+            serde_json::to_value(&reversed.snapshots).unwrap()
+        );
+        assert_eq!(run.outcome, reversed.outcome);
     }
 
     #[test]

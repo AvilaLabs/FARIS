@@ -1,0 +1,206 @@
+--- a/crates/actinv-data/src/normalize.rs
++++ b/crates/actinv-data/src/normalize.rs
+@@ -606,6 +606,62 @@
+ /// substituting it produces the duplicate-point step the writer intended.
+ /// Restricted to contiguous same-(MF,MT) runs so a stray NaN cannot borrow
+ /// a value across sections.
++fn fix_nan_fields_in_run(
++    lines: &mut [String],
++    start: usize,
++    end: usize,
++    mf: i32,
++    mt: i32,
++    entries: &mut Vec<String>,
++) {
++    if start >= end {
++        return;
++    }
++    // Flatten only numeric records from this contiguous section run, tracking
++    // which fields carry nonfinite tokens.
++    let mut flat: Vec<(usize, usize, f64)> = Vec::new();
++    for (li, line) in lines.iter().enumerate().take(end).skip(start) {
++        let raw = crate::endf::fields(line);
++        for (pos, field) in raw.iter().enumerate() {
++            let t = field.trim();
++            if t.is_empty() {
++                flat.push((li, pos, 0.0));
++            } else {
++                flat.push((
++                    li,
++                    pos,
++                    crate::endf::parse_endf_float(t).unwrap_or(f64::NAN),
++                ));
++            }
++        }
++    }
++    for j in 0..flat.len() {
++        if flat[j].2.is_finite() {
++            continue;
++        }
++        let (li, pos, _) = flat[j];
++        let source = if j + 2 < flat.len() {
++            flat[j + 2].2
++        } else if j >= 2 {
++            flat[j - 2].2
++        } else {
++            continue;
++        };
++        if !source.is_finite() {
++            continue;
++        }
++        write_field(lines, li, pos, &ef_str(source));
++        entries.push(format!(
++            "nan_field: MF={mf}/MT={mt} nonfinite field at record {} set to same-parity neighbor {:.6e}",
++            li + 1,
++            source
++        ));
++        flat[j].2 = source;
++    }
++}
++
++/// Repair nonfinite numeric fields in contiguous ENDF sections while leaving
++/// MF=1/MT=451 descriptive TEXT records byte-for-byte intact.
+ fn fix_nan_fields(lines: &mut [String], entries: &mut Vec<String>) {
+     let mut i = 0;
+     while i < lines.len() {
+@@ -622,45 +678,35 @@
+         while end < lines.len() && tail_mf_mt(&lines[end]) == Some((mf, mt)) {
+             end += 1;
+         }
+-        // flatten the run's fields, tracking which carry nonfinite tokens
+-        let mut flat: Vec<(usize, usize, f64)> = Vec::new();
+-        for (li, line) in lines.iter().enumerate().take(end).skip(i) {
+-            let raw = crate::endf::fields(line);
+-            for (pos, field) in raw.iter().enumerate() {
+-                let t = field.trim();
+-                if t.is_empty() {
+-                    flat.push((li, pos, 0.0));
+-                } else {
+-                    flat.push((
+-                        li,
+-                        pos,
+-                        crate::endf::parse_endf_float(t).unwrap_or(f64::NAN),
+-                    ));
+-                }
+-            }
+-        }
+-        for j in 0..flat.len() {
+-            if flat[j].2.is_finite() {
+-                continue;
+-            }
+-            let (li, pos, _) = flat[j];
+-            let source = if j + 2 < flat.len() {
+-                flat[j + 2].2
+-            } else if j >= 2 {
+-                flat[j - 2].2
++        if mf == 1 && mt == 451 {
++            // ENDF-102 §1.1.1 defines the first four records as numeric
++            // CONTs, followed by NWD free-form A66 TEXT records and then the
++            // numeric directory. Never parse the six TEXT chunks as floats.
++            let text_start = i + 4;
++            let nwd_field = if end - i >= 4 {
++                crate::endf::fields(&lines[i + 3])[4]
+             } else {
+-                continue;
++                ""
+             };
+-            if !source.is_finite() {
++            let nwd = crate::endf::parse_endf_usize(nwd_field)
++                .ok()
++                .filter(|_| !nwd_field.trim().is_empty())
++                .filter(|count| text_start <= end && *count <= end - text_start);
++            let Some(nwd) = nwd else {
++                // Invalid/missing NWD makes TEXT boundaries ambiguous. Preserve
++                // the whole section rather than risking a rewrite of text.
++                entries.push(format!(
++                    "nan_field: MF=1/MT=451 section at record {} left unchanged because NWD could not be validated",
++                    i + 1
++                ));
++                i = end;
+                 continue;
+-            }
+-            write_field(lines, li, pos, &ef_str(source));
+-            entries.push(format!(
+-                "nan_field: MF={mf}/MT={mt} nonfinite field at record {} set to same-parity neighbor {:.6e}",
+-                li + 1,
+-                source
+-            ));
+-            flat[j].2 = source;
++            };
++            let text_end = text_start + nwd;
++            fix_nan_fields_in_run(lines, i, (i + 4).min(end), mf, mt, entries);
++            fix_nan_fields_in_run(lines, text_end, end, mf, mt, entries);
++        } else {
++            fix_nan_fields_in_run(lines, i, end, mf, mt, entries);
+         }
+         i = end;
+     }
+@@ -769,6 +815,68 @@
+     }
+ 
+     #[test]
++    fn mf1_mt451_text_is_byte_preserved_and_numeric_nan_still_normalizes() {
++        fn line(fields: [&str; 6], mat: i32, mf: i32, mt: i32, ns: i32) -> String {
++            let mut out = String::new();
++            for field in fields {
++                assert!(field.len() <= 11);
++                out.push_str(&format!("{field:>11}"));
++            }
++            out.push_str(&format!("{mat:>4}{mf:>2}{mt:>3}{ns:>5}\n"));
++            out
++        }
++        fn text_line(text: &str, mat: i32, ns: i32) -> String {
++            assert!(text.len() <= 66);
++            format!("{:<66}{:>4}{:>2}{:>3}{:>5}\n", text, mat, 1, 451, ns)
++        }
++
++        let mat = 125;
++        let mut tape = String::new();
++        tape.push_str(&line(["1.001000+3", "9.991673-1", "0", "0", "0", "0"], mat, 1, 451, 1));
++        tape.push_str(&line(["0", "0", "0", "0", "0", "6"], mat, 1, 451, 2));
++        tape.push_str(&line(["1", "2.000000+7", "1", "0", "10", "2025"], mat, 1, 451, 3));
++        tape.push_str(&line(["0", "0", "0", "0", "3", "1"], mat, 1, 451, 4));
++        let text_records = [
++            text_line("1-H -  1 TEST EVAL-JUL16 author text", mat, 5),
++            text_line("REF: DATA NaN text must remain unchanged", mat, 6),
++            text_line("---- ENDF/B metadata text", mat, 7),
++        ];
++        for record in &text_records {
++            tape.push_str(record);
++        }
++        // Numeric directory record after the NWD text block.
++        tape.push_str(&line(["NaN", "0", "9", "451", "1", "0"], mat, 1, 451, 8));
++        tape.push_str(&line(["0", "0", "0", "0", "0", "0"], mat, 1, 0, 99999));
++        // The existing numeric-field repair remains active in reaction data.
++        tape.push_str(&line(["NaN", "1", "3", "4", "5", "6"], mat, 3, 102, 1));
++        tape.push_str(&line(["7", "8", "9", "10", "11", "12"], mat, 3, 102, 2));
++
++        let out = normalize_tape(&tape, NormalizeProfile::EndfB8);
++        let rows: Vec<&str> = out.text.lines().collect();
++        for (index, expected) in text_records.iter().enumerate() {
++            assert_eq!(rows[4 + index], expected.trim_end_matches('\n'));
++        }
++        let mut expected_text_block = String::new();
++        for record in &text_records {
++            expected_text_block.push_str(record);
++        }
++        assert!(out.text.contains(&expected_text_block));
++        let expected_directory = ef_str(9.0);
++        let expected_reaction = ef_str(3.0);
++        assert_eq!(&rows[7][..11], expected_directory.as_str());
++        assert_eq!(&rows[9][..11], expected_reaction.as_str());
++        assert_eq!(
++            out.entries
++                .iter()
++                .filter(|entry| entry.starts_with("nan_field:"))
++                .count(),
++            2,
++            "only the numeric directory and reaction fields are repaired: {:?}",
++            out.entries
++        );
++    }
++
++    #[test]
+     fn lrf0_range_normalizes() {
+         let mut t = String::new();
+         t.push_str(&row(&[28063.0, 62.0, 0.0, 0.0, 1.0, 0.0], "2840 1451    1"));

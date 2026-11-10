@@ -278,8 +278,8 @@ fn shape_cache_arguments(cache: Option<&Path>) -> Vec<OsString> {
 }
 
 /// A recorded conversion is reused only when everything that decides its result
-/// matches: the STEP hash, the tags, the tolerances and scale, and the hashes of the
-/// h5m and the facets it produced.
+/// matches: the STEP hash, the tags, the tolerances and scale, the conversion helper
+/// version and source files, and the hashes of the h5m and facets it produced.
 fn reuse(request: &ConvertRequest) -> Result<Option<ConvertOutcome>, DesignError> {
     let dir = request.directory;
     let report_path = dir.join("conversion.json");
@@ -292,12 +292,29 @@ fn reuse(request: &ConvertRequest) -> Result<Option<ConvertOutcome>, DesignError
     let t = &report.tolerances;
     let mut tags = request.tags.to_vec();
     tags.sort_by_key(|e| e.step_index);
+    let current_helper = helper_version();
+    // Conversion reports predate an explicit helper hash. The work directory
+    // retains the exact scripts that produced them, so accept a hit only when
+    // the declared version and all conversion helper bytes match this build.
+    // A legacy directory without these files remains intact but is recomputed.
+    let saved_helpers_match = [
+        ("faris_cad.py", CAD_HELPER),
+        ("faris_facets.py", CAD_FACETS_HELPER),
+        ("dagmc_faceting_tolerance.py", DAGMC_METADATA_HELPER),
+    ]
+    .into_iter()
+    .all(|(name, expected)| {
+        std::fs::read(dir.join("helpers").join(name))
+            .is_ok_and(|bytes| bytes == expected.as_bytes())
+    });
     let same = report.schema == "faris-conversion/v1"
         && report.step.sha256.eq_ignore_ascii_case(request.step_sha256)
         && close(t.chord_cm, request.chord_cm)
         && close(t.angular_rad, request.angular_rad)
         && close(t.scale_factor_to_cm, request.shape_unit_m * 100.0)
         && t.implicit_complement_tag == "void"
+        && report.versions["helper"].as_str() == Some(current_helper.as_str())
+        && saved_helpers_match
         && report.tags == tags;
     if !same {
         return Ok(None);
@@ -1206,6 +1223,15 @@ mod tests {
     impl Recorded {
         fn new() -> Self {
             let dir = tempfile::tempdir().unwrap();
+            let helper_dir = dir.path().join("helpers");
+            std::fs::create_dir(&helper_dir).unwrap();
+            std::fs::write(helper_dir.join("faris_cad.py"), CAD_HELPER).unwrap();
+            std::fs::write(helper_dir.join("faris_facets.py"), CAD_FACETS_HELPER).unwrap();
+            std::fs::write(
+                helper_dir.join("dagmc_faceting_tolerance.py"),
+                DAGMC_METADATA_HELPER,
+            )
+            .unwrap();
             let f = shell_and_core(10.0, 2.0);
             let mut manifest = manifest_of(&f, &["mat:shell", "mat:core"]);
             std::fs::write(dir.path().join("model.h5m"), b"stand-in h5m").unwrap();
@@ -1240,7 +1266,7 @@ mod tests {
                     implicit_complement_tag: "void".into(),
                 },
                 tags: tags.clone(),
-                versions: serde_json::json!({}),
+                versions: serde_json::json!({"helper": helper_version()}),
                 timing_seconds: Default::default(),
                 peak_rss_mb: 1.0,
                 h5m: ConversionFile {
@@ -1313,6 +1339,39 @@ mod tests {
         let mut other_unit = r.request(0.1, STEP_SHA);
         other_unit.shape_unit_m = 1.0e-2;
         assert!(reuse(&other_unit).unwrap().is_none(), "other scale");
+    }
+
+    // Verifies: GEO-013
+    #[test]
+    fn a_conversion_is_not_reused_when_its_helper_identity_changes_or_is_missing() {
+        let r = Recorded::new();
+        std::fs::write(
+            r.dir.path().join("helpers/faris_facets.py"),
+            b"# changed saved helper",
+        )
+        .unwrap();
+        assert!(
+            reuse(&r.request(0.1, STEP_SHA)).unwrap().is_none(),
+            "changed helper bytes"
+        );
+
+        let r = Recorded::new();
+        std::fs::remove_file(r.dir.path().join("helpers/faris_cad.py")).unwrap();
+        assert!(
+            reuse(&r.request(0.1, STEP_SHA)).unwrap().is_none(),
+            "missing legacy helper"
+        );
+
+        let r = Recorded::new();
+        let report_path = r.dir.path().join("conversion.json");
+        let mut report: ConversionReport =
+            read_json(&report_path, "the recorded conversion").unwrap();
+        report.versions["helper"] = serde_json::json!("older");
+        std::fs::write(&report_path, serde_json::to_vec(&report).unwrap()).unwrap();
+        assert!(
+            reuse(&r.request(0.1, STEP_SHA)).unwrap().is_none(),
+            "changed recorded helper version"
+        );
     }
 
     // Verifies: GEO-013
