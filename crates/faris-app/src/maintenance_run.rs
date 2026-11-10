@@ -342,6 +342,7 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
             actinv: trimmed(&inputs.actinv).expect("checked above"),
             data_dir: trimmed(&inputs.data_dir).expect("checked above"),
             cache: None,
+            prepared_cache_dir: None,
             work_dir,
             workers: inputs.workers as usize,
             impurities: None,
