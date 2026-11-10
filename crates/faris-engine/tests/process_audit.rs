@@ -83,6 +83,37 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     ("faris-occt/build.rs", "Command::new", 6, "F", "curl, tar, cmake, ninja; URLs and versions pinned in the script"),
 ];
 
+/// Test-only child launches are deliberately omitted from the shipped-process scan above. Keep
+/// the Windows job regression's two launch surfaces reviewed separately, including their gate and
+/// exact test filter, so the helper cannot silently become an unfiltered recursive test run.
+const REVIEWED_TEST_SPAWNS: &[(&str, usize, &str)] = &[
+    (
+        "std::env::current_exe()",
+        1,
+        "Windows regression launches this test binary with an exact helper test filter",
+    ),
+    (
+        "std::process::Command::new(&ping)",
+        1,
+        "environment-gated helper test launches only absolute SystemRoot System32 ping.exe",
+    ),
+];
+
+#[test]
+fn windows_job_regression_test_spawns_only_its_reviewed_helper() {
+    let jobs = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/jobs.rs");
+    let source = fs::read_to_string(jobs).unwrap();
+    for (surface, expected, reason) in REVIEWED_TEST_SPAWNS {
+        assert_eq!(
+            source.matches(surface).count(),
+            *expected,
+            "{surface}: {reason}"
+        );
+    }
+    assert!(source.contains("\"jobs::tests::windows_grandchild_helper\""));
+    assert!(source.contains("FARIS_WINDOWS_GRANDCHILD_HELPER"));
+}
+
 fn skipped(path: &Path) -> bool {
     let name = path.file_name().unwrap().to_string_lossy();
     path.components().any(|c| c.as_os_str() == "tests")

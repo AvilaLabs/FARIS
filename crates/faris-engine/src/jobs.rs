@@ -1384,12 +1384,42 @@ mod tests {
         }
     }
 
+    // This helper is launched only by the filtered regression below. Its explicit environment gate
+    // prevents it from creating a process when the full faris-engine test binary runs normally.
+    #[cfg(windows)]
+    #[test]
+    fn windows_grandchild_helper() {
+        if std::env::var_os("FARIS_WINDOWS_GRANDCHILD_HELPER").as_deref()
+            != Some(std::ffi::OsStr::new("1"))
+        {
+            return;
+        }
+
+        let pid_file = PathBuf::from(
+            std::env::var_os("FARIS_WINDOWS_GRANDCHILD_PID_FILE")
+                .expect("helper PID path must be set by its parent test"),
+        );
+        let system_root = std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into());
+        let ping = PathBuf::from(system_root).join("System32").join("ping.exe");
+        println!("Windows grandchild helper starting {ping:?}");
+        let mut child = std::process::Command::new(&ping)
+            .args(["-n", "30", "127.0.0.1"])
+            .spawn()
+            .expect("start ping grandchild");
+        let pid = child.id();
+        let pending_pid = pid_file.with_extension("pid.tmp");
+        std::fs::write(&pending_pid, pid.to_string().as_bytes())
+            .expect("write ASCII grandchild PID");
+        std::fs::rename(pending_pid, &pid_file).expect("publish complete grandchild PID");
+        println!("Windows grandchild helper ready: pid={pid}");
+        let status = child.wait().expect("wait for ping grandchild");
+        println!("Windows grandchild exited: pid={pid}, status={status}");
+    }
+
     // Verifies: PERF-024, AUTO-040, REL-006
     #[cfg(windows)]
     #[test]
     fn cancellation_kills_a_windows_grandchild_started_immediately() {
-        use std::process::Command;
-
         fn describe_worker(result: std::thread::Result<Result<JobResult, JobError>>) -> String {
             match result {
                 Ok(Ok(result)) => format!(
@@ -1410,18 +1440,24 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let pid_file = dir.path().join("grandchild.pid");
-        let powershell =
-            PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
-        let pid_file_literal = pid_file.to_string_lossy().replace('\'', "''");
-        let script = format!(
-            "$child = Start-Process -FilePath \"$env:SystemRoot\\System32\\ping.exe\" -ArgumentList @('-n','30','127.0.0.1') -PassThru; Set-Content -Encoding Ascii -NoNewline -LiteralPath '{}' -Value $child.Id; Wait-Process -Id $child.Id",
-            pid_file_literal
-        );
+        let test_binary = std::env::current_exe().unwrap();
         let spec = JobSpec {
-            program: powershell.clone(),
-            arguments: vec!["-NoProfile".into(), "-Command".into(), script.into()],
+            program: test_binary,
+            arguments: vec![
+                "--exact".into(),
+                "jobs::tests::windows_grandchild_helper".into(),
+                "--nocapture".into(),
+            ],
             working_directory: dir.path().to_owned(),
             environment: vec![
+                (
+                    OsString::from("FARIS_WINDOWS_GRANDCHILD_HELPER"),
+                    "1".into(),
+                ),
+                (
+                    OsString::from("FARIS_WINDOWS_GRANDCHILD_PID_FILE"),
+                    pid_file.as_os_str().to_owned(),
+                ),
                 (
                     OsString::from("SystemRoot"),
                     std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
@@ -1429,8 +1465,7 @@ mod tests {
                 (OsString::from("TEMP"), dir.path().as_os_str().to_owned()),
                 (OsString::from("TMP"), dir.path().as_os_str().to_owned()),
             ],
-            // Fixture startup is setup time, not the cancellation bound below. Parallel Windows
-            // unit-test load can take longer to initialize multiple PowerShell hosts.
+            // Fixture startup is setup time, not the cancellation bound below.
             timeout: Duration::from_secs(30),
             capture_limit_bytes: 1024,
             artifact_roots: vec![],
@@ -1461,7 +1496,7 @@ mod tests {
             if worker.is_finished() {
                 let worker_result = describe_worker(worker.join());
                 panic!(
-                    "PowerShell worker exited before writing the grandchild PID file {pid_file:?}: {worker_result}"
+                    "helper worker exited before writing the grandchild PID file {pid_file:?}: {worker_result}"
                 );
             }
             if Instant::now() >= start_deadline {
@@ -1483,26 +1518,19 @@ mod tests {
         );
         assert_eq!(result.execution_status, ExecutionStatus::Cancelled);
 
-        // Query after the job has closed. PowerShell exits successfully with no output when
-        // the process has been terminated and returns the process otherwise.
+        // Check the grandchild directly without requiring a second PowerShell host.
+        let pid = sysinfo::Pid::from_u32(pid);
+        let mut system = sysinfo::System::new();
         let cleanup_deadline = Instant::now() + Duration::from_secs(5);
         loop {
-            let output = Command::new(&powershell)
-                .args([
-                    "-NoProfile",
-                    "-Command",
-                    &format!(
-                        "if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ exit 1 }}"
-                    ),
-                ])
-                .output()
-                .unwrap();
-            if output.status.success() {
+            system.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+            if system.process(pid).is_none() {
                 break;
             }
             assert!(
                 Instant::now() < cleanup_deadline,
-                "grandchild {pid} remains after cancellation"
+                "grandchild {} remains after cancellation",
+                pid.as_u32()
             );
             thread::sleep(Duration::from_millis(20));
         }
