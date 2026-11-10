@@ -3089,7 +3089,7 @@ mod bounded_worker_tests {
         std::fs::write(&selected, b"changed executable bytes").unwrap();
         let hash_error = verify_selected_actinv(&selected, &prepared).unwrap_err();
         assert!(
-            hash_error.contains("path and SHA-256 differ"),
+            hash_error.contains("prepared ACTINV executable artifact SHA-256 mismatch"),
             "{hash_error}"
         );
     }
