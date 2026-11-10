@@ -310,7 +310,7 @@ pub(crate) mod tests {
             next_step: "Keep the margin in mind.".into(),
         };
         DesignTransportReport {
-            schema_version: "faris-design-transport-report/v0.4".into(),
+            schema_version: "faris-design-transport-report/v0.5".into(),
             design: DesignIdentity {
                 path: "d.json".into(),
                 sha256: "0".into(),

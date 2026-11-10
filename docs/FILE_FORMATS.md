@@ -7,7 +7,7 @@ version is refused; unknown fields in a known version are ignored. This page lis
 that name, where each is described, and which are not described yet. It is checked against the source by hand at
 each release; there is no JSON Schema file for any format yet, so the Rust types that read the file are the schema.
 
-Last checked: 2026-10-14.
+Last checked: 2026-11-09.
 
 ## Described formats
 
@@ -21,6 +21,7 @@ Last checked: 2026-10-14.
 | `faris-transport-request/v0.1`, `v0.2`; `faris-transport-artifact/v0.1`, `v0.2` | A transport request and the normalised result | `faris-model` | [Architecture](ARCHITECTURE.md), [Cold reference](COLD_REFERENCE.md), [Transport](TRANSPORT.md) | The recorded bundles in a release package |
 | `faris-openmc-input/v0.1` | The OpenMC input FARIS writes | `faris-engine` | [Cold reference](COLD_REFERENCE.md) | In the recorded package |
 | `faris-maintenance-designs/v0.1`, `faris-maintenance-assumptions/v0.1` | Inputs of the computed maintenance durations | `faris-app`, `faris-cli` | [Maintenance](guide/maintenance.md), [design notes](notes/MAINTENANCE_0.2_DESIGN.md) | `maintenance/` in a release package |
+| `faris-cad-history-driving-rates/v0.1` | Hash-bound, same-batch CAD neutron flux and H3 rates consumed by the maintenance history | `faris-engine` | [Maintenance](guide/maintenance.md) | Written by `faris design transport --history-component ...` |
 | `faris-recorded-demo-package/v0.7` (and `v0.5`) | The package index of a release | `faris-app`, `scripts/verify_recorded_demo.py` | [Package notes](notes/PACKAGE_0.1.1_DESIGN.md), [evidence store notes](notes/EVIDENCE_STORE_DESIGN.md) | `package-index.json` in a release |
 | `faris-recorded-tree-archive/v0.1` | A tar archive of one saved Core case | `faris-study` | [Package notes](notes/PACKAGE_0.1.1_DESIGN.md) | `port/archives` in an older package |
 | `faris-facets/v1`, `faris-step-inspect/v1` and `v2` | CAD facets and STEP inspection output | `faris-occt-client`, `integrations/cad` | [CAD integrity checks](notes/CAD_INTEGRITY_CHECKS.md), [OCCT layer](notes/OCCT_LAYER.md) | `integrations/cad/fixtures` |
@@ -38,7 +39,7 @@ that every format has a prose description, a schema and a versioned example (DOC
 - Control and comparison output: `faris-control-request/v0.1`, `faris-control-execution/v0.1`,
   `faris-history-comparison/v0.1`, `faris-history-comparison-provenance/v0.1`, `faris-history-sensitivity/v0.1`.
 - Transport and design reports: `faris-design-transport/v3`, `faris-design-transport-request/v3`,
-  `faris-design-transport-report/v0.4`, `faris-design-import-report/v0.2`, `faris-transport-import/v0.1`,
+  `faris-design-transport-report/v0.5`, `faris-design-import-report/v0.2`, `faris-transport-import/v0.1`,
   `faris-transport-spectra/v0.1`, `faris-reactor-run/v0.1`, `faris-exploratory-precision-goals/v0.1`,
   `faris-physics-case/v0.1`, `faris-openmc-geometry-ownership-audit/v0.1`, `faris-source-sites/v1`,
   `faris-material-audit/v1`, `faris-conversion/v1`.

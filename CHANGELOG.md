@@ -34,6 +34,11 @@ basis.
 
 - Design transport summaries now show the nominal D-T neutron share alongside fusion power, including
   the declared neutron-to-reaction-energy fraction; it is labelled separately from tallied heating.
+- `faris design transport` can optionally bind same-run all-energy flux for every mapped CAD history
+  component, whole-model H3 production, and separate breeder H3 for a complete Li6-bearing blanket, with batch covariance and hash-bound
+  design/check/H5M/source/runtime provenance. Its `history-driving-rates.json` sidecar can feed the existing
+  maintenance history run; it carries sampling uncertainty only and makes no physical-qualification claim.
+  The design transport report schema is now v0.5.
 - `faris shutdown-dose compare` imports hash-bound spatial D1S/R2S estimates and checks their central ratio
   against the declared comparison band. It records matched input identities and validation states, and retains
   INCONCLUSIVE when covariance is unknown. It runs no solver; see the handbook's shutdown-dose comparison page.

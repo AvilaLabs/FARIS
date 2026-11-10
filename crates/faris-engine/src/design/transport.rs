@@ -25,10 +25,15 @@ use super::{
     Launched, MAX_JSON_BYTES, STREAMING_AIM_HELPER, ToolPaths, WINDOW_GENERATOR_HELPER, io_error,
     launch_python_with_lines, resolve, sha256_file, sha256_hex,
 };
+use crate::history::{ScalarRate, TransportDrivingRates};
 use crate::jobs::{Cancellation, ResourceLimits};
 use crate::result_cache::{self, CacheKey, CacheProvenance, Lookup, ResultCache};
 use crate::transport::{
     D_T_ENERGY_PER_REACTION_EV, D_T_NEUTRON_ENERGY_EV, dt_source_power_summary, reaction_rate_per_s,
+};
+use crate::transport::{
+    NormalizedTally, NormalizedTransportResult, PhysicalUnit, ResponseCovariance, TallyEstimator,
+    ToolIdentity as TransportToolIdentity,
 };
 use faris_model::design::{self, Design, Metric, Role};
 use faris_model::history::OperatingHistoryAssumptions;
@@ -45,9 +50,68 @@ use std::{
     time::Duration,
 };
 
-pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.4";
+pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.5";
 const REQUEST_SCHEMA: &str = "faris-design-transport-request/v3";
 const RESULT_SCHEMA: &str = "faris-design-transport/v3";
+pub const DESIGN_HISTORY_RATES_VERSION: &str = "faris-cad-history-driving-rates/v0.1";
+pub const DESIGN_HISTORY_RATES_OUTPUTS: &[Output] = &[
+    by_score("mean"),
+    by_score("standard_error"),
+    by_score("integrated_mean"),
+    by_score("integrated_standard_error"),
+    not_calculated("neutron_source_rate_per_s", "D-T source normalization"),
+    not_calculated("source_neutron_rate_per_s", "D-T source normalization"),
+    not_calculated("source_reaction_rate_per_s", "D-T source normalization"),
+    not_calculated("fusion_power_mw", "authored design source power"),
+    not_calculated(
+        "reference_fusion_power_mw",
+        "source power used to normalize CAD transport responses",
+    ),
+    not_calculated("source_energy_per_reaction_ev", "D-T source convention"),
+    not_calculated("source_neutron_energy_ev", "D-T source convention"),
+    not_calculated("neutron_energy_ev", "D-T source convention"),
+    not_calculated("energy_per_reaction_ev", "D-T source convention"),
+    not_calculated("neutrons_per_reaction", "authored D-T source multiplicity"),
+    not_calculated("total_reaction_energy_ev", "D-T source convention"),
+    not_calculated("primary_neutron_energy_ev", "D-T source convention"),
+    not_calculated("fusion_reaction_rate_per_s", "D-T source bookkeeping"),
+    not_calculated(
+        "flux_energy_min_ev",
+        "authored all-energy response threshold",
+    ),
+    not_calculated("histories", "count of source neutron histories"),
+    not_calculated("batches", "count of independent sampled batches"),
+    not_calculated(
+        "target_relative_error",
+        "authored Monte Carlo stopping target for every required history response",
+    ),
+    not_calculated("volume_m3", "CAD solid volume used to volume-average flux"),
+    not_calculated(
+        "volume_standard_error_m3",
+        "CAD volume uncertainty is not propagated",
+    ),
+    not_calculated(
+        "response_covariance",
+        "same-run batch covariance accompanying the tagged responses",
+    ),
+    not_calculated(
+        "covariance",
+        "same-run Monte Carlo covariance accompanying history rates",
+    ),
+    not_calculated(
+        "integrated",
+        "same-run sampling covariance in integrated response units",
+    ),
+    not_calculated(
+        "monte_carlo",
+        "same-run sampling covariance in history-driving units",
+    ),
+    not_calculated(
+        "volume_variance",
+        "CAD volume uncertainty is not propagated",
+    ),
+    not_calculated("variance_of_variance", "batch convergence diagnostic"),
+];
 /// The fewest batches a run may stop at, as for the reactor run's sampling plan.
 const MIN_BATCHES: u64 = 30;
 /// Time the run gets beyond its sampling limit to load the geometry, look for a streaming
@@ -124,6 +188,13 @@ pub struct DesignTransportOptions {
     /// The replacement group whose fluence limit names the response. `None`: the only group
     /// with a fluence limit, or the TF magnets when the design has no such limit.
     pub group: Option<String>,
+    /// Optional explicit mapping from each history component ID to the CAD solid IDs it covers.
+    /// When set, the transport run also scores all-energy flux and breeder H3 in the same batches.
+    pub history_components: Option<BTreeMap<String, Vec<String>>>,
+    /// The exact history scenario whose operating power will consume the CAD-derived rates.
+    pub history_scenario: Option<PathBuf>,
+    /// Component ID receiving the full-component H3-production tally (normally `blanket`).
+    pub h3_component_id: Option<String>,
     /// Where weight windows and the channel search are kept between runs. `None`: nothing is kept.
     pub cache_dir: Option<PathBuf>,
     pub progress: Option<TransportProgressFn>,
@@ -163,6 +234,11 @@ struct WorkerResult {
     h5m_sha256: String,
     run_h5m_sha256: String,
     model_xml_sha256: String,
+    model_xml_path: String,
+    openmc_library_sha256: String,
+    openmc_library_path: String,
+    source_kernel_path: String,
+    source_kernel_sha256: String,
     seed: u64,
     threads: u32,
     particles_per_batch: u64,
@@ -188,6 +264,112 @@ struct WorkerResult {
     lost_particles: Option<u64>,
     #[serde(default)]
     lost_positions_cm: Vec<[f64; 3]>,
+    #[serde(default)]
+    history_response: Option<WorkerHistoryResponse>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+struct WorkerHistoryResponse {
+    schema: String,
+    flux_energy_min_ev: f64,
+    h3_score: String,
+    h3_total_scope: String,
+    estimator: String,
+    covariance_method: String,
+    batches: u32,
+    target_relative_error: f64,
+    response_ids: Vec<String>,
+    responses: Vec<WorkerHistoryRate>,
+    covariance_raw_per_source: Vec<f64>,
+    covariance_unit_order: String,
+    covariance_scope: String,
+    target_reached: bool,
+    nuclear_data_identity: HistoryNuclearDataIdentity,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+struct WorkerHistoryRate {
+    response_id: String,
+    solid_ids: Vec<String>,
+    volume_m3: Option<f64>,
+    mean_raw_per_source: f64,
+    standard_error_raw_per_source: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryNuclearDataIdentity {
+    pub schema: String,
+    pub scope: String,
+    pub cross_sections_xml_sha256: String,
+    pub tables: Vec<HistoryNuclearDataTable>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryNuclearDataTable {
+    pub path: String,
+    pub bytes: u64,
+    pub sha256: String,
+    pub library_indices: Vec<usize>,
+    pub nuclides: Vec<String>,
+}
+
+/// Hash-bound CAD neutron responses consumed by the existing operating-history model.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DesignHistoryRatesArtifact {
+    pub schema_version: String,
+    pub scenario_path: String,
+    pub scenario_id: String,
+    pub scenario_sha256: String,
+    pub design_path: String,
+    pub design_sha256: String,
+    pub check_report_path: String,
+    pub check_report_sha256: String,
+    pub h5m_path: String,
+    pub h5m_sha256: String,
+    pub cross_sections_path: String,
+    pub cross_sections_sha256: String,
+    pub nuclear_data_identity: HistoryNuclearDataIdentity,
+    pub worker_result_path: String,
+    pub worker_result_sha256: String,
+    pub transport_request_path: String,
+    pub transport_request_sha256: String,
+    pub model_xml_path: String,
+    pub model_xml_sha256: String,
+    pub openmc_library_path: String,
+    pub openmc_library_sha256: String,
+    pub source_definition_sha256: String,
+    pub source_kernel_path: String,
+    pub source_kernel_sha256: String,
+    pub source_energy_per_reaction_ev: f64,
+    pub source_neutron_energy_ev: f64,
+    pub fusion_power_mw: f64,
+    pub source_neutron_rate_per_s: f64,
+    pub flux_energy_min_ev: f64,
+    pub h3_score: String,
+    pub component_map: BTreeMap<String, Vec<String>>,
+    pub h3_component_id: String,
+    pub h3_solid_ids: Vec<String>,
+    pub component_map_sha256: String,
+    pub response_definitions_sha256: String,
+    pub histories: u64,
+    pub batches: u32,
+    pub target_relative_error: f64,
+    pub covariance_method: String,
+    pub covariance_scope: String,
+    pub normalized_transport: NormalizedTransportResult,
+    pub validation: ValidationMarks,
+    pub total_h3_production_per_source_neutron: ScalarRate,
+    /// Shared history engine input, derived from the exact same-batch CAD tallies.
+    pub driving_rates: TransportDrivingRates,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct HistoryRatesArtifactRef {
+    pub path: String,
+    pub sha256: String,
 }
 
 /// How the run was sped up, with the reason for the mode and what the user can do.
@@ -308,6 +490,9 @@ pub struct DesignTransportReport {
     pub lost_positions_m: Vec<[f64; 3]>,
     pub notices: Vec<String>,
     pub not_evaluated: Vec<NotEvaluated>,
+    /// Separate hash-bound all-energy/H3 rates for the existing operating-history engine.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_rates_artifact: Option<HistoryRatesArtifactRef>,
     /// The validation state of each calculated number above when the report was made (VAL-054).
     /// Empty in a report written before v0.4.
     #[serde(default, skip_serializing_if = "ValidationMarks::is_empty")]
@@ -570,6 +755,171 @@ pub(super) fn solid_entries(
         .collect()
 }
 
+fn validate_history_component_partition(
+    active_solid_ids: &std::collections::BTreeSet<String>,
+    components: &BTreeMap<String, Vec<String>>,
+    breeder_component_id: &str,
+) -> Result<(), String> {
+    if components.is_empty() || components.len() > 254 {
+        return Err("history component mapping must contain 1 to 254 components".into());
+    }
+    if breeder_component_id != "blanket" || !components.contains_key(breeder_component_id) {
+        return Err(
+            "the existing operating-history model requires a mapped breeder component ID `blanket`"
+                .into(),
+        );
+    }
+    let mut covered = std::collections::BTreeSet::new();
+    for (component_id, solid_ids) in components {
+        if !faris_model::design::valid_id(component_id) || solid_ids.is_empty() {
+            return Err(
+                "history component IDs must be valid and each map at least one solid".into(),
+            );
+        }
+        let mut local = std::collections::BTreeSet::new();
+        for solid_id in solid_ids {
+            if !active_solid_ids.contains(solid_id)
+                || !local.insert(solid_id)
+                || !covered.insert(solid_id)
+            {
+                return Err(format!(
+                    "history solid {solid_id} is inactive, unknown, or mapped more than once"
+                ));
+            }
+        }
+    }
+    if &covered != active_solid_ids {
+        return Err(
+            "history component map must cover every active non-void CAD solid exactly once".into(),
+        );
+    }
+    Ok(())
+}
+
+fn same_source_power_binding(design_power_mw: f64, history_power_mw: f64) -> bool {
+    design_power_mw.is_finite()
+        && history_power_mw.is_finite()
+        && design_power_mw.to_bits() == history_power_mw.to_bits()
+}
+
+fn validate_history_scenario_binding(
+    artifact_scenario_id: &str,
+    artifact_scenario_sha256: &str,
+    artifact_power_mw: f64,
+    rate_scenario_sha256: &str,
+    rate_power_mw: f64,
+    scenario: &faris_model::LoadedScenario,
+) -> Result<(), String> {
+    if artifact_scenario_id != scenario.scenario.id
+        || artifact_scenario_sha256 != scenario.source_sha256
+        || rate_scenario_sha256 != scenario.source_sha256
+        || !same_source_power_binding(
+            artifact_power_mw,
+            scenario.scenario.operating_plan.fusion_power_mw,
+        )
+        || !same_source_power_binding(rate_power_mw, artifact_power_mw)
+    {
+        return Err("history rates scenario identity or fusion power differs from the loaded operating scenario".into());
+    }
+    Ok(())
+}
+
+fn history_response_request(
+    design: &Design,
+    report: &ImportReport,
+    components: &BTreeMap<String, Vec<String>>,
+    breeder_component_id: &str,
+) -> Result<serde_json::Value, DesignError> {
+    let active: BTreeMap<_, _> = design
+        .solids
+        .iter()
+        .filter(|solid| solid.material_id.as_deref().is_some_and(|id| id != "void"))
+        .map(|solid| (solid.id.as_str(), solid))
+        .collect();
+    let active_ids = active.keys().map(|id| (*id).to_string()).collect();
+    validate_history_component_partition(&active_ids, components, breeder_component_id)
+        .map_err(tool)?;
+    let mut covered = std::collections::BTreeSet::new();
+    let mut component_rows = Vec::with_capacity(components.len());
+    for (component_id, solid_ids) in components {
+        if !faris_model::design::valid_id(component_id) || solid_ids.is_empty() {
+            return Err(tool(
+                "history component IDs must be valid and each map at least one solid",
+            ));
+        }
+        let mut unique_ids = std::collections::BTreeSet::new();
+        let mut volume_m3 = 0.0;
+        for solid_id in solid_ids {
+            if !unique_ids.insert(solid_id.as_str()) || !covered.insert(solid_id.as_str()) {
+                return Err(tool(format!(
+                    "history solid {solid_id} is mapped more than once"
+                )));
+            }
+            let solid = active.get(solid_id.as_str()).ok_or_else(|| {
+                tool(format!(
+                    "history map names inactive or unknown CAD solid {solid_id}"
+                ))
+            })?;
+            volume_m3 += solid.fingerprint.cad_volume_m3;
+        }
+        if !volume_m3.is_finite() || volume_m3 <= 0.0 {
+            return Err(tool(format!(
+                "history component {component_id} has no positive CAD volume"
+            )));
+        }
+        component_rows.push(serde_json::json!({
+            "component_id": component_id,
+            "solid_ids": solid_ids,
+            "volume_m3": volume_m3,
+        }));
+    }
+    if covered.len() != active.len() || active.keys().any(|id| !covered.contains(id)) {
+        return Err(tool(
+            "history component map must cover every active non-void CAD solid exactly once",
+        ));
+    }
+    let breeder_solids = components
+        .get(breeder_component_id)
+        .ok_or_else(|| tool("history component map has no `blanket` breeder"))?;
+    let material_by_id: BTreeMap<_, _> = material_entries(design, report)?
+        .into_iter()
+        .filter_map(|entry| Some((entry.get("material_id")?.as_str()?.to_string(), entry)))
+        .collect();
+    for solid_id in breeder_solids {
+        let material_id = active[solid_id.as_str()]
+            .material_id
+            .as_deref()
+            .ok_or_else(|| tool("the breeder solid has no audited material"))?;
+        let material = material_by_id
+            .get(material_id)
+            .ok_or_else(|| tool(format!("the breeder material {material_id} is not audited")))?;
+        let fractions = material
+            .get("nuclide_atom_fractions")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| {
+                tool(format!(
+                    "the breeder material {material_id} has no audited nuclides"
+                ))
+            })?;
+        if !fractions
+            .get("Li6")
+            .and_then(serde_json::Value::as_f64)
+            .is_some_and(|v| v > 0.0)
+        {
+            return Err(tool(format!(
+                "the breeder material {material_id} has no audited Li6; its H3-production response cannot be formed"
+            )));
+        }
+    }
+    Ok(serde_json::json!({
+        "components": component_rows,
+        "breeder_component_id": breeder_component_id,
+        "h3_solid_ids": breeder_solids,
+        "h3_total_scope": "whole_model",
+        "flux_energy_min_ev": 0.0,
+    }))
+}
+
 /// The power history the design links to; an error sentence when it cannot be used.
 fn linked_history(
     design_path: &Path,
@@ -751,6 +1101,7 @@ struct WindowsRecord {
 #[doc(hidden)]
 pub fn fuzz_helper_outputs(bytes: &[u8]) {
     let _ = serde_json::from_slice::<WorkerResult>(bytes);
+    let _ = serde_json::from_slice::<DesignHistoryRatesArtifact>(bytes);
     super::heating::fuzz_worker_outputs(bytes);
     let _ = serde_json::from_slice::<WindowsRecord>(bytes);
     let _ = serde_json::from_slice::<PiecesRecord>(bytes);
@@ -979,6 +1330,41 @@ pub fn design_transport(
         .plasma
         .fusion_power_mw
         .ok_or_else(|| tool("the design's plasma block has no fusion power"))?;
+    let history_setup = match (
+        options.history_components.as_ref(),
+        options.history_scenario.as_ref(),
+        options.h3_component_id.as_deref(),
+    ) {
+        (None, None, None) => None,
+        (Some(components), Some(scenario_path), Some(h3_component)) => {
+            if options.window_python.is_some() {
+                return Err(tool(
+                    "weight windows are prepared for the legacy fluence response only; history responses currently require analog transport",
+                ));
+            }
+            let scenario_path = scenario_path
+                .canonicalize()
+                .map_err(|e| io_error(scenario_path, e))?;
+            let bytes = read_bounded(&scenario_path)?;
+            let scenario = faris_model::LoadedScenario::from_bytes(&bytes)
+                .map_err(|e| tool(format!("history scenario {}: {e}", scenario_path.display())))?;
+            if !same_source_power_binding(
+                scenario.scenario.operating_plan.fusion_power_mw,
+                fusion_power_mw,
+            ) {
+                return Err(tool(
+                    "the CAD source fusion power does not exactly match the history scenario",
+                ));
+            }
+            let response = history_response_request(&design, &report, components, h3_component)?;
+            Some((response, scenario, sha256_hex(&bytes), scenario_path))
+        }
+        _ => {
+            return Err(tool(
+                "all three history inputs are required together: --history-component, --history-scenario, and --h3-component",
+            ));
+        }
+    };
     let chamber = design
         .plasma
         .chamber_solid_id
@@ -1012,6 +1398,13 @@ pub fn design_transport(
             "energy_min_ev": chosen.energy_min_ev,
             "peak_voxel_cm": chosen.peak_voxel_m.map(|v| v.map(|d| d.map(|m| m * 100.0))),
         },
+        "history_response": history_setup.as_ref().map(|(response, _, _, _)| response),
+        "history_scenario": history_setup.as_ref().map(|(_, scenario, sha256, path)| serde_json::json!({
+            "path": path.display().to_string(),
+            "id": scenario.scenario.id,
+            "sha256": sha256,
+            "fusion_power_mw": scenario.scenario.operating_plan.fusion_power_mw,
+        })),
         "sampling": {
             "target_relative_error": options.target_relative_error,
             "particles_per_batch": options.particles_per_batch,
@@ -1037,11 +1430,8 @@ pub fn design_transport(
         std::fs::write(&path, text).map_err(|e| io_error(&path, e))?;
     }
     let request_path = dir.join("request.json");
-    std::fs::write(
-        &request_path,
-        serde_json::to_vec_pretty(&request).unwrap_or_default(),
-    )
-    .map_err(|e| io_error(&request_path, e))?;
+    let request_bytes = serde_json::to_vec_pretty(&request).map_err(|e| tool(e.to_string()))?;
+    std::fs::write(&request_path, &request_bytes).map_err(|e| io_error(&request_path, e))?;
     let solver = dir.join("solver");
     let tmp = dir.join("tmp");
     std::fs::create_dir_all(&tmp).map_err(|e| io_error(&tmp, e))?;
@@ -1172,8 +1562,70 @@ pub fn design_transport(
         seal(0.0)?;
     }
     let result_path = solver.join("result.json");
-    let worker: WorkerResult = serde_json::from_slice(&read_bounded(&result_path)?)
+    let worker_bytes = read_bounded(&result_path)?;
+    let worker: WorkerResult = serde_json::from_slice(&worker_bytes)
         .map_err(|e| tool(format!("{}: {e}", result_path.display())))?;
+    let history_rates_artifact = if let Some((history_request, scenario, scenario_sha256, _)) =
+        &history_setup
+    {
+        let components = options
+            .history_components
+            .as_ref()
+            .expect("paired history configuration");
+        let h3_component_id = options
+            .h3_component_id
+            .as_deref()
+            .expect("paired history configuration");
+        let artifact = build_history_rates_artifact(
+            &worker,
+            &worker_bytes,
+            &request,
+            &request_bytes,
+            components,
+            h3_component_id,
+            scenario,
+            scenario_sha256,
+            &design,
+            &design_path
+                .canonicalize()
+                .map_err(|e| io_error(design_path, e))?,
+            &options
+                .check_report
+                .canonicalize()
+                .map_err(|e| io_error(&options.check_report, e))?,
+            &h5m,
+            &cross_sections,
+            &dir,
+            fusion_power_mw,
+        )?;
+        let mut bytes = serde_json::to_vec_pretty(&artifact).map_err(|e| tool(e.to_string()))?;
+        bytes.push(b'\n');
+        if bytes.len() > MAX_JSON_BYTES as usize {
+            return Err(tool(format!(
+                "CAD history-rate artifact exceeds the {} MiB JSON budget; reduce the number of mapped components",
+                MAX_JSON_BYTES / (1024 * 1024)
+            )));
+        }
+        let path = dir.join("history-driving-rates.json");
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .map_err(|e| io_error(&path, e))?;
+        use std::io::Write as _;
+        file.write_all(&bytes).map_err(|e| io_error(&path, e))?;
+        Some(HistoryRatesArtifactRef {
+            path: path.display().to_string(),
+            sha256: sha256_hex(&bytes),
+        })
+    } else {
+        if worker.history_response.is_some() {
+            return Err(tool(
+                "the OpenMC worker returned unrequested CAD history responses",
+            ));
+        }
+        None
+    };
     assemble(
         worker,
         Inputs {
@@ -1192,6 +1644,7 @@ pub fn design_transport(
             run_directory: dir.display().to_string(),
             fusion_power_mw,
             response: &response,
+            history_rates_artifact,
             design: &design,
             history,
             setup_seconds,
@@ -1212,6 +1665,7 @@ struct Inputs<'a> {
     run_directory: String,
     fusion_power_mw: f64,
     response: &'a [(&'a str, f64)],
+    history_rates_artifact: Option<HistoryRatesArtifactRef>,
     design: &'a Design,
     history: Result<PowerHistory, String>,
     setup_seconds: f64,
@@ -1220,6 +1674,669 @@ struct Inputs<'a> {
     cache_note: Option<String>,
     reused_from: Option<CacheProvenance>,
     chosen: &'a ChosenResponse,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_history_rates_artifact(
+    worker: &WorkerResult,
+    worker_bytes: &[u8],
+    request: &serde_json::Value,
+    request_bytes: &[u8],
+    component_map: &BTreeMap<String, Vec<String>>,
+    h3_component_id: &str,
+    scenario: &faris_model::LoadedScenario,
+    scenario_sha256: &str,
+    design: &Design,
+    design_path: &Path,
+    check_report_path: &Path,
+    h5m_path: &Path,
+    cross_sections_path: &Path,
+    run_dir: &Path,
+    fusion_power_mw: f64,
+) -> Result<DesignHistoryRatesArtifact, DesignError> {
+    let fail = |why: &str| tool(format!("CAD history response is not usable: {why}"));
+    let expected = request
+        .get("history_response")
+        .filter(|value| !value.is_null())
+        .ok_or_else(|| fail("transport request omitted the required response definitions"))?;
+    let history = worker
+        .history_response
+        .as_ref()
+        .ok_or_else(|| fail("worker omitted the required response"))?;
+    validate_history_nuclear_data_identity(
+        &history.nuclear_data_identity,
+        &request["materials"],
+        cross_sections_path,
+    )
+    .map_err(|why| fail(&why))?;
+    if request.get("schema").and_then(serde_json::Value::as_str) != Some(REQUEST_SCHEMA)
+        || request["sampling"]["target_relative_error"].as_f64()
+            != Some(history.target_relative_error)
+        || history.schema != "faris-cad-history-response/v0.1"
+        || history.flux_energy_min_ev != 0.0
+        || history.h3_score != "H3-production"
+        || history.h3_total_scope != "whole_model"
+        || history.estimator != "tracklength"
+        || history.covariance_method != crate::transport::RESPONSE_COVARIANCE_METHOD
+        || history.covariance_scope
+            != "same-run sampling covariance across independent batch-integrated responses; no geometry-volume or nuclear-data uncertainty"
+        || history.covariance_unit_order
+            != "whole-model H3, blanket H3, then component flux cm/source_neutron"
+        || u32::try_from(worker.batches).ok() != Some(history.batches)
+        || history.batches < MIN_BATCHES as u32
+        || history.target_relative_error.to_bits() != worker.target_relative_error.to_bits()
+        || !history.target_reached
+        || worker.batches.checked_mul(worker.particles_per_batch) != Some(worker.histories)
+    {
+        return Err(fail(
+            "schema, all-energy response definition, batch history, or target completion does not match",
+        ));
+    }
+    let lost = worker
+        .lost_particles
+        .ok_or_else(|| fail("OpenMC did not expose a final lost-particle count"))?;
+    if worker.histories == 0 || lost as f64 / worker.histories as f64 > 1.0e-6 {
+        return Err(fail(
+            "lost-particle fraction exceeds the strict one-per-million limit",
+        ));
+    }
+    let rows = expected["components"]
+        .as_array()
+        .ok_or_else(|| fail("request component rows are malformed"))?;
+    let h3_ids = expected["h3_solid_ids"]
+        .as_array()
+        .ok_or_else(|| fail("request breeder solids are malformed"))?;
+    let mut expected_ids = vec![
+        "whole-model-tritium".to_string(),
+        "blanket-tritium".to_string(),
+    ];
+    expected_ids.extend(rows.iter().map(|row| {
+        format!(
+            "history-flux:{}",
+            row["component_id"].as_str().unwrap_or_default()
+        )
+    }));
+    if history.response_ids != expected_ids || history.responses.len() != expected_ids.len() {
+        return Err(fail(
+            "response IDs or response count differ from the exact request",
+        ));
+    }
+    let h3_solid_ids: Vec<String> = h3_ids
+        .iter()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect();
+    let expected_total_solids: Vec<String> = request["solids"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|solid| !solid["material_id"].is_null())
+        .filter_map(|solid| solid["solid_id"].as_str().map(str::to_string))
+        .collect();
+    if history.responses[0].response_id != "whole-model-tritium"
+        || history.responses[0].solid_ids != expected_total_solids
+        || history.responses[0].volume_m3.is_some()
+        || history.responses[1].response_id != "blanket-tritium"
+        || history.responses[1].solid_ids != h3_solid_ids
+        || history.responses[1].volume_m3.is_some()
+    {
+        return Err(fail(
+            "whole-model and breeder H3 responses do not bind their separate requested domains",
+        ));
+    }
+    let n = history.responses.len();
+    if history.covariance_raw_per_source.len() != n * n
+        || history
+            .covariance_raw_per_source
+            .iter()
+            .any(|value| !value.is_finite())
+    {
+        return Err(fail(
+            "batch covariance is missing or has invalid dimensions/values",
+        ));
+    }
+    for i in 0..n {
+        let row = &history.responses[i];
+        if !row.mean_raw_per_source.is_finite()
+            || !row.standard_error_raw_per_source.is_finite()
+            || row.standard_error_raw_per_source < 0.0
+            || (i < 2 && row.mean_raw_per_source <= 0.0)
+        {
+            return Err(fail(
+                "H3 or component score is absent, zero where required, or nonfinite",
+            ));
+        }
+        let diagonal = history.covariance_raw_per_source[i * n + i];
+        let se2 = faris_model::math::powi(row.standard_error_raw_per_source, 2);
+        if (diagonal - se2).abs() > 1.0e-6 * diagonal.abs().max(se2.abs()).max(1.0e-300) {
+            return Err(fail(
+                "reported response standard error does not match batch covariance",
+            ));
+        }
+        for j in 0..n {
+            let a = history.covariance_raw_per_source[i * n + j];
+            let b = history.covariance_raw_per_source[j * n + i];
+            if (a - b).abs() > 1.0e-9 * a.abs().max(b.abs()).max(1.0e-300) {
+                return Err(fail("batch covariance is asymmetric"));
+            }
+        }
+    }
+    let total_h3 = &history.responses[0];
+    let breeder_h3 = &history.responses[1];
+    if breeder_h3.mean_raw_per_source > total_h3.mean_raw_per_source * (1.0 + 1.0e-10) {
+        return Err(fail("breeder H3 production exceeds whole-model production"));
+    }
+    for (index, (request_row, component_id)) in rows.iter().zip(component_map.keys()).enumerate() {
+        let row = &history.responses[index + 2];
+        let expected_volume = request_row["volume_m3"]
+            .as_f64()
+            .ok_or_else(|| fail("component volume is missing"))?;
+        let expected_solids: Vec<String> = request_row["solid_ids"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
+        if request_row["component_id"].as_str() != Some(component_id.as_str())
+            || row.response_id != format!("history-flux:{component_id}")
+            || row.solid_ids != expected_solids
+            || row.volume_m3.map(f64::to_bits) != Some(expected_volume.to_bits())
+            || row.mean_raw_per_source <= 0.0
+        {
+            return Err(fail(
+                "all-energy flux response domain or CAD volume differs from the request",
+            ));
+        }
+    }
+    let xml_path = Path::new(&worker.model_xml_path);
+    if !xml_path.is_absolute()
+        || !xml_path.starts_with(run_dir)
+        || !xml_path.is_file()
+        || !sha256_file(xml_path)?.eq_ignore_ascii_case(&worker.model_xml_sha256)
+        || worker.openmc_library_sha256.len() != 64
+        || !worker
+            .openmc_library_sha256
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        || !Path::new(&worker.openmc_library_path).is_absolute()
+        || !sha256_file(Path::new(&worker.openmc_library_path))?
+            .eq_ignore_ascii_case(&worker.openmc_library_sha256)
+        || !Path::new(&worker.source_kernel_path).is_absolute()
+        || !sha256_file(Path::new(&worker.source_kernel_path))?
+            .eq_ignore_ascii_case(&worker.source_kernel_sha256)
+    {
+        return Err(fail(
+            "run model XML or OpenMC library identity is missing or does not match its bytes",
+        ));
+    }
+    let source_rate = source_rate_per_s(fusion_power_mw);
+    let mut normalized_results = Vec::with_capacity(n);
+    let total_volume_m3: f64 = rows
+        .iter()
+        .map(|row| row["volume_m3"].as_f64().unwrap_or(0.0))
+        .sum();
+    let breeder_volume = rows
+        .iter()
+        .find(|row| row["component_id"].as_str() == Some(h3_component_id))
+        .and_then(|row| row["volume_m3"].as_f64())
+        .ok_or_else(|| fail("breeder volume is missing from the component map"))?;
+    let mut scales = vec![source_rate, source_rate];
+    let total_h3_integrated = total_h3.mean_raw_per_source * source_rate;
+    let total_h3_se = total_h3.standard_error_raw_per_source * source_rate;
+    normalized_results.push(NormalizedTally {
+        response_id: "whole-model-tritium".into(),
+        domain: faris_model::transport::ResponseDomain::WholeModel,
+        score: faris_model::transport::ScoreDefinition::ParticleProduction {
+            particle: faris_model::transport::ProducedParticle::Tritium,
+            score: "H3-production".into(),
+        },
+        estimator: TallyEstimator::Tracklength,
+        mean: total_h3_integrated / total_volume_m3,
+        standard_error: total_h3_se / total_volume_m3,
+        unit: PhysicalUnit::ParticlesPerCubicMetreSecond,
+        integrated_mean: total_h3_integrated,
+        integrated_standard_error: total_h3_se,
+        integrated_unit: PhysicalUnit::ParticlesPerSecond,
+        volume_m3: total_volume_m3,
+        volume_standard_error_m3: 0.0,
+    });
+    let h3 = breeder_h3;
+    let h3_integrated = h3.mean_raw_per_source * source_rate;
+    let h3_se = h3.standard_error_raw_per_source * source_rate;
+    normalized_results.push(NormalizedTally {
+        response_id: "blanket-tritium".into(),
+        domain: faris_model::transport::ResponseDomain::Component {
+            component_id: "blanket".into(),
+        },
+        score: faris_model::transport::ScoreDefinition::ParticleProduction {
+            particle: faris_model::transport::ProducedParticle::Tritium,
+            score: "H3-production".into(),
+        },
+        estimator: TallyEstimator::Tracklength,
+        mean: h3_integrated / breeder_volume,
+        standard_error: h3_se / breeder_volume,
+        unit: PhysicalUnit::ParticlesPerCubicMetreSecond,
+        integrated_mean: h3_integrated,
+        integrated_standard_error: h3_se,
+        integrated_unit: PhysicalUnit::ParticlesPerSecond,
+        volume_m3: breeder_volume,
+        volume_standard_error_m3: 0.0,
+    });
+    for (index, row) in rows.iter().enumerate() {
+        let component_id = row["component_id"]
+            .as_str()
+            .ok_or_else(|| fail("component ID is missing"))?;
+        let volume = row["volume_m3"]
+            .as_f64()
+            .ok_or_else(|| fail("component volume is invalid"))?;
+        let sample = &history.responses[index + 2];
+        let scale = source_rate * 0.01;
+        scales.push(scale);
+        let integrated = sample.mean_raw_per_source * scale;
+        let integrated_se = sample.standard_error_raw_per_source * scale;
+        normalized_results.push(NormalizedTally {
+            response_id: sample.response_id.clone(),
+            domain: faris_model::transport::ResponseDomain::Component {
+                component_id: component_id.into(),
+            },
+            score: faris_model::transport::ScoreDefinition::Flux,
+            estimator: TallyEstimator::Tracklength,
+            mean: integrated / volume,
+            standard_error: integrated_se / volume,
+            unit: PhysicalUnit::NeutronsPerSquareMetreSecond,
+            integrated_mean: integrated,
+            integrated_standard_error: integrated_se,
+            integrated_unit: PhysicalUnit::NeutronMetresPerSecond,
+            volume_m3: volume,
+            volume_standard_error_m3: 0.0,
+        });
+    }
+    let integrated_covariance: Vec<f64> = history
+        .covariance_raw_per_source
+        .iter()
+        .enumerate()
+        .map(|(index, covariance)| covariance * scales[index / n] * scales[index % n])
+        .collect();
+    let plasma_bytes = serde_json::to_vec(&design.plasma).map_err(|e| tool(e.to_string()))?;
+    let source_definition_sha256 = sha256_hex(&plasma_bytes);
+    let component_map_bytes = serde_json::to_vec(component_map).map_err(|e| tool(e.to_string()))?;
+    let response_definitions_bytes =
+        serde_json::to_vec(expected).map_err(|e| tool(e.to_string()))?;
+    let worker_result_sha256 = sha256_hex(worker_bytes);
+    let normalized = NormalizedTransportResult {
+        schema_version: "faris-normalized-transport/v0.1".into(),
+        scenario_id: scenario.scenario.id.clone(),
+        scenario_sha256: scenario_sha256.into(),
+        variant_id: scenario
+            .scenario
+            .variants
+            .first()
+            .map_or_else(|| "cad-history".into(), |v| v.id.clone()),
+        source: faris_model::transport::DtSource {
+            energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
+            neutron_energy_ev: D_T_NEUTRON_ENERGY_EV,
+            neutrons_per_reaction: 1.0,
+            distribution_id: format!(
+                "openmc-plasma-source/tokamak-profile:{source_definition_sha256}"
+            ),
+        },
+        solver: TransportToolIdentity {
+            name: "OpenMC C API".into(),
+            version: worker.openmc.clone(),
+            digest: worker.openmc_library_sha256.clone(),
+        },
+        nuclear_data: TransportToolIdentity {
+            name: "cross_sections.xml".into(),
+            version: "sha256-pinned".into(),
+            digest: sha256_file(cross_sections_path)?,
+        },
+        histories: worker.histories,
+        source_reaction_rate_per_s: reaction_rate_per_s(
+            fusion_power_mw,
+            D_T_ENERGY_PER_REACTION_EV,
+        ),
+        source_neutron_rate_per_s: source_rate,
+        results: normalized_results,
+        response_covariance: Some(ResponseCovariance {
+            method: crate::transport::RESPONSE_COVARIANCE_METHOD.into(),
+            batches: history.batches,
+            response_ids: history.response_ids.clone(),
+            integrated: integrated_covariance,
+        }),
+    };
+    let normalized_validation = ValidationMarks(normalized.validation());
+    let driving_rates =
+        TransportDrivingRates::from_normalized(&normalized, fusion_power_mw, &worker_result_sha256)
+            .map_err(|e| fail(&e))?;
+    driving_rates.validate().map_err(|e| fail(&e))?;
+    let rel_model = xml_path
+        .strip_prefix(run_dir)
+        .map_err(|_| fail("model XML escapes the run folder"))?;
+    Ok(DesignHistoryRatesArtifact {
+        schema_version: DESIGN_HISTORY_RATES_VERSION.into(),
+        scenario_path: request["history_scenario"]["path"]
+            .as_str()
+            .ok_or_else(|| fail("history scenario path is missing from the request"))?
+            .into(),
+        scenario_id: scenario.scenario.id.clone(),
+        scenario_sha256: scenario_sha256.into(),
+        design_path: design_path.display().to_string(),
+        design_sha256: sha256_file(design_path)?,
+        check_report_path: check_report_path.display().to_string(),
+        check_report_sha256: sha256_file(check_report_path)?,
+        h5m_path: h5m_path.display().to_string(),
+        h5m_sha256: sha256_file(h5m_path)?,
+        cross_sections_path: cross_sections_path.display().to_string(),
+        cross_sections_sha256: sha256_file(cross_sections_path)?,
+        nuclear_data_identity: history.nuclear_data_identity.clone(),
+        worker_result_path: "solver/result.json".into(),
+        worker_result_sha256,
+        transport_request_path: "request.json".into(),
+        transport_request_sha256: sha256_hex(request_bytes),
+        model_xml_path: rel_model.to_string_lossy().into_owned(),
+        model_xml_sha256: worker.model_xml_sha256.clone(),
+        openmc_library_path: worker.openmc_library_path.clone(),
+        openmc_library_sha256: worker.openmc_library_sha256.clone(),
+        source_definition_sha256,
+        source_kernel_path: worker.source_kernel_path.clone(),
+        source_kernel_sha256: worker.source_kernel_sha256.clone(),
+        source_energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
+        source_neutron_energy_ev: D_T_NEUTRON_ENERGY_EV,
+        fusion_power_mw,
+        source_neutron_rate_per_s: source_rate,
+        flux_energy_min_ev: 0.0,
+        h3_score: "H3-production".into(),
+        component_map: component_map.clone(),
+        h3_component_id: h3_component_id.into(),
+        h3_solid_ids: h3_solid_ids.clone(),
+        component_map_sha256: sha256_hex(&component_map_bytes),
+        response_definitions_sha256: sha256_hex(&response_definitions_bytes),
+        histories: worker.histories,
+        batches: history.batches,
+        target_relative_error: history.target_relative_error,
+        covariance_method: history.covariance_method.clone(),
+        covariance_scope: history.covariance_scope.clone(),
+        normalized_transport: normalized,
+        validation: normalized_validation,
+        total_h3_production_per_source_neutron: ScalarRate {
+            mean: total_h3.mean_raw_per_source,
+            standard_error: Some(total_h3.standard_error_raw_per_source),
+            unit: "particles/source_neutron".into(),
+            response_id: "whole-model-tritium".into(),
+        },
+        driving_rates,
+    })
+}
+
+fn validate_history_nuclear_data_identity(
+    identity: &HistoryNuclearDataIdentity,
+    materials: &serde_json::Value,
+    cross_sections_path: &Path,
+) -> Result<(), String> {
+    let fail = |why: &str| format!("referenced nuclear-data identity {why}");
+    let xml_metadata = cross_sections_path.metadata().map_err(|e| e.to_string())?;
+    if identity.schema != "faris-cad-history-neutron-data/v0.1"
+        || identity.scope
+            != "material neutron nuclides; photon transport and thermal-scattering tables disabled"
+        || identity.tables.is_empty()
+        || identity.tables.len() > 4096
+        || !xml_metadata.is_file()
+        || xml_metadata.len() > 64 * 1024 * 1024
+        || sha256_file(cross_sections_path).map_err(|e| e.to_string())?
+            != identity.cross_sections_xml_sha256
+    {
+        return Err(fail(
+            "is missing, unbounded, or not bound to cross_sections.xml",
+        ));
+    }
+    let mut required = std::collections::BTreeSet::new();
+    for material in materials
+        .as_array()
+        .ok_or_else(|| fail("has no material map"))?
+    {
+        if let Some(nuclides) = material["nuclide_atom_fractions"].as_object() {
+            required.extend(nuclides.keys().cloned());
+        }
+    }
+    let mut found = std::collections::BTreeSet::new();
+    let mut paths = std::collections::BTreeSet::new();
+    let mut total_bytes = 0u64;
+    for table in &identity.tables {
+        let path = Path::new(&table.path);
+        let canonical = path.canonicalize().map_err(|e| e.to_string())?;
+        let metadata = canonical.metadata().map_err(|e| e.to_string())?;
+        if !path.is_absolute()
+            || canonical != path
+            || !metadata.is_file()
+            || metadata.len() != table.bytes
+            || table.bytes > 12 * 1024 * 1024 * 1024
+            || table.sha256.len() != 64
+            || !table
+                .sha256
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            || !sha256_file(&canonical)
+                .map_err(|e| e.to_string())?
+                .eq_ignore_ascii_case(&table.sha256)
+            || table.nuclides.is_empty()
+            || table.nuclides.len() != table.library_indices.len()
+            || !paths.insert(canonical)
+        {
+            return Err(fail(
+                "contains a changed, malformed, or unbounded table reference",
+            ));
+        }
+        total_bytes = total_bytes
+            .checked_add(table.bytes)
+            .ok_or_else(|| fail("byte count overflowed"))?;
+        if total_bytes > 64 * 1024 * 1024 * 1024 {
+            return Err(fail("exceeds the 64 GiB aggregate byte bound"));
+        }
+        for nuclide in &table.nuclides {
+            if !found.insert(nuclide.clone()) {
+                return Err(fail("maps a nuclide more than once"));
+            }
+        }
+    }
+    if found != required {
+        return Err(fail("does not map exactly the model's material nuclides"));
+    }
+    Ok(())
+}
+
+/// Re-read and re-bind a CAD history response artifact before the maintenance history consumes it.
+/// Hashes verify file identity; they do not constitute independent physical validation.
+pub fn load_design_history_rates(
+    artifact_path: &Path,
+    scenario: &faris_model::LoadedScenario,
+) -> Result<TransportDrivingRates, String> {
+    let bytes = read_bounded(artifact_path).map_err(|e| e.to_string())?;
+    let artifact: DesignHistoryRatesArtifact = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("CAD history rates artifact JSON: {e}"))?;
+    let fail = |why: &str| format!("CAD history rates artifact is not bound to this run: {why}");
+    if artifact.schema_version != DESIGN_HISTORY_RATES_VERSION
+        || artifact.driving_rates.transport_artifact_sha256 != artifact.worker_result_sha256
+        || artifact.flux_energy_min_ev != 0.0
+        || artifact.h3_score != "H3-production"
+        || artifact.h3_component_id != "blanket"
+        || artifact.driving_rates.transport_deposited_heat_w.is_some()
+    {
+        return Err(fail(
+            "scenario, power, response definition, or sampling provenance differs",
+        ));
+    }
+    validate_history_scenario_binding(
+        &artifact.scenario_id,
+        &artifact.scenario_sha256,
+        artifact.fusion_power_mw,
+        &artifact.driving_rates.scenario_sha256,
+        artifact.driving_rates.reference_fusion_power_mw,
+        scenario,
+    )
+    .map_err(|e| fail(&e))?;
+    let scenario_path = Path::new(&artifact.scenario_path);
+    if !scenario_path.is_absolute()
+        || !sha256_file(scenario_path)
+            .map_err(|e| e.to_string())?
+            .eq_ignore_ascii_case(&artifact.scenario_sha256)
+    {
+        return Err(fail(
+            "history scenario file does not match its recorded source identity",
+        ));
+    }
+    let base = artifact_path
+        .parent()
+        .ok_or_else(|| fail("artifact has no parent folder"))?
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let relative_file = |name: &str| -> Result<PathBuf, String> {
+        let path = Path::new(name);
+        if path.is_absolute()
+            || path
+                .components()
+                .any(|c| !matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(fail(
+                "run artifact references must be normalized relative paths",
+            ));
+        }
+        let resolved = base.join(path).canonicalize().map_err(|e| e.to_string())?;
+        if !resolved.starts_with(&base) || !resolved.is_file() {
+            return Err(fail(
+                "run artifact reference escapes its run folder or is not a regular file",
+            ));
+        }
+        Ok(resolved)
+    };
+    let worker_path = relative_file(&artifact.worker_result_path)?;
+    let worker_bytes = read_bounded(&worker_path).map_err(|e| e.to_string())?;
+    if sha256_hex(&worker_bytes) != artifact.worker_result_sha256 {
+        return Err(fail(
+            "worker result bytes do not match their recorded digest",
+        ));
+    }
+    let request_path = relative_file(&artifact.transport_request_path)?;
+    let request_bytes = read_bounded(&request_path).map_err(|e| e.to_string())?;
+    if sha256_hex(&request_bytes) != artifact.transport_request_sha256 {
+        return Err(fail(
+            "transport request bytes do not match their recorded digest",
+        ));
+    }
+    let transport_request: serde_json::Value =
+        serde_json::from_slice(&request_bytes).map_err(|e| e.to_string())?;
+    let design_path = Path::new(&artifact.design_path);
+    let check_path = Path::new(&artifact.check_report_path);
+    let h5m_path = Path::new(&artifact.h5m_path);
+    let xs_path = Path::new(&artifact.cross_sections_path);
+    for (path, digest, label) in [
+        (design_path, &artifact.design_sha256, "design"),
+        (check_path, &artifact.check_report_sha256, "check report"),
+        (h5m_path, &artifact.h5m_sha256, "H5M"),
+        (xs_path, &artifact.cross_sections_sha256, "cross sections"),
+    ] {
+        if !path.is_absolute()
+            || !sha256_file(path)
+                .map_err(|e| e.to_string())?
+                .eq_ignore_ascii_case(digest)
+        {
+            return Err(fail(&format!(
+                "{label} bytes do not match their recorded path and digest"
+            )));
+        }
+    }
+    let design_bytes = read_bounded(design_path).map_err(|e| e.to_string())?;
+    if sha256_hex(&design_bytes) != artifact.design_sha256 {
+        return Err(fail("design bytes changed after the digest check"));
+    }
+    let design = design::parse_design(&design_bytes)
+        .design
+        .ok_or_else(|| fail("bound CAD design does not parse"))?;
+    let check_bytes = read_bounded(check_path).map_err(|e| e.to_string())?;
+    let check: ImportReport = serde_json::from_slice(&check_bytes).map_err(|e| e.to_string())?;
+    accept_check_report(&check, &artifact.design_sha256).map_err(|e| e.to_string())?;
+    let checked_h5m = converted_model(
+        &check
+            .geometry
+            .conversion
+            .as_ref()
+            .ok_or_else(|| fail("check report has no conversion"))?
+            .directory,
+    )
+    .map_err(|e| e.to_string())?
+    .canonicalize()
+    .map_err(|e| e.to_string())?;
+    if checked_h5m != h5m_path.canonicalize().map_err(|e| e.to_string())? {
+        return Err(fail(
+            "H5M reference differs from the CAD check report conversion",
+        ));
+    }
+    let request = history_response_request(
+        &design,
+        &check,
+        &artifact.component_map,
+        &artifact.h3_component_id,
+    )
+    .map_err(|e| e.to_string())?;
+    let expected_scenario = serde_json::json!({
+        "path": artifact.scenario_path,
+        "id": artifact.scenario_id,
+        "sha256": artifact.scenario_sha256,
+        "fusion_power_mw": artifact.fusion_power_mw,
+    });
+    let expected_plasma = serde_json::to_value(&design.plasma).map_err(|e| e.to_string())?;
+    let expected_solids = solid_entries(&design, &check).map_err(|e| e.to_string())?;
+    let expected_materials = material_entries(&design, &check).map_err(|e| e.to_string())?;
+    if transport_request.get("history_scenario") != Some(&expected_scenario)
+        || transport_request.get("history_response") != Some(&request)
+        || transport_request.get("plasma") != Some(&expected_plasma)
+        || transport_request.get("solids") != Some(&serde_json::Value::Array(expected_solids))
+        || transport_request.get("materials") != Some(&serde_json::Value::Array(expected_materials))
+        || transport_request["sampling"]["target_relative_error"].as_f64()
+            != Some(artifact.target_relative_error)
+        || transport_request["response"]["energy_min_ev"]
+            .as_f64()
+            .is_none_or(|threshold| !threshold.is_finite())
+        || Path::new(transport_request["h5m"].as_str().unwrap_or_default())
+            .canonicalize()
+            .ok()
+            != h5m_path.canonicalize().ok()
+        || Path::new(
+            transport_request["cross_sections"]
+                .as_str()
+                .unwrap_or_default(),
+        )
+        .canonicalize()
+        .ok()
+            != xs_path.canonicalize().ok()
+    {
+        return Err(fail(
+            "transport request source, material, component, or response definitions differ from bound CAD inputs",
+        ));
+    }
+    let worker: WorkerResult = serde_json::from_slice(&worker_bytes).map_err(|e| e.to_string())?;
+    let rebuilt = build_history_rates_artifact(
+        &worker,
+        &worker_bytes,
+        &transport_request,
+        &request_bytes,
+        &artifact.component_map,
+        &artifact.h3_component_id,
+        scenario,
+        &artifact.scenario_sha256,
+        &design,
+        design_path,
+        check_path,
+        h5m_path,
+        xs_path,
+        &base,
+        artifact.fusion_power_mw,
+    )
+    .map_err(|e| e.to_string())?;
+    if rebuilt != artifact {
+        return Err(fail(
+            "recomputed response values or CAD/source/run provenance differ from the artifact",
+        ));
+    }
+    Ok(rebuilt.driving_rates)
 }
 
 /// Check the worker's answer against the request and convert it to fluxes.
@@ -1457,6 +2574,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             .collect(),
         notices,
         not_evaluated,
+        history_rates_artifact: inputs.history_rates_artifact,
         validation: ValidationMarks::for_catalogue(DESIGN_TRANSPORT_OUTPUTS),
     })
 }
@@ -1675,6 +2793,13 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         let _ = writeln!(out, "    Why: {}", item.why);
         let _ = writeln!(out, "    Next: {}", item.next_step);
     }
+    if let Some(artifact) = &report.history_rates_artifact {
+        let _ = writeln!(
+            out,
+            "  CAD operating-history rates: {} (hash-verified inputs; transport sampling covariance only, physical dose/material response qualification remains unvalidated).",
+            artifact.path
+        );
+    }
     let mut shown = vec![Quantity::Flux];
     if !report.fluence_limits.is_empty() {
         shown.push(Quantity::Fluence);
@@ -1689,6 +2814,124 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_nuclear_data_identity_rejects_same_path_table_mutation() {
+        let dir = tempfile::tempdir().unwrap();
+        let xml = dir.path().join("cross_sections.xml");
+        let table_path = dir.path().join("Li6.h5");
+        std::fs::write(&xml, b"<cross_sections/>").unwrap();
+        std::fs::write(&table_path, b"table-v1").unwrap();
+        let identity = HistoryNuclearDataIdentity {
+            schema: "faris-cad-history-neutron-data/v0.1".into(),
+            scope:
+                "material neutron nuclides; photon transport and thermal-scattering tables disabled"
+                    .into(),
+            cross_sections_xml_sha256: sha256_file(&xml).unwrap(),
+            tables: vec![HistoryNuclearDataTable {
+                path: table_path.canonicalize().unwrap().display().to_string(),
+                bytes: 8,
+                sha256: sha256_file(&table_path).unwrap(),
+                library_indices: vec![0],
+                nuclides: vec!["Li6".into()],
+            }],
+        };
+        let materials = serde_json::json!([{
+            "nuclide_atom_fractions": {"Li6": 1.0}
+        }]);
+        assert!(validate_history_nuclear_data_identity(&identity, &materials, &xml).is_ok());
+        std::fs::write(&table_path, b"table-v2").unwrap();
+        let error =
+            validate_history_nuclear_data_identity(&identity, &materials, &xml).unwrap_err();
+        assert!(error.contains("changed"), "{error}");
+    }
+
+    #[test]
+    fn history_component_map_is_a_complete_unique_partition_with_blanket_breeder() {
+        let active = ["blanket", "first-wall", "coil"]
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let map = BTreeMap::from([
+            ("blanket".into(), vec!["blanket".into()]),
+            ("first-wall".into(), vec!["first-wall".into()]),
+            ("tf-coil".into(), vec!["coil".into()]),
+        ]);
+        validate_history_component_partition(&active, &map, "blanket").unwrap();
+        let changed = BTreeMap::from([
+            ("blanket".into(), vec!["blanket".into()]),
+            ("first-wall".into(), vec!["coil".into()]),
+            ("tf-coil".into(), vec!["coil".into()]),
+        ]);
+        assert!(validate_history_component_partition(&active, &changed, "blanket").is_err());
+        assert!(validate_history_component_partition(&active, &map, "missing").is_err());
+        let incomplete = BTreeMap::from([
+            ("blanket".into(), vec!["blanket".into()]),
+            ("first-wall".into(), vec!["first-wall".into()]),
+        ]);
+        assert!(validate_history_component_partition(&active, &incomplete, "blanket").is_err());
+    }
+
+    #[test]
+    fn history_rate_binding_requires_exact_fusion_power_and_rejects_nonfinite_values() {
+        assert!(same_source_power_binding(1.25, 1.25));
+        assert!(!same_source_power_binding(1.25, 1.250_000_000_1));
+        assert!(!same_source_power_binding(f64::NAN, f64::NAN));
+    }
+
+    #[test]
+    fn loaded_cad_history_rates_must_match_scenario_hash_id_and_power() {
+        let scenario = faris_model::LoadedScenario::from_bytes(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scenarios/arc-inspired/scenario.json"
+        )))
+        .unwrap();
+        let power = scenario.scenario.operating_plan.fusion_power_mw;
+        assert!(
+            validate_history_scenario_binding(
+                &scenario.scenario.id,
+                &scenario.source_sha256,
+                power,
+                &scenario.source_sha256,
+                power,
+                &scenario,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_history_scenario_binding(
+                &scenario.scenario.id,
+                &"f".repeat(64),
+                power,
+                &scenario.source_sha256,
+                power,
+                &scenario,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_history_scenario_binding(
+                &scenario.scenario.id,
+                &scenario.source_sha256,
+                power + 1.0,
+                &scenario.source_sha256,
+                power + 1.0,
+                &scenario,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_history_scenario_binding(
+                "other-scenario",
+                &scenario.source_sha256,
+                power,
+                &scenario.source_sha256,
+                power,
+                &scenario,
+            )
+            .is_err()
+        );
+    }
 
     use crate::design::life::SECONDS_PER_YEAR;
 
@@ -2025,6 +3268,7 @@ mod tests {
             lost_positions_m: vec![],
             notices: vec![],
             not_evaluated: vec![],
+            history_rates_artifact: None,
             validation: ValidationMarks::for_catalogue(DESIGN_TRANSPORT_OUTPUTS),
         }
     }
@@ -2041,6 +3285,11 @@ mod tests {
             h5m_sha256: "2".repeat(64),
             run_h5m_sha256: "2".repeat(64),
             model_xml_sha256: "3".repeat(64),
+            model_xml_path: "/run/solver/model.xml".into(),
+            openmc_library_sha256: "4".repeat(64),
+            openmc_library_path: "/run/libopenmc.so".into(),
+            source_kernel_path: "/run/openmc_plasma_source.py".into(),
+            source_kernel_sha256: "5".repeat(64),
             seed: 7,
             threads: 1,
             particles_per_batch: 100,
@@ -2077,6 +3326,7 @@ mod tests {
             next_step: Some("repair the geometry".into()),
             lost_particles: Some(1),
             lost_positions_cm: vec![[12.5, -25.0, 50.0]],
+            history_response: None,
         };
         let report = assemble(
             worker,
@@ -2093,6 +3343,7 @@ mod tests {
                 run_directory: "test-run".into(),
                 fusion_power_mw: 500.0,
                 response: &response,
+                history_rates_artifact: None,
                 design: &design,
                 history: Err("test history unavailable".into()),
                 setup_seconds: 0.0,

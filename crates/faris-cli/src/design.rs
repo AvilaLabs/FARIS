@@ -10,6 +10,7 @@ use faris_engine::design::{
 };
 use faris_model::design::LengthUnit;
 use std::{
+    collections::BTreeMap,
     fmt,
     path::{Path, PathBuf},
 };
@@ -164,6 +165,16 @@ pub enum DesignCommand {
         /// to score [default: the only group with a fluence limit].
         #[arg(long, value_name = "ID")]
         group: Option<String>,
+        /// Add all-energy component flux and breeder H3 responses for operating history.
+        /// Repeat as `--history-component component_id=solid_id[,solid_id]` for every active solid.
+        #[arg(long = "history-component", value_name = "COMPONENT=SOLID[,SOLID]", action = clap::ArgAction::Append)]
+        history_component: Vec<String>,
+        /// Exact scenario whose authored operating power is bound to the CAD history rates.
+        #[arg(long, value_name = "SCENARIO.json", requires_all = ["history_component", "h3_component"])]
+        history_scenario: Option<PathBuf>,
+        /// Component receiving the H3-production tally; requires an explicit Li6-bearing CAD domain.
+        #[arg(long, value_name = "ID", requires_all = ["history_component", "history_scenario"])]
+        h3_component: Option<String>,
         /// Where weight windows and the channel search are kept, so that a later run on the same
         /// model starts sampling at once [default: `faris-transport-cache` beside the design file].
         #[arg(long, value_name = "DIR")]
@@ -224,6 +235,35 @@ pub fn parse_unit(label: &str) -> Option<LengthUnit> {
         "mm" => Some(LengthUnit::Mm),
         _ => None,
     }
+}
+
+fn parse_history_components(values: &[String]) -> Result<BTreeMap<String, Vec<String>>, String> {
+    let mut components = BTreeMap::new();
+    for value in values {
+        let (component, solids) = value.split_once('=').ok_or_else(|| {
+            format!(
+                "invalid --history-component {value:?}; expected component_id=solid_id[,solid_id]"
+            )
+        })?;
+        let component = component.trim();
+        let solid_ids: Vec<String> = solids
+            .split(',')
+            .map(str::trim)
+            .map(str::to_string)
+            .collect();
+        if component.is_empty()
+            || solid_ids.is_empty()
+            || solid_ids.iter().any(String::is_empty)
+            || components
+                .insert(component.to_string(), solid_ids)
+                .is_some()
+        {
+            return Err(format!(
+                "invalid or duplicate --history-component {value:?}"
+            ));
+        }
+    }
+    Ok(components)
 }
 
 pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
@@ -316,6 +356,9 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             window_python,
             openmc_package_path,
             group,
+            history_component,
+            history_scenario,
+            h3_component,
             cache_dir,
             no_cache,
             tools,
@@ -325,6 +368,8 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             let cancellation = interrupts.cancellation.clone();
             #[cfg(not(unix))]
             let cancellation = interrupts.clone();
+            let history_components = parse_history_components(&history_component)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
             let options = DesignTransportOptions {
                 check_report,
                 out_dir: out,
@@ -337,6 +382,9 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 window_python,
                 openmc_package_path,
                 group,
+                history_components: (!history_components.is_empty()).then_some(history_components),
+                history_scenario,
+                h3_component_id: h3_component,
                 cache_dir: (!no_cache).then(|| {
                     cache_dir.unwrap_or_else(|| {
                         design
@@ -462,4 +510,24 @@ fn write_json<T: serde::Serialize>(
         )
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_component_cli_values_make_an_explicit_stable_map() {
+        let map =
+            parse_history_components(&["blanket=blanket".into(), "tf-coil=coil-a,coil-b".into()])
+                .unwrap();
+        assert_eq!(map["blanket"], vec!["blanket".to_string()]);
+        assert_eq!(
+            map["tf-coil"],
+            vec!["coil-a".to_string(), "coil-b".to_string()]
+        );
+        assert!(parse_history_components(&["bad".into()]).is_err());
+        assert!(parse_history_components(&["blanket=a".into(), "blanket=b".into()]).is_err());
+        assert!(parse_history_components(&["wall=a,,b".into()]).is_err());
+    }
 }

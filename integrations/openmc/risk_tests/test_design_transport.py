@@ -305,7 +305,9 @@ class LostParticleTest(unittest.TestCase):
         model = FakeModel()
         tally = SimpleNamespace(results=TallyResults())
         lib = ModuleType("openmc.lib")
-        lib._dll = object()
+        # phase_run records the loaded C API library path and bytes; this pure fake
+        # points at an existing file only to exercise result serialization.
+        lib._dll = SimpleNamespace(_name=str(Path(DT.__file__).resolve()))
         lib.tallies = {DT.TALLY_ID: tally}
         lib.init = lambda *args: None
         lib.simulation_init = lambda: None

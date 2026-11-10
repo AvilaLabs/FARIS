@@ -15,6 +15,20 @@ use std::sync::Mutex;
 
 const SCENARIO: &[u8] = include_bytes!("../../../../../scenarios/arc-inspired/scenario.json");
 
+#[test]
+fn cad_history_rate_sidecar_is_dispatched_to_its_bound_reader_without_changing_reactor_run_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("history-driving-rates.json");
+    std::fs::write(
+        &path,
+        br#"{"schema_version":"faris-cad-history-driving-rates/v0.1"}"#,
+    )
+    .unwrap();
+    let scenario = LoadedScenario::from_bytes(SCENARIO).unwrap();
+    let error = rates_from_run(&scenario, &path).unwrap_err();
+    assert!(error.contains("CAD history rates artifact JSON"), "{error}");
+}
+
 /// Writes, for every continuation asked for, a spec, its provenance and the result the fake
 /// ACTINV returns: one irradiation step and the cooling grid, heat falling as 1/(1 + t).
 const BUILDER: &str = r#"

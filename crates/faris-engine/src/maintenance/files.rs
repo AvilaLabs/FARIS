@@ -227,6 +227,15 @@ pub fn rates_from_run(
     scenario: &LoadedScenario,
     run_path: &Path,
 ) -> Result<TransportDrivingRates, String> {
+    let bytes = read_bounded(run_path)?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    if value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_str)
+        == Some(crate::design::DESIGN_HISTORY_RATES_VERSION)
+    {
+        return crate::design::load_design_history_rates(run_path, scenario);
+    }
     let run = load_reactor_run(run_path, scenario).map_err(|e| e.to_string())?;
     let normalized = run
         .normalized

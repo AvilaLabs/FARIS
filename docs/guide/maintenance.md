@@ -38,10 +38,32 @@ outages are assumed to be.
 - **ACTINV** and its nuclear data. See [actinv.avilalabs.org](https://actinv.avilalabs.org).
 - **Python 3** for FARIS's activation-input builder, which writes the ACTINV inputs. The package has it as
   `tools/build_activation_inputs.py`, and FARIS finds it there.
-- **Per design**: a scenario, its physics file, a verified transport run for the history, a 709-group spectrum run
+- **Per design**: a scenario, its physics file, a transport run for the history, a 709-group spectrum run
   and operating-history assumptions. These are the same files the [history](operate.md) and
   [transport](transport.md) chapters use. The download does not hold the demo arrangements' 709-group spectrum runs,
   so recomputing needs your own [transport runs](transport.md).
+
+### CAD-derived history transport
+
+When the reactor CSG transport model does not represent the design's checked CAD geometry, produce history rates from the CAD itself with `faris design transport`. `--history-scenario` must name the same `faris-scenario` later used for this design in the maintenance designs file; its authored `operating_plan.fusion_power_mw` must match the design's CAD source power exactly. This scenario file is distinct from the design's linked operating-history assumptions file. Map every active material solid to one history component, and identify the complete Li6-bearing `blanket` component:
+
+For the synthetic four-solid plumbing control, the design has a void `plasma` solid and three material solids: `first-wall`, pure-Li6 `blanket`, and `tf-winding-pack`. The command therefore maps each of those three active solids exactly once:
+
+```sh
+faris design transport design.faris-design.json \\
+  --check-report import-report.json --out runs/cad-history \\
+  --history-scenario scenarios/operation.json \\
+  --history-component blanket=blanket \\
+  --history-component first-wall=first-wall \\
+  --history-component tf-coil=tf-winding-pack \\
+  --h3-component blanket --openmc-python /path/to/openmc-python \\
+  --cross-sections /path/to/cross_sections.xml \\
+  --plasma-source-path /path/to/openmc_plasma_source
+```
+
+This single analog run scores unrestricted-energy component flux, whole-model H3 production, and breeder-only H3 production in the same batch histories. Whole-model and breeder H3 remain separate responses; the operating-history tritium-production input continues to use the breeder-only response. Every response must meet the requested Monte Carlo relative-error target, the checked CAD source power must exactly match the scenario, and each mapped material solid must occur once. The run writes `history-driving-rates.json`; its hashes bind the design, check report, H5M, cross sections, every referenced neutron table for the model's material nuclides, source model, OpenMC library, component map and response definitions. Changing or removing a referenced table invalidates the sidecar. Its covariance is same-run sampling covariance only. CAD-volume, nuclear-data, model-form and source-profile uncertainties are not propagated, and these rates are not evidence of physical validation. CAD heating/deposited energy and the whole-plant net-energy ledger remain unavailable through this route; no heating value is inferred from neutron flux or H3. Missing H3 data or an unconverged response fails closed. The existing fluence-only response remains separately thresholded.
+
+Set `history_run` in the designs file to `runs/cad-history/history-driving-rates.json`. `faris maintenance dose-run` verifies and uses this sidecar with the existing operating-history engine; its reactor `physics` and 709-group `spectrum_run` inputs keep their existing roles. Existing `faris-reactor-run` history records continue to work unchanged.
 
 ### The designs file
 

@@ -22,6 +22,8 @@ that passed `faris design check`:
     response            {solid_ids, energy_min_ev}: flux above the threshold in these solids
                         (any solids that are not empty space; 0 for the flux at all energies);
                         with peak_voxel_cm [dr, dz] also the highest flux inside each solid
+    history_response    optional exact partition of active CAD solids to history components,
+                        with a complete Li6-bearing breeder domain for H3-production
     sampling            {target_relative_error, particles_per_batch, min_batches, max_batches,
                          max_seconds, seed, threads}
     variance_reduction  "none" or "windows"
@@ -29,8 +31,13 @@ that passed `faris design check`:
 `run` scores the track-length flux above the threshold in each response solid and stops at the
 first batch (of at least min_batches) where the relative standard error of the sum over the solids is at or below the
 target, or at the batch or time limit. The error of the sum comes from the per-batch sums,
-so correlation between solids is included. Neutrons below the threshold are not followed:
-they cannot score. Results are per source neutron (cm); the engine converts them to a flux.
+so correlation between solids is included. In a fluence-only run neutrons below the threshold
+are not followed because they cannot score. Results are per source neutron (cm); the engine
+converts them to a flux.
+When `history_response` is present, neutrons are not energy-cut off: separate all-energy
+component flux and full breeder H3-production tallies are accumulated from those same batch
+histories. The worker reports their joint batch-means covariance; it remains Monte Carlo
+sampling uncertainty only and does not include CAD volume or nuclear-data uncertainty.
 
 With "windows", `mgxs` and `windows` run first and `run` uses what they leave in the work
 directory. `mgxs` condenses the library to 17 groups, ten of them above 0.1 MeV, on the
@@ -70,6 +77,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -104,6 +112,9 @@ PROGRESS_SECONDS = 5.0
 LOST_FRACTION_LIMIT = 1.0e-6
 LOST_LOCATIONS = 10          # how many lost neutrons have their position recorded
 MAX_RECEIPT_FILE_BYTES = 12 * 1024**3
+MAX_HISTORY_XS_FILES = 4096
+MAX_HISTORY_XS_TOTAL_BYTES = 64 * 1024**3
+MAX_HISTORY_XS_XML_BYTES = 64 * 1024**2
 MAX_HEATING_VOXEL_CELLS = 32_768
 MAX_HEATING_VOLUME_CELLS = 1_000_000
 MAX_VOLUME_MATERIAL_CELLS = 1_000_000
@@ -191,6 +202,16 @@ def validate_request(request: dict) -> None:
     for material in request["materials"]:
         need(material["density_kg_m3"] > 0.0, f"{material['material_id']}: density must be positive")
         need(material["nuclide_atom_fractions"], f"{material['material_id']}: no nuclides")
+    if request.get("history_response") is not None:
+        history = validate_history_response(request["history_response"], request["solids"])
+        need(history == request["history_response"], "history_response is not in canonical validated form")
+        need(len(history["components"]) + 2 <= 256, "history response count exceeds the bounded covariance limit")
+        h3_materials = {solids[sid]["material_id"] for sid in history["h3_solid_ids"]}
+        recipe_by_id = {m["material_id"]: m for m in request["materials"]}
+        for material_id in h3_materials:
+            names = recipe_by_id[material_id]["nuclide_atom_fractions"]
+            need(any(str(name).startswith("Li") for name in names),
+                 f"H3 breeder material {material_id} has no explicitly listed lithium nuclide")
 
 
 def retag_map(solids: list[dict], random_ray: bool) -> dict[bytes, bytes]:
@@ -592,6 +613,146 @@ def response_materials(request: dict) -> list[str]:
     return sorted({by_solid[s] for s in request["response"]["solid_ids"]})
 
 
+def validate_history_response(response: dict, solids: list[dict]) -> dict:
+    """Validate a caller-authored CAD-solid to history-component map.
+
+    Every active material solid must occur exactly once. H3 is scored only in the
+    explicitly named breeder solids; this does not infer a breeder from its name.
+    """
+    if not isinstance(response, dict) or set(response) != {
+        "components", "breeder_component_id", "h3_solid_ids", "h3_total_scope", "flux_energy_min_ev"
+    }:
+        raise ValueError("history_response must contain the exact component, breeder, H3-solid, and threshold fields")
+    component_rows = response["components"]
+    if not isinstance(component_rows, list) or not component_rows:
+        raise ValueError("history_response needs at least one component")
+    by_id = {row["solid_id"]: row for row in solids}
+    active = {row["solid_id"] for row in solids if row["material_id"] is not None}
+    seen_components: set[str] = set()
+    seen_solids: set[str] = set()
+    normalized = []
+    for row in component_rows:
+        if not isinstance(row, dict) or set(row) != {"component_id", "solid_ids", "volume_m3"}:
+            raise ValueError("each history component must name component_id, solid_ids, and volume_m3")
+        component = row["component_id"]
+        ids = row["solid_ids"]
+        if not isinstance(component, str) or not component.strip() or component in seen_components:
+            raise ValueError("history component IDs must be nonempty and unique")
+        if not isinstance(ids, list) or not ids or len(ids) != len(set(ids)):
+            raise ValueError(f"history component {component!r} needs unique solid IDs")
+        volume = row["volume_m3"]
+        if not isinstance(volume, (int, float)) or not math.isfinite(volume) or volume <= 0.0:
+            raise ValueError(f"history component {component!r} needs a positive finite CAD volume")
+        for solid_id in ids:
+            if solid_id not in active or solid_id in seen_solids:
+                raise ValueError(f"history solid {solid_id!r} is inactive, missing, or assigned more than once")
+            seen_solids.add(solid_id)
+        seen_components.add(component)
+        normalized.append({"component_id": component, "solid_ids": list(ids), "volume_m3": float(volume)})
+    if seen_solids != active:
+        raise ValueError("history component map must cover every active material solid exactly once")
+    breeder = response["breeder_component_id"]
+    h3_solids = response["h3_solid_ids"]
+    if breeder not in seen_components or not isinstance(h3_solids, list) or not h3_solids:
+        raise ValueError("history response must name a mapped breeder component and H3 solids")
+    if response["h3_total_scope"] != "whole_model":
+        raise ValueError("total H3 response must be explicitly scoped to the whole model")
+    breeder_solids = next(row["solid_ids"] for row in normalized if row["component_id"] == breeder)
+    if len(h3_solids) != len(set(h3_solids)) or set(h3_solids) != set(breeder_solids):
+        raise ValueError("H3 tally solids must equal the complete breeder component solids")
+    if any(by_id[sid]["material_id"] is None for sid in h3_solids):
+        raise ValueError("H3 tally cannot include void solids")
+    energy_min_ev = response["flux_energy_min_ev"]
+    if not isinstance(energy_min_ev, (int, float)) or not math.isfinite(energy_min_ev) or energy_min_ev != 0.0:
+        raise ValueError("history component flux requires the all-energy threshold 0 eV")
+    normalized_components = []
+    for row in normalized:
+        normalized_components.append(row)
+    return {"components": normalized_components, "breeder_component_id": breeder,
+            "h3_solid_ids": list(h3_solids), "h3_total_scope": "whole_model", "flux_energy_min_ev": 0.0}
+
+
+def validate_h3_domain_closure(total_per_source: float, breeder_per_source: float) -> None:
+    """Keep whole-model tritium production distinct from the breeder-only subset."""
+    if (not math.isfinite(total_per_source) or not math.isfinite(breeder_per_source)
+            or total_per_source <= 0.0 or breeder_per_source <= 0.0):
+        raise ValueError("whole-model and breeder H3 production must both be positive and finite")
+    if breeder_per_source > total_per_source * (1.0 + 1.0e-10):
+        raise ValueError("breeder H3 production exceeds whole-model H3 production")
+
+
+def history_nuclear_data_identity(request: dict) -> dict:
+    """Hash only neutron tables named by this CAD model's audited material nuclides.
+
+    The OpenMC XML index is retained so the identity shows which selected library entry
+    supplied each nuclide. Hashing streams fixed-size blocks; referenced tables are never
+    read wholesale into memory.
+    """
+    xml = Path(request["cross_sections"]).resolve(strict=True)
+    xml_info = xml.stat()
+    if not stat.S_ISREG(xml_info.st_mode) or xml_info.st_size > MAX_HISTORY_XS_XML_BYTES:
+        raise ValueError("cross_sections.xml is not a regular file within the 64 MiB history identity bound")
+    xml_sha256 = sha256_file(xml)
+    root = ET.parse(xml).getroot()
+    neutron = []
+    for index, library in enumerate(root.findall("library")):
+        if library.get("type") == "neutron":
+            neutron.append((index, library))
+    required = sorted({name for material in request["materials"]
+                       for name in material["nuclide_atom_fractions"]})
+    if not required:
+        raise ValueError("CAD history nuclear-data identity has no material nuclides")
+    if len(required) > MAX_HISTORY_XS_FILES:
+        raise ValueError(f"CAD history references more than {MAX_HISTORY_XS_FILES} material nuclides")
+    by_nuclide = {}
+    for index, library in neutron:
+        path_text = library.get("path")
+        names = library.get("materials", "").split()
+        if not path_text or not names:
+            continue
+        for name in names:
+            if name in by_nuclide:
+                raise ValueError(f"cross_sections.xml maps {name} to more than one neutron table")
+            by_nuclide[name] = (index, path_text)
+    missing = [name for name in required if name not in by_nuclide]
+    if missing:
+        raise ValueError("cross_sections.xml has no neutron table for: " + ", ".join(missing))
+    tables_by_path = {}
+    total_bytes = 0
+    for nuclide in required:
+        index, path_text = by_nuclide[nuclide]
+        path = (xml.parent / path_text).resolve(strict=True)
+        key = str(path)
+        if key not in tables_by_path:
+            digest = hashlib.sha256()
+            count = 0
+            with path.open("rb") as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_RECEIPT_FILE_BYTES:
+                    raise ValueError(f"referenced neutron table {path} is not a bounded regular file")
+                for block in iter(lambda: stream.read(1 << 20), b""):
+                    count += len(block)
+                    if count > MAX_RECEIPT_FILE_BYTES:
+                        raise ValueError(f"referenced neutron table {path} exceeded its size bound")
+                    digest.update(block)
+            total_bytes += count
+            if total_bytes > MAX_HISTORY_XS_TOTAL_BYTES:
+                raise ValueError("referenced neutron tables exceed the 64 GiB aggregate identity bound")
+            tables_by_path[key] = {"path": key, "bytes": count, "sha256": digest.hexdigest(),
+                                   "library_indices": [], "nuclides": []}
+        table = tables_by_path[key]
+        table["library_indices"].append(index)
+        table["nuclides"].append(nuclide)
+    tables = sorted(tables_by_path.values(), key=lambda row: row["path"])
+    if len(tables) > MAX_HISTORY_XS_FILES:
+        raise ValueError(f"CAD history references more than {MAX_HISTORY_XS_FILES} neutron files")
+    if sha256_file(xml) != xml_sha256:
+        raise ValueError("cross_sections.xml changed while its referenced neutron data were being hashed")
+    return {"schema": "faris-cad-history-neutron-data/v0.1",
+            "scope": "material neutron nuclides; photon transport and thermal-scattering tables disabled",
+            "cross_sections_xml_sha256": xml_sha256, "tables": tables}
+
+
 def point_source(openmc, request: dict):
     """14.06 MeV neutrons born uniformly in the plasma chamber: the source of the deterministic steps."""
     return domain_source(openmc, openmc.Cell(cell_id=volume_ids(request)[request["chamber_solid_id"]]))
@@ -814,7 +975,8 @@ def phase_run(request: dict, work: Path) -> dict:
     settings.particles = int(sampling["particles_per_batch"])
     settings.batches = int(sampling["max_batches"])
     settings.seed = int(sampling["seed"])
-    if float(response["energy_min_ev"]) > 0.0:
+    history_request = request.get("history_response")
+    if float(response["energy_min_ev"]) > 0.0 and history_request is None:
         # A neutron below the threshold cannot score and is not followed.
         settings.cutoff = {"energy_neutron": float(response["energy_min_ev"])}
     settings.output = {"tallies": False, "summary": False}
@@ -835,6 +997,31 @@ def phase_run(request: dict, work: Path) -> dict:
     tally.scores = ["flux"]
     tally.estimator = "tracklength"
     tallies = [tally]
+    history_tallies = []
+    if history_request is not None:
+        for index, component in enumerate(history_request["components"]):
+            history_tally = openmc.Tally(tally_id=1_000 + index, name=f"history-flux-{component['component_id']}")
+            history_tally.filters = [openmc.CellFilter([ids[sid] for sid in component["solid_ids"]])]
+            history_tally.scores = ["flux"]
+            history_tally.estimator = "tracklength"
+            tallies.append(history_tally)
+            history_tallies.append((f"history-flux:{component['component_id']}", history_tally,
+                                    component["solid_ids"], component["volume_m3"]))
+        h3_tally = openmc.Tally(tally_id=2_000, name="history-h3-production")
+        h3_tally.filters = [openmc.CellFilter([ids[sid] for sid in history_request["h3_solid_ids"]])]
+        h3_tally.scores = ["H3-production"]
+        h3_tally.estimator = "tracklength"
+        tallies.append(h3_tally)
+        total_h3_tally = openmc.Tally(tally_id=2_001, name="history-whole-model-h3-production")
+        total_h3_tally.scores = ["H3-production"]
+        total_h3_tally.estimator = "tracklength"
+        tallies.append(total_h3_tally)
+        active_material_solids = [solid["solid_id"] for solid in request["solids"]
+                                  if solid["material_id"] is not None]
+        history_tallies.insert(0, ("blanket-tritium", h3_tally,
+                                   history_request["h3_solid_ids"], None))
+        history_tallies.insert(0, ("whole-model-tritium", total_h3_tally,
+                                   active_material_solids, None))
     pieces = None
     if response.get("peak_voxel_cm") is not None:
         pieces_record = json.loads((work / "peak" / "record.json").read_text())
@@ -888,6 +1075,9 @@ def phase_run(request: dict, work: Path) -> dict:
     peaks = [None for _ in solids]
     lost = None
     leading = None
+    history_moments = BatchCovarianceMoments(len(history_tallies)) if history_tallies else None
+    history_previous = [None for _ in history_tallies]
+    history_data_identity = history_nuclear_data_identity(request) if history_tallies else None
     piece_volumes = piece_ranked = None
     if pieces is not None:
         piece_volumes = pieces["volumes_cm3"].reshape(len(solids), -1)
@@ -917,6 +1107,19 @@ def phase_run(request: dict, work: Path) -> dict:
                 stats.add(float(batch.sum()))
                 for accumulator, value in zip(per_solid, batch):
                     accumulator.add(float(value))
+                if history_tallies:
+                    batch_responses = []
+                    for index, (_, history_tally, _, _) in enumerate(history_tallies):
+                        cumulative = np.asarray(openmc.lib.tallies[history_tally.id].results[:, 0, 1], dtype=float)
+                        if history_previous[index] is None:
+                            previous_history = np.zeros_like(cumulative)
+                        else:
+                            previous_history = history_previous[index]
+                        if cumulative.shape != previous_history.shape:
+                            raise RuntimeError("history tally cell bins changed during the OpenMC run")
+                        batch_responses.append(float((cumulative - previous_history).sum()))
+                        history_previous[index] = cumulative.copy()
+                    history_moments.add(batch_responses)
                 batch_log.write(f"{stats.n},{float(batch.sum())!r}," + ",".join(repr(float(v)) for v in batch) + "\n")
                 batch_log.flush()
                 elapsed = time.monotonic() - started
@@ -931,6 +1134,10 @@ def phase_run(request: dict, work: Path) -> dict:
                     previous_pieces = scored[:, :, 0].copy()
                     leading = (leading_piece(scored, piece_volumes, piece_ranked, stats.n),)
                 reason = stop_reason(stats, sampling, elapsed, leading)
+                if (reason == "target_reached" and history_moments is not None
+                        and not history_moments.target_reached(sampling["target_relative_error"],
+                                                               sampling["min_batches"])):
+                    reason = None
                 lost = lost_count(openmc.lib._dll)
                 if lost_too_many(lost, stats.n * int(sampling["particles_per_batch"])):
                     reason = "lost_particles"
@@ -971,6 +1178,10 @@ def phase_run(request: dict, work: Path) -> dict:
             openmc.lib.finalize()
     finally:
         os.chdir(here)
+    if history_data_identity is not None:
+        current_history_data_identity = history_nuclear_data_identity(request)
+        if current_history_data_identity != history_data_identity:
+            raise RuntimeError("a referenced neutron table or cross_sections.xml changed during CAD history transport")
     elapsed = time.monotonic() - started
     result = {
         "schema": RESULT_SCHEMA,
@@ -978,6 +1189,11 @@ def phase_run(request: dict, work: Path) -> dict:
         "h5m_sha256": sha256_file(request["h5m"]),
         "run_h5m_sha256": sha256_file(geometry),
         "model_xml_sha256": sha256_file(model_xml),
+        "model_xml_path": str(model_xml.resolve()),
+        "openmc_library_path": str(Path(openmc.lib._dll._name).resolve()),
+        "openmc_library_sha256": sha256_file(Path(openmc.lib._dll._name).resolve()),
+        "source_kernel_path": str(Path(inspect.getsourcefile(tokamak_source)).resolve()),
+        "source_kernel_sha256": sha256_file(Path(inspect.getsourcefile(tokamak_source)).resolve()),
         "seed": int(sampling["seed"]),
         "threads": int(sampling["threads"]),
         "particles_per_batch": int(sampling["particles_per_batch"]),
@@ -1007,6 +1223,43 @@ def phase_run(request: dict, work: Path) -> dict:
         "why": lost_why,
         "next_step": lost_next_step,
     }
+    if history_moments is not None:
+        covariance = history_moments.covariance_of_mean
+        history_rows = []
+        for index, (response_id, _, solid_ids_for_component, volume_m3) in enumerate(history_tallies):
+            history_rows.append({
+                "response_id": response_id,
+                "solid_ids": solid_ids_for_component,
+                "volume_m3": volume_m3,
+                "mean_raw_per_source": float(history_moments.mean[index]),
+                "standard_error_raw_per_source": float(np.sqrt(max(float(covariance[index, index]), 0.0))),
+            })
+        result["history_response"] = {
+            "schema": "faris-cad-history-response/v0.1",
+            "flux_energy_min_ev": 0.0,
+            "h3_score": "H3-production",
+            "h3_total_scope": "whole_model",
+            "estimator": "tracklength",
+            "covariance_method": "batch-means-sample-covariance/v1",
+            "batches": history_moments.count,
+            "target_relative_error": float(sampling["target_relative_error"]),
+            "relative_errors": [float(value) if math.isfinite(float(value)) else None
+                                for value in history_moments.relative_errors],
+            "target_reached": history_moments.target_reached(sampling["target_relative_error"],
+                                                               sampling["min_batches"]),
+            "response_ids": [row["response_id"] for row in history_rows],
+            "responses": history_rows,
+            "covariance_raw_per_source": covariance.reshape(-1).tolist(),
+            "covariance_unit_order": "whole-model H3, blanket H3, then component flux cm/source_neutron",
+            "covariance_scope": "same-run sampling covariance across independent batch-integrated responses; no geometry-volume or nuclear-data uncertainty",
+            "nuclear_data_identity": history_data_identity,
+        }
+        total_h3_row, breeder_h3_row = history_rows[:2]
+        try:
+            validate_h3_domain_closure(total_h3_row["mean_raw_per_source"],
+                                       breeder_h3_row["mean_raw_per_source"])
+        except ValueError as error:
+            raise RuntimeError(f"{error}; no history rates were written") from error
     if reason not in ("lost_particles", "target_reached"):
         result["why"], result["next_step"] = explain(reason, stats, sampling, mode["mode"] != "analog", leading)
     target = out_dir / "result.json"
@@ -1094,6 +1347,54 @@ class VectorMoments:
         if self.count < 2:
             return np.full_like(self.mean, np.nan)
         return np.sqrt(np.maximum(self.m2, 0.0) / (self.count * (self.count - 1)))
+
+
+class BatchCovarianceMoments:
+    """Bounded online covariance of aligned batch-integrated scalar responses."""
+
+    def __init__(self, dimension: int):
+        import numpy as np
+
+        if dimension < 2 or dimension > 256:
+            raise ValueError("history response count must be between 2 and 256")
+        self.count = 0
+        self.mean = np.zeros(dimension, dtype=float)
+        self.m2 = np.zeros((dimension, dimension), dtype=float)
+
+    def add(self, values) -> None:
+        import numpy as np
+
+        values = np.asarray(values, dtype=float)
+        if values.shape != self.mean.shape or not np.isfinite(values).all():
+            raise ValueError("history batch responses must be finite and match the declared response count")
+        self.count += 1
+        delta = values - self.mean
+        self.mean += delta / self.count
+        self.m2 += np.outer(delta, values - self.mean)
+
+    @property
+    def covariance_of_mean(self):
+        import numpy as np
+
+        if self.count < 2:
+            return np.full_like(self.m2, np.nan)
+        return self.m2 / ((self.count - 1) * self.count)
+
+    @property
+    def relative_errors(self):
+        import numpy as np
+
+        se = np.sqrt(np.maximum(np.diag(self.covariance_of_mean), 0.0))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            relative = se / self.mean
+        relative[(self.mean <= 0.0) | ~np.isfinite(self.mean)] = np.inf
+        return relative
+
+    def target_reached(self, target: float, minimum_batches: int) -> bool:
+        import numpy as np
+
+        return self.count >= minimum_batches and bool(np.isfinite(self.relative_errors).all()
+                                                     and np.all(self.relative_errors <= target))
 
 
 class ScalarMoments:
