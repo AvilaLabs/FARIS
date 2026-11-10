@@ -379,6 +379,13 @@ def _update_reused_elapsed_summary(record: dict) -> None:
         "reused-neutron step time covers validation and new collapse only")
 
 
+def _validate_reused_volume_layout(volume_layout: dict, material_array, actual_domains: int) -> None:
+    """Cross-check the NPZ header preflight against its loaded domain array."""
+    if (volume_layout.get("shape") != list(material_array.shape) or
+            volume_layout.get("domain_upper_bound", -1) < actual_domains):
+        raise ValueError("reused neutron volume layout differs from its bounded header preflight")
+
+
 def timed(record, name, fn):
     t0 = time.time()
     entry = {"ok": False, "seconds": None, "peak_rss_mb": None, "error": None}
@@ -846,8 +853,7 @@ def main() -> int:
         if (actual_domains != record["activation_regions"] or flux_mean.shape != (actual_domains, group_count) or
                 flux_mean.dtype != np.dtype(np.float64)):
             raise ValueError("reused neutron flux/volume array shapes differ from the frozen activation domain")
-        if volume_layout["domain_count"] != actual_domains:
-            raise ValueError("reused neutron volume-domain count changed after validation")
+        _validate_reused_volume_layout(volume_layout, material_array, actual_domains)
         memory_budget = int(args.microxs_memory_budget_mib * 1024 ** 2)
         output_budget = int(args.microxs_output_budget_gib * BM.GIB)
         disk_reserve = int(args.disk_reserve_gib * BM.GIB)

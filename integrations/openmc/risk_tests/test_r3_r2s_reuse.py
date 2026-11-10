@@ -156,6 +156,19 @@ class NeutronReuseValidationTests(unittest.TestCase):
         self.assertEqual(record["method_elapsed_seconds_including_reused_neutron"], 17.5)
         self.assertIn("original neutron transport wall time exactly once", record["method_elapsed_scope"])
 
+    def test_reused_volume_layout_checks_header_shape_and_domain_bound(self):
+        import numpy as np
+
+        materials = np.array([[1, -1], [2, 3]], dtype=np.int32)
+        r2s._validate_reused_volume_layout(
+            {"shape": [2, 2], "domain_upper_bound": 4}, materials, 3)
+        with self.assertRaisesRegex(ValueError, "bounded header preflight"):
+            r2s._validate_reused_volume_layout(
+                {"shape": [1, 2], "domain_upper_bound": 4}, materials, 3)
+        with self.assertRaisesRegex(ValueError, "bounded header preflight"):
+            r2s._validate_reused_volume_layout(
+                {"shape": [2, 2], "domain_upper_bound": 2}, materials, 3)
+
     def test_rejects_changed_settings(self):
         kwargs = dict(self.kwargs)
         kwargs["expected_settings"] = {**self.kwargs["expected_settings"], "seeds": [99, 100]}
