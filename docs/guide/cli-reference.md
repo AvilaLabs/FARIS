@@ -420,7 +420,7 @@ Clone checked CAD materials per solid and build the event-dose physics adapter
 Usage: faris maintenance dose-prepare [OPTIONS] --config <CONFIG>
 
 Options:
-      --config <CONFIG>      faris-maintenance-dose-cad-config/v0.1 preparation request
+      --config <CONFIG>      faris-maintenance-dose-cad-config/v0.2 preparation request
       --actinv <ACTINV>      The explicitly selected `actinv` executable for decay-heat execution
       --python <PYTHON>      Python interpreter with the validated OpenMC runtime and plasma-source package [default: python3]
       --worker <WORKER>      Event-dose worker [default: installed worker]

@@ -1539,9 +1539,10 @@ fn render_geometry(g: &GeometryRecords) -> String {
                     .unwrap()
                     .total_cmp(&b.global_upper_bound_m.unwrap())
             });
-        let sampled = d.solids.iter().max_by(|a, b| {
-            a.max_distance_m.total_cmp(&b.max_distance_m)
-        });
+        let sampled = d
+            .solids
+            .iter()
+            .max_by(|a, b| a.max_distance_m.total_cmp(&b.max_distance_m));
         let certified_count = d
             .solids
             .iter()

@@ -901,10 +901,19 @@ fn report_does_not_present_sample_maximum_as_a_certified_bound_when_all_bounds_a
     }
     let report = run_with(&design(Vec::new()), &b);
     let readable = super::super::render_text(&report);
-    assert!(readable.contains("no overall global upper bound certified"), "{readable}");
-    assert!(readable.contains("largest diagnostic sampled distance"), "{readable}");
+    assert!(
+        readable.contains("no overall global upper bound certified"),
+        "{readable}"
+    );
+    assert!(
+        readable.contains("largest diagnostic sampled distance"),
+        "{readable}"
+    );
     assert!(readable.contains("(not a global bound)"), "{readable}");
-    assert!(!readable.contains("largest certified upper bound"), "{readable}");
+    assert!(
+        !readable.contains("largest certified upper bound"),
+        "{readable}"
+    );
 }
 
 // Verifies: GEO-032
