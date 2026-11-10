@@ -20,16 +20,55 @@
     },
     {
       "id": "design-transport",
-      "label": "Transport on an authored design: source, window variance reduction, flux and fluence limits on the design's components",
+      "label": "Transport on an authored CAD design: source, variance reduction, flux and fluence limits, and all-energy component/H3 rates for the shared operating-history model",
       "page": "docs/guide/transport.md",
-      "catalogues": ["DESIGN_TRANSPORT_OUTPUTS"],
-      "quantities": [],
-      "sources": ["crates/faris-engine/src/design/transport.rs"],
-      "verification": [
-        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/transport.rs", "name": "flux_conversion_has_the_right_units", "what": "the flux conversion of a design run has the stated units"},
-        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/transport.rs", "name": "a_total_fluence_limit_scores_all_energies", "what": "a total fluence limit scores all energies"}
+      "catalogues": [
+        "DESIGN_TRANSPORT_OUTPUTS",
+        "DESIGN_HISTORY_RATES_OUTPUTS"
       ],
-      "not_covered": ["the transport physics of the external solver", "variance-reduction bias against an analog run on a plant-scale design"]
+      "quantities": [],
+      "sources": [
+        "crates/faris-engine/src/design/transport.rs",
+        "integrations/openmc/design_transport.py"
+      ],
+      "verification": [
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/transport.rs",
+          "name": "flux_conversion_has_the_right_units",
+          "what": "the flux conversion of a design run has the stated units"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/transport.rs",
+          "name": "a_total_fluence_limit_scores_all_energies",
+          "what": "a total fluence limit scores all energies"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/transport.rs",
+          "name": "loaded_cad_history_rates_must_match_scenario_hash_id_and_power",
+          "what": "CAD history rates bind the scenario identity and D-T normalization power"
+        },
+        {
+          "class": "verification",
+          "kind": "test",
+          "file": "crates/faris-engine/src/design/transport.rs",
+          "name": "history_component_map_is_a_complete_unique_partition_with_blanket_breeder",
+          "what": "CAD history components cover each material-bearing solid exactly once"
+        }
+      ],
+      "not_covered": [
+        "the transport physics of the external solver",
+        "variance-reduction bias against an analog run on a plant-scale design"
+      ],
+      "by_score_quantities": [
+        "flux",
+        "tbr"
+      ]
     },
     {
       "id": "operating-history",

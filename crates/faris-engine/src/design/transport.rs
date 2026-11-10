@@ -39,7 +39,7 @@ use faris_model::design::{self, Design, Metric, Role};
 use faris_model::history::OperatingHistoryAssumptions;
 use faris_model::transport::FAST_NEUTRON_ENERGY_MIN_EV;
 use faris_model::validation::{
-    Output, Quantity, ValidationMarks, calculated, not_calculated, notes_block,
+    Output, Quantity, ValidationMarks, by_score, calculated, not_calculated, notes_block,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -780,7 +780,7 @@ fn validate_history_component_partition(
         for solid_id in solid_ids {
             if !active_solid_ids.contains(solid_id)
                 || !local.insert(solid_id)
-                || !covered.insert(solid_id)
+                || !covered.insert(solid_id.clone())
             {
                 return Err(format!(
                     "history solid {solid_id} is inactive, unknown, or mapped more than once"
@@ -1565,9 +1565,7 @@ pub fn design_transport(
     let worker_bytes = read_bounded(&result_path)?;
     let worker: WorkerResult = serde_json::from_slice(&worker_bytes)
         .map_err(|e| tool(format!("{}: {e}", result_path.display())))?;
-    let history_rates_artifact = if let Some((history_request, scenario, scenario_sha256, _)) =
-        &history_setup
-    {
+    let history_rates_artifact = if let Some((_, scenario, scenario_sha256, _)) = &history_setup {
         let components = options
             .history_components
             .as_ref()

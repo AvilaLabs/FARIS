@@ -26,7 +26,7 @@
       "tiara-bc-cc-68-100": "b64b4205c6adb11e8a16bdbb9f954655f289cefa53291d2b2acbabd1c1a77f8b",
       "tiara-bc-fe-68-40": "edc4f5c641afbf48191c687d4eae5cb3e03c85f103c5e97b4fe19c28929408cd"
     },
-    "models.json": "878ac31f5ed3cce64e777f3a4d0e8e533d224489c0ae16a539e1f8e773cde023",
+    "models.json": "4594d35f5568db5995d9f15d7e06d719884ce044b4823104b86b46e463794203",
     "quantities.json": "487fe41c504b22728cee244ed43674a623a90a86433efd9c1e56670df0717c87",
     "rule_hashes.json": "baaf3136d5bc35c4a3563b24716fd65ddb1374f27a2e199648da937b97bdfad6"
   },
@@ -224,16 +224,17 @@
       "evidence_classes": [
         "verification"
       ],
-      "label": "Transport on an authored design: source, window variance reduction, flux and fluence limits on the design's components",
+      "label": "Transport on an authored CAD design: source, variance reduction, flux and fluence limits, and all-energy component/H3 rates for the shared operating-history model",
       "model": "design-transport",
       "next_step": "score the registered benchmarks of these quantities (see the matrix rows) or register one",
       "not_covered": "the transport physics of the external solver; variance-reduction bias against an analog run on a plant-scale design",
       "page": "docs/guide/transport.md",
       "quantities": [
         "fluence",
-        "flux"
+        "flux",
+        "tbr"
       ],
-      "reason": "the model reports quantities with no scored benchmark: fluence, flux",
+      "reason": "the model reports quantities with no scored benchmark: fluence, flux, tbr",
       "reported_outputs": [
         {
           "catalogue": "DESIGN_TRANSPORT_OUTPUTS",
@@ -468,10 +469,181 @@
           "kind": "not_calculated",
           "name": "lost_positions_m",
           "why": "OpenMC-recorded birth positions of the first lost neutrons, not their loss locations"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "by_score",
+          "name": "mean"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "by_score",
+          "name": "standard_error"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "by_score",
+          "name": "integrated_mean"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "by_score",
+          "name": "integrated_standard_error"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "neutron_source_rate_per_s",
+          "why": "D-T source normalization"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "source_neutron_rate_per_s",
+          "why": "D-T source normalization"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "source_reaction_rate_per_s",
+          "why": "D-T source normalization"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "fusion_power_mw",
+          "why": "authored design source power"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "reference_fusion_power_mw",
+          "why": "source power used to normalize CAD transport responses"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "source_energy_per_reaction_ev",
+          "why": "D-T source convention"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "source_neutron_energy_ev",
+          "why": "D-T source convention"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "neutron_energy_ev",
+          "why": "D-T source convention"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "energy_per_reaction_ev",
+          "why": "D-T source convention"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "neutrons_per_reaction",
+          "why": "authored D-T source multiplicity"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "total_reaction_energy_ev",
+          "why": "D-T source convention"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "primary_neutron_energy_ev",
+          "why": "D-T source convention"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "fusion_reaction_rate_per_s",
+          "why": "D-T source bookkeeping"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "flux_energy_min_ev",
+          "why": "authored all-energy response threshold"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "histories",
+          "why": "count of source neutron histories"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "batches",
+          "why": "count of independent sampled batches"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "target_relative_error",
+          "why": "authored Monte Carlo stopping target for every required history response"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "volume_m3",
+          "why": "CAD solid volume used to volume-average flux"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "volume_standard_error_m3",
+          "why": "CAD volume uncertainty is not propagated"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "response_covariance",
+          "why": "same-run batch covariance accompanying the tagged responses"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "covariance",
+          "why": "same-run Monte Carlo covariance accompanying history rates"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "integrated",
+          "why": "same-run sampling covariance in integrated response units"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "monte_carlo",
+          "why": "same-run sampling covariance in history-driving units"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "volume_variance",
+          "why": "CAD volume uncertainty is not propagated"
+        },
+        {
+          "catalogue": "DESIGN_HISTORY_RATES_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "variance_of_variance",
+          "why": "batch convergence diagnostic"
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/design/transport.rs": "5ac4acd8b23d902028d8abf71b04e5aee7f6ad8c73e2fa7ffe33e083e9ddfca3"
+        "crates/faris-engine/src/design/transport.rs": "4c210bbd7e8bfef2763507fdec310e0c318821ff4955d292c4b80647d5d26bbc",
+        "integrations/openmc/design_transport.py": "7842604688dc38189ed1fdca3b70d29d0a06ae8f9808367022d7b9acf681f229"
       },
       "status": "not validated",
       "validation": [
@@ -504,6 +676,11 @@
           ],
           "quantity": "flux",
           "status": "not validated"
+        },
+        {
+          "benchmarks": [],
+          "quantity": "tbr",
+          "status": "not validated"
         }
       ],
       "verification": [
@@ -520,9 +697,23 @@
           "kind": "test",
           "name": "a_total_fluence_limit_scores_all_energies",
           "what": "a total fluence limit scores all energies"
+        },
+        {
+          "class": "verification",
+          "file": "crates/faris-engine/src/design/transport.rs",
+          "kind": "test",
+          "name": "loaded_cad_history_rates_must_match_scenario_hash_id_and_power",
+          "what": "CAD history rates bind the scenario identity and D-T normalization power"
+        },
+        {
+          "class": "verification",
+          "file": "crates/faris-engine/src/design/transport.rs",
+          "kind": "test",
+          "name": "history_component_map_is_a_complete_unique_partition_with_blanket_breeder",
+          "what": "CAD history components cover each material-bearing solid exactly once"
         }
       ],
-      "verification_status": "2 test or control items, each with one evidence class (verification)"
+      "verification_status": "4 test or control items, each with one evidence class (verification)"
     },
     {
       "evidence_classes": [
@@ -1322,8 +1513,8 @@
       "source_sha256": {
         "crates/faris-engine/src/maintenance.rs": "876fcef8869f7c0ed7257143113d608710055cc1b4ae4bcb18fc3a1d20326d93",
         "crates/faris-engine/src/maintenance/actinv.rs": "6bd408a10654c4c2e538cc9b8e794a10be431a5e1c6d4936f8b46255f17de51e",
-        "crates/faris-engine/src/maintenance/files.rs": "9cf011490bd61ee59169c66d0e4abcf32d447621e3b533d9902273ccb952ba06",
-        "crates/faris-engine/src/maintenance/spatial_dose.rs": "5ca8abd7f83b5610fa717dfa7c97a927b914a877d90ea5d2292b4125187cd543",
+        "crates/faris-engine/src/maintenance/files.rs": "c3facb73b73b4c813d9d6c4a6515237d4a03740efb2ccd0b3897c7d143e705c9",
+        "crates/faris-engine/src/maintenance/spatial_dose.rs": "81755e0fcd3d5feac07da1194d9e3847cd1cbc587257e717e253d10b44f0390f",
         "crates/faris-engine/src/maintenance/spatial_dose_worker.rs": "134f60660610ce9e88166aa8949878ed9d78389e10985b9a0208593d40f27730",
         "integrations/openmc/maintenance_709_response.py": "9f78f7c4b835a7aac69678ad1e784449e11f66c3aa5e4f165332640023873c3b",
         "integrations/openmc/maintenance_event_r2s.py": "43b1684e10cff3d6582142dc42ac75fb003fd3727e307703c2b557d9895183d3"
@@ -1753,7 +1944,7 @@
       ],
       "source_sha256": {
         "crates/faris-engine/src/design/heating.rs": "8e95ab3a6581c8a80c08ae4a9dabbbb5c26a165b1ee996067f36780984f4b0af",
-        "integrations/openmc/design_transport.py": "82e378ece08010cf013d4c25645d8bf9fe8a353ccbc3ef5f34b742a44bccd9ec"
+        "integrations/openmc/design_transport.py": "7842604688dc38189ed1fdca3b70d29d0a06ae8f9808367022d7b9acf681f229"
       },
       "status": "not validated",
       "validation": [
