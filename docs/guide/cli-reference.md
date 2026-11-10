@@ -6,7 +6,7 @@
 Every `faris` command with its help text, which lists every option. The examples are command lines from the
 rest of this handbook; [Command line](cli.md) explains how the commands fit together.
 
-83 of 87 commands have an example in the handbook; these have none yet: `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
+85 of 90 commands have an example in the handbook; these have none yet: `faris maintenance dose-prepare`, `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
 
 ## faris
 
@@ -64,12 +64,12 @@ Calculate or validate the shared Rust operating-history ledger
 Usage: faris history [OPTIONS] <COMMAND>
 
 Commands:
-  run           
-  validate      
+  run
+  validate
   from-run      Bind rates from a revalidated successful fixed-source run and calculate history
   ensemble      Ensemble of histories on transport rates sampled from their recorded covariance; carries transport Monte Carlo uncertainty only
-  compare-runs  
-  sensitivity   
+  compare-runs
+  sensitivity
   help          Print this message or the help of the given subcommand(s)
 
 Options:
@@ -86,9 +86,9 @@ Example: `faris history ensemble`
 Usage: faris history run [OPTIONS] --assumptions <ASSUMPTIONS> --rates <RATES> --output <OUTPUT>
 
 Options:
-      --assumptions <ASSUMPTIONS>  
-      --rates <RATES>              
-      --output <OUTPUT>            
+      --assumptions <ASSUMPTIONS>
+      --rates <RATES>
+      --output <OUTPUT>
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
@@ -102,8 +102,8 @@ Example: `faris history run`
 Usage: faris history validate [OPTIONS] --assumptions <ASSUMPTIONS> --rates <RATES>
 
 Options:
-      --assumptions <ASSUMPTIONS>  
-      --rates <RATES>              
+      --assumptions <ASSUMPTIONS>
+      --rates <RATES>
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
@@ -119,11 +119,11 @@ Bind rates from a revalidated successful fixed-source run and calculate history
 Usage: faris history from-run [OPTIONS] --scenario <SCENARIO> --run <RUN> --assumptions <ASSUMPTIONS> --output <OUTPUT>
 
 Options:
-      --scenario <SCENARIO>          
-      --run <RUN>                    
-      --assumptions <ASSUMPTIONS>    
-      --output <OUTPUT>              
-      --rates-output <RATES_OUTPUT>  
+      --scenario <SCENARIO>
+      --run <RUN>
+      --assumptions <ASSUMPTIONS>
+      --output <OUTPUT>
+      --rates-output <RATES_OUTPUT>
       --setting <KEY=VALUE>          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>               Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                         Print help
@@ -139,12 +139,12 @@ Ensemble of histories on transport rates sampled from their recorded covariance;
 Usage: faris history ensemble [OPTIONS] --assumptions <ASSUMPTIONS> --rates <RATES> --output <OUTPUT>
 
 Options:
-      --assumptions <ASSUMPTIONS>  
-      --rates <RATES>              
+      --assumptions <ASSUMPTIONS>
+      --rates <RATES>
       --samples <SAMPLES>          Number of sampled histories (1 to 2000) [default: 200]
       --seed <SEED>                Random seed; default derives from the transport artifact and assumptions
       --threads <THREADS>          Worker threads; default is the available parallelism minus one
-      --output <OUTPUT>            
+      --output <OUTPUT>
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
@@ -159,21 +159,21 @@ Usage: faris history compare-runs [OPTIONS] --scenario <SCENARIO> --left-run <LE
 
 Options:
       --scenario <SCENARIO>
-          
+
       --left-run <LEFT_RUN>
-          
+
       --left-label <LEFT_LABEL>
-          
+
       --right-run <RIGHT_RUN>
-          
+
       --right-label <RIGHT_LABEL>
-          
+
       --assumptions <ASSUMPTIONS>
-          
+
       --controlled-difference <CONTROLLED_DIFFERENCE>
-          
+
       --output <OUTPUT>
-          
+
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>
@@ -190,11 +190,11 @@ Example: `faris history compare-runs`
 Usage: faris history sensitivity [OPTIONS] --scenario <SCENARIO> --run <RUN> --assumptions <ASSUMPTIONS> --grid <GRID> --output <OUTPUT>
 
 Options:
-      --scenario <SCENARIO>        
-      --run <RUN>                  
-      --assumptions <ASSUMPTIONS>  
-      --grid <GRID>                
-      --output <OUTPUT>            
+      --scenario <SCENARIO>
+      --run <RUN>
+      --assumptions <ASSUMPTIONS>
+      --grid <GRID>
+      --output <OUTPUT>
       --cache-dir <CACHE_DIR>      Keep every finished point here as it completes. Run the same command again with the same folder after a kill and only the unfinished points are calculated; the result is identical to an uninterrupted run
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
@@ -246,7 +246,7 @@ Options:
       --photon-response <PHOTON_RESPONSE>
           An actinv-photon-response-1 file, for the contact dose proxy; needs its SHA-256
       --photon-response-sha256 <PHOTON_RESPONSE_SHA256>
-          
+
       --mode <MODE>
           ACTINV solution mode. `trace` (and `auto` when it picks trace) holds the starting material constant; use `coupled` when the material itself contains radionuclides [possible values: auto, trace, coupled]
       --actinv <ACTINV>
@@ -338,9 +338,11 @@ Compute replacement outages from activation decay heat and compare them with fix
 Usage: faris maintenance [OPTIONS] <COMMAND>
 
 Commands:
-  run     Compute replacement outages from the decay heat of the components around the replaced part, for every design, and compare them with the fixed durations. Runs ACTINV
-  report  Print a maintenance result: downtime, availability and electricity under both models, every replacement with its governing component, and the differences between designs
-  help    Print this message or the help of the given subcommand(s)
+  run           Compute replacement outages from the decay heat of the components around the replaced part, for every design, and compare them with the fixed durations. Runs ACTINV
+  dose-run      Compute replacement outages from event-specific spatial photon dose-rate curves. Curves must contain matched D1S and R2S estimates for every history iteration
+  dose-prepare  Clone checked CAD materials per solid and build the event-dose physics adapter
+  report        Print a maintenance result: downtime, availability and electricity under both models, every replacement with its governing component, and the differences between designs
+  help          Print this message or the help of the given subcommand(s)
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -376,6 +378,56 @@ Options:
 
 Example: `faris maintenance run`
 
+## faris maintenance dose-run
+
+```text
+Compute replacement outages from event-specific spatial photon dose-rate curves. Curves must contain matched D1S and R2S estimates for every history iteration
+
+Usage: faris maintenance dose-run [OPTIONS] --designs <DESIGNS> --assumptions <ASSUMPTIONS> --output <OUTPUT>
+
+Options:
+      --designs <DESIGNS>
+          faris-maintenance-designs/v0.1 design inputs
+      --assumptions <ASSUMPTIONS>
+          faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes
+      --spatial-dose-curves <SPATIAL_DOSE_CURVES>
+          Optional hash-verified faris-maintenance-spatial-dose-curves/v0.2 cache
+      --python <PYTHON>
+          Python interpreter with the validated OpenMC runtime [default: python3]
+      --worker <WORKER>
+          Event-specific OpenMC R2S worker script [default: installed worker]
+      --work-dir <WORK_DIR>
+          Work directory for bounded OpenMC event jobs [default: OUTPUT.dose-work]
+      --output <OUTPUT>
+          New result file (faris-maintenance-result/v0.2); existing paths are refused
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help
+          Print help
+```
+
+Example: `faris maintenance dose-run --designs designs.json --assumptions dose-maintenance.json --spatial-dose-curves event-curves.json --output dose-maintenance-result.json`
+
+## faris maintenance dose-prepare
+
+```text
+Clone checked CAD materials per solid and build the event-dose physics adapter
+
+Usage: faris maintenance dose-prepare [OPTIONS] --config <CONFIG>
+
+Options:
+      --config <CONFIG>      faris-maintenance-dose-cad-config/v0.1 preparation request
+      --python <PYTHON>      Python interpreter with the validated OpenMC runtime and plasma-source package [default: python3]
+      --worker <WORKER>      Event-dose worker [default: installed worker]
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: none in the handbook yet.
+
 ## faris maintenance report
 
 ```text
@@ -384,7 +436,7 @@ Print a maintenance result: downtime, availability and electricity under both mo
 Usage: faris maintenance report [OPTIONS] <RESULT>
 
 Arguments:
-  <RESULT>  
+  <RESULT>
 
 Options:
       --format <FORMAT>      [default: markdown] [possible values: markdown, json]
@@ -449,7 +501,7 @@ Options:
           - uk-llw-ilw:               UK LLW definition (4 GBq/te alpha, 12 GBq/te beta/gamma) and high-volume VLLW (4 MBq/te): VLLW, LLW or above LLW
           - uk-epr2016-sch23-table2:  UK (England and Wales) Environmental Permitting Regulations 2016 Schedule 23 Table 2 out-of-scope concentrations
           - fetter-specific-activity: Fetter, Cheng and Mann (1990) Class C specific-activity limits for activated metal: sum of fractions
-          
+
           [default: nrc-10cfr61.55]
 
       --setting <KEY=VALUE>
@@ -485,7 +537,7 @@ Options:
           - uk-llw-ilw:               UK LLW definition (4 GBq/te alpha, 12 GBq/te beta/gamma) and high-volume VLLW (4 MBq/te): VLLW, LLW or above LLW
           - uk-epr2016-sch23-table2:  UK (England and Wales) Environmental Permitting Regulations 2016 Schedule 23 Table 2 out-of-scope concentrations
           - fetter-specific-activity: Fetter, Cheng and Mann (1990) Class C specific-activity limits for activated metal: sum of fractions
-          
+
           [default: nrc-10cfr61.55]
 
       --receipt <RECEIPT>
@@ -521,13 +573,13 @@ Options:
           A `maintenance run` result file; the replacements of `--design` are used
 
       --design <DESIGN>
-          
+
 
       --history <HISTORY>
           Possible values:
           - fixed:    The history run with the authored replacement durations
           - computed: The history run with the converged, computed durations
-          
+
           [default: computed]
 
       --replacements <REPLACEMENTS>
@@ -554,7 +606,7 @@ Usage: faris waste clearance-time [OPTIONS] --inventory <INVENTORY>
 
 Options:
       --inventory <INVENTORY>
-          
+
 
       --scheme <SCHEME>
           The scheme whose sum is searched; 10 CFR 61.55 has no single index and is refused
@@ -565,7 +617,7 @@ Options:
           - uk-llw-ilw:               UK LLW definition (4 GBq/te alpha, 12 GBq/te beta/gamma) and high-volume VLLW (4 MBq/te): VLLW, LLW or above LLW
           - uk-epr2016-sch23-table2:  UK (England and Wales) Environmental Permitting Regulations 2016 Schedule 23 Table 2 out-of-scope concentrations
           - fetter-specific-activity: Fetter, Cheng and Mann (1990) Class C specific-activity limits for activated metal: sum of fractions
-          
+
           [default: iaea-gsr3-table-i2]
 
       --from-years <FROM_YEARS>
@@ -601,7 +653,7 @@ Options:
       --contributions-at-years <CONTRIBUTIONS_AT_YEARS>
           Years after the reference at which the contributions are given [default: 0]
       --time-years <TIME_YEARS>
-          
+
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>
@@ -663,7 +715,7 @@ One material: composition, impurity specifications, properties, limits
 Usage: faris materials show [OPTIONS] <MATERIAL>
 
 Arguments:
-  <MATERIAL>  
+  <MATERIAL>
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -681,7 +733,7 @@ The limit table (every row with convention, window, spectrum, conditions, status
 Usage: faris materials limits [OPTIONS]
 
 Options:
-      --material <MATERIAL>  
+      --material <MATERIAL>
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -712,7 +764,7 @@ Validate the embedded database, or another database file (schema, citations, lab
 Usage: faris materials check [OPTIONS]
 
 Options:
-      --file <FILE>          
+      --file <FILE>
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -728,8 +780,8 @@ Compare one value with one stored limit under the case's conditions
 Usage: faris materials compare [OPTIONS] --limit <LIMIT> --value <VALUE>
 
 Options:
-      --limit <LIMIT>             
-      --value <VALUE>             
+      --limit <LIMIT>
+      --value <VALUE>
       --conditions <CONDITIONS>   JSON: dpa_convention, irradiation_temperature_c, spectrum, form (each optional)
       --override <OVERRIDE_FILE>  JSON authored override: limit_id, value, convention, author, time, reason
       --setting <KEY=VALUE>       Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -747,9 +799,9 @@ Years to each limit at a constant rate, and which is reached first. A dpa-only c
 Usage: faris materials time-to-limit [OPTIONS] --material <MATERIAL> --criteria <CRITERIA>
 
 Options:
-      --material <MATERIAL>      
+      --material <MATERIAL>
       --criteria <CRITERIA>      JSON list of criteria: limit_id, accumulated, rate_per_year, optional override
-      --conditions <CONDITIONS>  
+      --conditions <CONDITIONS>
       --setting <KEY=VALUE>      Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>           Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                     Print help
@@ -766,15 +818,15 @@ Usage: faris materials classify [OPTIONS] --material <MATERIAL> --inventory <INV
 
 Options:
       --material <MATERIAL>
-          
+
       --inventory <INVENTORY>
-          
+
       --inventory-spec <INVENTORY_SPEC>
           The specification id the inventory was computed with
       --spec <SPEC>
           JSON: spec_id and assumed limits (element, max_wt_ppm, author, reason). Omit to see the refusal
       --time-years <TIME_YEARS>
-          
+
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>
@@ -793,11 +845,11 @@ The largest content of one element that keeps the inventory within a target clas
 Usage: faris materials max-impurity [OPTIONS] --inventory <INVENTORY> --element-yield <ELEMENT_YIELD> --target <TARGET> --time-years <TIME_YEARS>
 
 Options:
-      --inventory <INVENTORY>          
+      --inventory <INVENTORY>
       --element-yield <ELEMENT_YIELD>  JSON element yield: element and per_ppm nuclide activities (Bq per wt ppm)
       --current-ppm <CURRENT_PPM>      The element's wt ppm that the inventory was computed with [default: 0]
       --target <TARGET>                [possible values: CLASS_A, CLASS_B, CLASS_C]
-      --time-years <TIME_YEARS>        
+      --time-years <TIME_YEARS>
       --setting <KEY=VALUE>            Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>                 Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                           Print help
@@ -853,12 +905,12 @@ Generate a portable hash-bound Core case from actual recorded transport
 Usage: faris evidence prepare [OPTIONS] --run <RUN> --core <CORE> --output <OUTPUT>
 
 Options:
-      --run <RUN>                  
+      --run <RUN>
       --study <STUDY>              Generated study.json; if omitted, request breeding and shielding
-      --assumptions <ASSUMPTIONS>  
-      --core <CORE>                
+      --assumptions <ASSUMPTIONS>
+      --core <CORE>
       --faris <FARIS>              FARIS CLI executable to bind (defaults to this executable)
-      --output <OUTPUT>            
+      --output <OUTPUT>
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
@@ -874,11 +926,11 @@ Execute the real Core controlled runner against a generated case
 Usage: faris evidence run [OPTIONS] --case <CASE> --core <CORE> --workspace <WORKSPACE> --output <OUTPUT>
 
 Options:
-      --case <CASE>            
-      --core <CORE>            
-      --faris <FARIS>          
-      --workspace <WORKSPACE>  
-      --output <OUTPUT>        
+      --case <CASE>
+      --core <CORE>
+      --faris <FARIS>
+      --workspace <WORKSPACE>
+      --output <OUTPUT>
       --setting <KEY=VALUE>    Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>         Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                   Print help
@@ -895,11 +947,11 @@ Usage: faris evidence inspect [OPTIONS]
 
 Options:
       --case <CASE>
-          
+
       --report <REPORT>
-          
+
       --workspace <WORKSPACE>
-          
+
       --store <STORE>
           Evidence store folder holding the case and workspace trees
       --case-tree <CASE_TREE>
@@ -924,7 +976,7 @@ Check an evidence store: its index, every blob's length and SHA-256, and that th
 Usage: faris evidence verify-store [OPTIONS] --store <STORE>
 
 Options:
-      --store <STORE>        
+      --store <STORE>
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -943,13 +995,13 @@ Arguments:
   <STAGE>  [possible values: transport, normalize, history, energy]
 
 Options:
-      --scenario <SCENARIO>        
-      --physics <PHYSICS>          
-      --data <DATA>                
-      --recorded <RECORDED>        
-      --upstream <UPSTREAM>        
-      --assumptions <ASSUMPTIONS>  
-      --output <OUTPUT>            
+      --scenario <SCENARIO>
+      --physics <PHYSICS>
+      --data <DATA>
+      --recorded <RECORDED>
+      --upstream <UPSTREAM>
+      --assumptions <ASSUMPTIONS>
+      --output <OUTPUT>
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
@@ -968,6 +1020,7 @@ Commands:
   init       Read a STEP file and write a draft design file with every solid listed and every material and role left null for you to fill in
   check      Run import checks 1 to 9 on a design file and print what passed and what did not. Exit 0: no check failed. Exit 1: a check failed. Exit 2: usage or I/O error
   transport  Compute the neutron flux in the solids a fluence limit of the design applies to (the TF magnets, above 0.1 MeV, when it has none), for a design that passed `design check`, running until the mean over those solids reaches the target error. Exit 0: target reached. Exit 1: a limit stopped the run first. Exit 2: usage or I/O error
+  heating    Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel
   help       Print this message or the help of the given subcommand(s)
 
 Options:
@@ -986,7 +1039,7 @@ Read a STEP file and write a draft design file with every solid listed and every
 Usage: faris design init [OPTIONS] <STEP>
 
 Arguments:
-  <STEP>  
+  <STEP>
 
 Options:
       --out <OUT>                  Where to write the draft [default: beside the STEP file]. Never overwrites
@@ -1012,7 +1065,7 @@ Run import checks 1 to 9 on a design file and print what passed and what did not
 Usage: faris design check [OPTIONS] <DESIGN>
 
 Arguments:
-  <DESIGN>  
+  <DESIGN>
 
 Options:
       --report <REPORT>
@@ -1032,7 +1085,13 @@ Options:
       --source-sites <SOURCE_SITES>
           Source sites sampled from the plasma block (check 9) [default: 100000]
       --deviation-points <DEVIATION_POINTS>
-          Points per solid the faceting deviation (GEO-032) lets OpenCASCADE project. Faces on a plane, cylinder, cone, sphere or torus are measured in closed form at every point; the points on other surfaces take an even stride of at most this many [0: all of them]. The report says which solids were sampled [default: 2000]
+          Points per solid the faceting deviation (GEO-032) lets OpenCASCADE project. Faces on a plane, cylinder, cone, sphere or torus are measured in closed form at every point; the points on other surfaces take an even stride of at most this many [0: all of them]. These diagnostics are separate from the global triangle bound [default: 2000]
+      --deviation-bound-queries <DEVIATION_BOUND_QUERIES>
+          Bounded CAD distance queries per solid for the GEO-032 global proof [default: 100000]
+      --deviation-bound-depth <DEVIATION_BOUND_DEPTH>
+          Maximum recursive subdivision depth for the GEO-032 global proof [default: 18]
+      --stochastic-volume-samples <STOCHASTIC_VOLUME_SAMPLES>
+          Stochastic OpenMC volume samples per DAGMC cell for GEO-030 [default: 100000]
       --imprint-threads <IMPRINT_THREADS>
           Threads the converter may use to imprint [default: 4]
       --cad-python <PYTHON>
@@ -1065,7 +1124,7 @@ Compute the neutron flux in the solids a fluence limit of the design applies to 
 Usage: faris design transport [OPTIONS] --check-report <JSON> --out <DIR> <DESIGN>
 
 Arguments:
-  <DESIGN>  
+  <DESIGN>
 
 Options:
       --check-report <JSON>            The report `design check --report` wrote for this design; its work directory must still hold the conversion
@@ -1095,6 +1154,59 @@ Options:
 
 Example: `faris design transport`
 
+## faris design heating
+
+```text
+Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel
+
+Usage: faris design heating [OPTIONS] --check-report <JSON> --out <DIR> <DESIGN>
+
+Arguments:
+  <DESIGN>
+
+Options:
+      --check-report <JSON>
+
+      --out <DIR>
+
+      --report <REPORT>
+
+      --peak-voxel-m <PEAK_VOXEL_M> <PEAK_VOXEL_M>
+          Radial and vertical peak voxel widths, in metres: --peak-voxel-m 0.05,0.05 [default: 0.05 0.05]
+      --max-histories <MAX_HISTORIES>
+          [default: 50000000]
+      --max-seconds <MAX_SECONDS>
+          [default: 3600]
+      --target-error <TARGET_ERROR>
+          Relative standard error target for aggregate coupled heating (resolved peak target is twice this) [default: 0.05]
+      --particles <PARTICLES>
+          [default: 20000]
+      --seed <SEED>
+          [default: 1]
+      --threads <THREADS>
+          [default: 4]
+      --cad-python <PYTHON>
+          Python with cadquery, used to read the STEP file [env: FARIS_CAD_PYTHON]
+      --openmc-python <PYTHON>
+          Python with openmc and h5py, used for the nuclear-data audit [env: FARIS_OPENMC_PYTHON]
+      --cross-sections <XML>
+          cross_sections.xml of the audited library [env: FARIS_CROSS_SECTIONS]
+      --plasma-source-path <DIR>
+          Directory holding the openmc_plasma_source package, for the source sites of check 9 [env: FARIS_PLASMA_SOURCE_PATH]
+      --cad-reader <READER>
+          Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
+      --occt-worker <WORKER>
+          The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help
+          Print help
+```
+
+Example: `faris design heating DESIGN --check-report JSON --out DIR`
+
 ## faris diff
 
 ```text
@@ -1103,8 +1215,8 @@ Compare two .faris studies, or two scenario, physics, assumptions or design file
 Usage: faris diff [OPTIONS] <A> <B>
 
 Arguments:
-  <A>  
-  <B>  
+  <A>
+  <B>
 
 Options:
       --json                 Stable, versioned JSON (`faris-diff/v1`) instead of text
@@ -1145,7 +1257,7 @@ Write the table of cells of a scenario: name, id, material, volume, mass, repres
 Usage: faris geometry summary [OPTIONS] --scenario <SCENARIO>
 
 Options:
-      --scenario <SCENARIO>  
+      --scenario <SCENARIO>
       --physics <PHYSICS>    A physics case for the scenario, to give each cell its density and mass. Without one the mass is NOT_EVALUATED
       --variant <VARIANT>    The allocation to tabulate [default: the physics case's, or the first]
       --output <OUTPUT>      New CSV file; an existing file is never overwritten [default: print]
@@ -1193,7 +1305,7 @@ Usage: faris cache list [OPTIONS]
 
 Options:
       --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
-      --json                 
+      --json
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -1210,7 +1322,7 @@ Usage: faris cache verify [OPTIONS]
 
 Options:
       --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
-      --json                 
+      --json
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -1230,7 +1342,7 @@ Arguments:
 
 Options:
       --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
-      --json                 
+      --json
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -1247,7 +1359,7 @@ Usage: faris cache stats [OPTIONS]
 
 Options:
       --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
-      --json                 
+      --json
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -1280,7 +1392,7 @@ Keep an entry through `gc` and the size limit
 Usage: faris cache pin [OPTIONS] <KEY>
 
 Arguments:
-  <KEY>  
+  <KEY>
 
 Options:
       --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
@@ -1299,7 +1411,7 @@ Let an entry be removed again
 Usage: faris cache unpin [OPTIONS] <KEY>
 
 Arguments:
-  <KEY>  
+  <KEY>
 
 Options:
       --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
@@ -1377,7 +1489,7 @@ Show one setting's effective value
 Usage: faris config get [OPTIONS] <KEY>
 
 Arguments:
-  <KEY>  
+  <KEY>
 
 Options:
       --show-origin          Also say which layer supplied the value: default, user file, environment or flag
@@ -1396,8 +1508,8 @@ Validate a value and write it to your settings file
 Usage: faris config set [OPTIONS] <KEY> <VALUE>
 
 Arguments:
-  <KEY>    
-  <VALUE>  
+  <KEY>
+  <VALUE>
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -1415,7 +1527,7 @@ Remove a value from your settings file, so the default or environment applies ag
 Usage: faris config unset [OPTIONS] <KEY>
 
 Arguments:
-  <KEY>  
+  <KEY>
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -1464,8 +1576,8 @@ Compare two settings files: every key whose effective value differs, with old an
 Usage: faris config diff [OPTIONS] <A> <B>
 
 Arguments:
-  <A>  
-  <B>  
+  <A>
+  <B>
 
 Options:
       --json                 One JSON document (`faris-config-diff/v1`) instead of text
@@ -1484,7 +1596,7 @@ Validate a scenario without running physics
 Usage: faris validate [OPTIONS] <SCENARIO>
 
 Arguments:
-  <SCENARIO>  
+  <SCENARIO>
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -1643,8 +1755,8 @@ Validate definitions against exact scenario bytes without running physics
 Usage: faris transport validate-request [OPTIONS] --scenario <SCENARIO> --request <REQUEST>
 
 Options:
-      --scenario <SCENARIO>  
-      --request <REQUEST>    
+      --scenario <SCENARIO>
+      --request <REQUEST>
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -1660,10 +1772,10 @@ Convert solver-reported per-source scores to physical rates and densities
 Usage: faris transport normalize [OPTIONS] --scenario <SCENARIO> --request <REQUEST> --artifact <ARTIFACT> --output <OUTPUT>
 
 Options:
-      --scenario <SCENARIO>  
-      --request <REQUEST>    
-      --artifact <ARTIFACT>  
-      --output <OUTPUT>      
+      --scenario <SCENARIO>
+      --request <REQUEST>
+      --artifact <ARTIFACT>
+      --output <OUTPUT>
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
@@ -1735,8 +1847,8 @@ Generate an immutable study directory containing study, contract, and registry J
 Usage: faris study generate [OPTIONS] --scenario <SCENARIO> --variant <VARIANT> --output <OUTPUT>
 
 Options:
-      --scenario <SCENARIO>        
-      --variant <VARIANT>          
+      --scenario <SCENARIO>
+      --variant <VARIANT>
       --analysis <ANALYSIS>        Select analyses, comma-separated or repeated (default: breeding,shielding) [default: breeding,shielding] [possible values: breeding, shielding, fuel-history, electricity]
       --minimum-tbr <MINIMUM_TBR>  [default: 1]
       --output <OUTPUT>            New exclusive evidence directory; existing paths are refused
@@ -1755,9 +1867,9 @@ Compile a generated study with the explicitly selected Avila Core executable
 Usage: faris study compile [OPTIONS] --scenario <SCENARIO> --study <STUDY> --core <CORE> --output <OUTPUT>
 
 Options:
-      --scenario <SCENARIO>  
-      --study <STUDY>        
-      --core <CORE>          
+      --scenario <SCENARIO>
+      --study <STUDY>
+      --core <CORE>
       --output <OUTPUT>      New exclusive evidence directory; existing paths are refused
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
@@ -1806,11 +1918,11 @@ Options:
       --bundle <BUNDLE>
           Recorded-transport bundle of the port arrangement; repeatable
       --control-scenario <CONTROL_SCENARIO>
-          
+
       --control-physics <CONTROL_PHYSICS>
-          
+
       --control-bundle <CONTROL_BUNDLE>
-          
+
       --assumptions <ASSUMPTIONS>
           Operating assumptions file
       --sweep-bundle <SWEEP_BUNDLE>
@@ -1843,7 +1955,7 @@ Summarize a study file without extracting it
 Usage: faris study-file inspect [OPTIONS] <FILE>
 
 Arguments:
-  <FILE>  
+  <FILE>
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -1861,7 +1973,7 @@ Rehash every blob and rebuild every bundle; exit 1 if anything fails
 Usage: faris study-file verify [OPTIONS] <FILE>
 
 Arguments:
-  <FILE>  
+  <FILE>
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -1882,7 +1994,7 @@ Usage: faris study-file export [OPTIONS] --output <OUTPUT> <FILE>
 
 Arguments:
   <FILE>
-          
+
 
 Options:
   -o, --output <OUTPUT>
@@ -1908,7 +2020,7 @@ Write a study's bundles and files back out as ordinary files
 Usage: faris study-file unpack [OPTIONS] <FILE> <DIRECTORY>
 
 Arguments:
-  <FILE>       
+  <FILE>
   <DIRECTORY>  New directory; an existing path is refused
 
 Options:
@@ -1948,17 +2060,17 @@ Usage: faris reactor run [OPTIONS] --scenario <SCENARIO> --physics <PHYSICS> --a
 
 Options:
       --scenario <SCENARIO>
-          
+
       --physics <PHYSICS>
-          
+
       --audit <AUDIT>
-          
+
       --cross-sections <CROSS_SECTIONS>
-          
+
       --python <PYTHON>
-          
+
       --openmc <OPENMC>
-          
+
       --output <OUTPUT>
           New exclusive evidence directory; existing paths are refused
       --batches <BATCHES>
@@ -2001,7 +2113,7 @@ Revalidate a saved run's exact input, artifact, volumes, and normalization
 Usage: faris reactor inspect [OPTIONS] --scenario <SCENARIO> --run <RUN>
 
 Options:
-      --scenario <SCENARIO>  
+      --scenario <SCENARIO>
       --run <RUN>            The run.json record inside a reactor evidence directory
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it

@@ -34,7 +34,7 @@ def run_help(binary: Path, words: tuple[str, ...]) -> str:
     out = subprocess.run([str(binary), *words, "--help"], capture_output=True, text=True, timeout=TIMEOUT_S)
     if out.returncode != 0:
         raise RuntimeError(f"`faris {' '.join(words)} --help` exited {out.returncode}: {out.stderr.strip()[:200]}")
-    return out.stdout.rstrip("\n")
+    return "\n".join(line.rstrip() for line in out.stdout.splitlines())
 
 
 def subcommands(help_text: str) -> list[str]:

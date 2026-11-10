@@ -48,6 +48,8 @@ Each row is a palette entry. Where a key is shown it also works on its own, with
 | Compare versions window (toggle) | none, use the palette |
 | Design check window (toggle) | none, use the palette |
 | Design flux window (toggle) | none, use the palette |
+| Design heating window (toggle) | none, use the palette |
+| Dose-governed maintenance window (toggle) | none, use the palette |
 | Replay the guided tour | none, use the palette |
 | Interface size: larger | none, use the palette |
 | Interface size: smaller | none, use the palette |
@@ -57,7 +59,7 @@ The interface size also answers to the keys your desktop gives every window: Ctr
 
 ## Tab and the controls in each panel
 
-Tab and Shift+Tab move between controls. Space or Enter presses a button or toggles a checkbox, arrows change a slider or move in an open list, and a text field takes typing. This covers the run settings and Run buttons, the what-if, sensitivity and ensemble controls, the Core stage buttons, the allocation sweep controls, the timeline's plot choice, series buttons, year slider and event list, and the fields and buttons of the Maintenance, Design check and Design flux windows.
+Tab and Shift+Tab move between controls. Space or Enter presses a button or toggles a checkbox, arrows change a slider or move in an open list, and a text field takes typing. This covers the run settings and Run buttons, the what-if, sensitivity and ensemble controls, the Core stage buttons, the allocation sweep controls, the timeline's plot choice, series buttons, year slider and event list, and the fields and buttons of the Maintenance, Dose-governed maintenance, Design check, Design flux and Design heating windows.
 
 ## The 3D viewport and the timeline plot
 
