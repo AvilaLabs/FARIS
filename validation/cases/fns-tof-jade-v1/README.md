@@ -50,7 +50,19 @@ adapter converts each pinned MCNP model with the public
 [`openmc_mcnp_adapter`](https://github.com/openmc-dev/openmc_mcnp_adapter),
 replaces its source/tallies with the pinned source distribution and a spherical
 vacuum-cell flux tally at each exact point, then estimates point response by
-successive sphere-radius halving. The converter itself states it has not had
+successive sphere-radius halving. [OpenMC documents cell-filter flux in
+particle-cm per source particle](https://docs.openmc.org/en/stable/usersguide/tallies.html):
+it is an integrated tracklength score, so the runner divides both its mean
+and standard deviation by the exact analytic volume `4*pi*r^3/3` before the
+deck `FM` and lethargy factors. The sealed record retains those raw tracklength
+statistics, the radius and sphere volume, and the normalized flux units. This
+unit correction does not make the finite-volume tracklength estimator an exact
+MCNP `F5` point estimator; the frozen two-halving/1%/2% qualification remains
+required, with no record sealed unless every response bin resolves. The
+source-deck `F5` cards specify an exclusion radius of 1 cm; that parameter
+regularizes the MCNP estimator and is not asserted to be a physical detector
+radius or used to bypass the finite-volume convergence gate. The converter
+itself states it has not had
 methodical verification; its exact installed code identity is sealed in the
 run record. The upstream converter is MIT-licensed and remains an external
 dependency; no converter source is vendored. An

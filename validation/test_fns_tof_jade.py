@@ -105,10 +105,39 @@ class FnsTofHelpers(unittest.TestCase):
             R.validate_response_mapping(manifest, parsed)
 
     def test_mcnp_fm_is_applied_once_and_flux_is_per_unit_lethargy(self):
-        result = R.tally_value(3.0, 0.3, 2.0, 1.0, 2.0)
-        self.assertAlmostEqual(result["value"], 6.0 / math.log(2.0))
-        self.assertAlmostEqual(result["u_mc"], 0.6 / math.log(2.0))
+        radius = 0.625
+        volume = (4.0 / 3.0) * math.pi * radius ** 3
+        result = R.tally_value(3.0, 0.3, 2.0, 1.0, 2.0, volume, radius)
+        self.assertAlmostEqual(result["value"], (3.0 / volume) * 2.0 / math.log(2.0))
+        self.assertAlmostEqual(result["u_mc"], (0.3 / volume) * 2.0 / math.log(2.0))
+        self.assertEqual(result["openmc_tracklength_mean_particle_cm_per_source"], 3.0)
+        self.assertEqual(result["openmc_tracklength_std_dev_particle_cm_per_source"], 0.3)
+        self.assertAlmostEqual(result["finite_volume_normalization"]["volume_cm3"], volume)
+        self.assertAlmostEqual(
+            result["finite_volume_normalization"]["flux_mean_particle_per_cm2_per_source_before_FM"],
+            3.0 / volume)
         self.assertAlmostEqual(B.lethargy_width(0.0, 0.01), math.log(0.01 / 1e-10))
+
+    def test_sphere_volume_is_analytic_and_tally_volume_must_match_radius(self):
+        radius = 2.5
+        expected_volume = 4.0 * math.pi * radius ** 3 / 3.0
+        self.assertAlmostEqual(R.sphere_volume_cm3(radius), expected_volume, places=14)
+        with self.assertRaisesRegex(ValueError, "differs from the analytic sphere volume"):
+            R.tally_value(1.0, 0.1, 2.0, 1.0, 2.0, expected_volume / 2.0, radius)
+        with self.assertRaisesRegex(ValueError, "radius must be positive and finite"):
+            R.sphere_volume_cm3(0.0)
+
+    def test_spatial_volume_normalization_is_radius_invariant_for_constant_flux(self):
+        flux_density = 4.2
+        radius_values = []
+        for radius in (2.5, 1.25, 0.625):
+            volume = R.sphere_volume_cm3(radius)
+            row = R.tally_value(flux_density * volume, 0.05 * volume,
+                                3.0, 0.1, 1.0, volume, radius)
+            radius_values.append((row["value"], row["u_mc"]))
+        for value, u_mc in radius_values[1:]:
+            self.assertAlmostEqual(value, radius_values[0][0])
+            self.assertAlmostEqual(u_mc, radius_values[0][1])
 
     def test_outer_sphere_must_be_preserved_as_vacuum_boundary(self):
         class Surface:
@@ -399,14 +428,21 @@ class FnsTofHelpers(unittest.TestCase):
         fake_openmc = type("OpenMC", (), {"StatePoint": StatePoint})
         got = R.result_levels(fake_openmc, test_manifest(), B.input_deck(DECK)["detectors"],
                               Path("unused-statepoint"), 0.625)
-        self.assertAlmostEqual(got["angle-24"]["u_mc"], 0.07 * 2.1 / math.log(10.0))
-        self.assertNotAlmostEqual(got["angle-24"]["u_mc"], math.sqrt(0.11**2 + 0.07**2) * 2.1 / math.log(10.0))
+        volume = R.sphere_volume_cm3(0.625)
+        self.assertAlmostEqual(got["angle-24"]["u_mc"], (0.07 / volume) * 2.1 / math.log(10.0))
+        self.assertEqual(got["angle-24"]["openmc_tracklength_mean_particle_cm_per_source"], 100.0)
+        self.assertAlmostEqual(got["angle-24"]["finite_volume_normalization"]["volume_cm3"], volume)
+        self.assertNotAlmostEqual(got["angle-24"]["u_mc"],
+                                  math.sqrt(0.11**2 + 0.07**2) * 2.1 / math.log(10.0) / volume)
 
     def test_nonfinite_or_nonphysical_tallies_are_rejected(self):
         for values in ((math.nan, 0.1, 2.0, 1.0, 2.0), (1.0, math.inf, 2.0, 1.0, 2.0),
                        (1.0, -0.1, 2.0, 1.0, 2.0), (1.0, 0.1, -2.0, 1.0, 2.0)):
             with self.subTest(values=values), self.assertRaises(ValueError):
-                R.tally_value(*values)
+                radius = 0.625
+                R.tally_value(*values, R.sphere_volume_cm3(radius), radius)
+        with self.assertRaisesRegex(ValueError, "sphere geometry must be finite"):
+            R.tally_value(1.0, 0.1, 2.0, 1.0, 2.0, math.inf, 0.625)
 
     def test_finite_volume_gate_requires_two_all_bin_successive_halvings(self):
         levels = [

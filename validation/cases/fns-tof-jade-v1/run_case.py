@@ -697,6 +697,7 @@ def detector_cell_geometry(openmc, model, points: list[dict], radius: float,
         model.geometry.root_universe.add_cell(cell)
         result[point["tally"]] = {"cell": cell, "host_cell_id": host.id,
                                   "position_cm": list(xyz), "radius_cm": radius,
+                                  "volume_cm3": sphere_volume_cm3(radius),
                                   "sampled_host_containment_directions": len(dirs)}
     for host_id, spheres in spheres_by_host.items():
         host = cells[host_id]
@@ -707,16 +708,50 @@ def detector_cell_geometry(openmc, model, points: list[dict], radius: float,
     return result
 
 
-def tally_value(mean: float, std: float, factor: float, lo_mev: float, hi_mev: float) -> dict:
+def sphere_volume_cm3(radius_cm: float) -> float:
+    """Exact analytic volume for the finite spherical cell tally, in cm^3."""
+    radius = float(radius_cm)
+    require(math.isfinite(radius) and radius > 0,
+            "finite-volume detector radius must be positive and finite")
+    volume = (4.0 / 3.0) * math.pi * radius * radius * radius
+    require(math.isfinite(volume) and volume > 0,
+            "finite-volume detector sphere volume must be positive and finite")
+    return volume
+
+
+def tally_value(mean: float, std: float, factor: float, lo_mev: float, hi_mev: float,
+                volume_cm3: float, radius_cm: float) -> dict:
+    """Convert integrated OpenMC tracklength flux to volume-averaged flux density.
+
+    OpenMC cell-filter flux is an integral of track length over the cell
+    (particle-cm/source). The JADE/MCNP response is flux per area, so both the
+    mean and standard deviation must be divided by the exact sphere volume
+    before applying the deck FM and lethargy-width conversion.
+    """
     width = lethargy_width(lo_mev, hi_mev)
-    values = (float(mean), float(std), float(factor))
-    require(all(math.isfinite(v) for v in values), "tally mean, standard deviation and FM must be finite")
-    require(values[0] >= 0 and values[1] >= 0 and values[2] > 0,
+    values = (float(mean), float(std), float(factor), float(volume_cm3), float(radius_cm))
+    require(all(math.isfinite(v) for v in values), "tally mean, standard deviation, FM and sphere geometry must be finite")
+    require(values[0] >= 0 and values[1] >= 0 and values[2] > 0 and values[3] > 0 and values[4] > 0,
             "flux mean and standard deviation must be nonnegative and FM positive")
-    value = values[0] * values[2] / width
-    u_mc = values[1] * values[2] / width
+    require(math.isclose(sphere_volume_cm3(values[4]), values[3], rel_tol=1e-12, abs_tol=0.0),
+            "finite-volume detector volume differs from the analytic sphere volume")
+    flux_mean = values[0] / values[3]
+    flux_std = values[1] / values[3]
+    value = flux_mean * values[2] / width
+    u_mc = flux_std * values[2] / width
     require(math.isfinite(value) and math.isfinite(u_mc), "normalized tally result is non-finite")
-    return {"value": value, "u_mc": u_mc}
+    return {"value": value, "u_mc": u_mc,
+            "openmc_tracklength_mean_particle_cm_per_source": values[0],
+            "openmc_tracklength_std_dev_particle_cm_per_source": values[1],
+            "finite_volume_normalization": {
+                "geometry": "analytic full-sphere cell; host containment diagnostics are recorded separately",
+                "radius_cm": values[4], "volume_cm3": values[3],
+                "flux_mean_particle_per_cm2_per_source_before_FM": flux_mean,
+                "flux_std_dev_particle_per_cm2_per_source_before_FM": flux_std,
+                "energy_normalization": "per unit lethargy",
+                "mcnp_FM": values[2],
+                "raw_score_units": "particle-cm per source particle",
+                "normalized_flux_units": "particle/cm^2 per source particle"}}
 
 
 def validate_response_mapping(manifest: dict, deck: dict) -> dict[str, dict]:
@@ -794,6 +829,7 @@ def model_for_radius(openmc, deck_path: Path, upstream: Path, manifest: dict, pa
 
 def result_levels(openmc, manifest: dict, tables: list[dict], statepoint: Path, radius: float) -> dict:
     results = {}
+    volume = sphere_volume_cm3(radius)
     with openmc.StatePoint(str(statepoint)) as sp:
         tallies = {t.name: t for t in sp.tallies.values()}
         by_angle = {round(t["angle_deg"], 1): t for t in tables}
@@ -809,7 +845,8 @@ def result_levels(openmc, manifest: dict, tables: list[dict], statepoint: Path, 
             point = by_angle[angle_key]
             for ref, mean, sd in zip(rows, means, stds, strict=True):
                 key = ref["detector_id"]
-                results[key] = tally_value(mean, sd, point["mcnp_fm"], ref["lo_mev"], ref["hi_mev"])
+                results[key] = tally_value(mean, sd, point["mcnp_fm"], ref["lo_mev"], ref["hi_mev"],
+                                           volume, radius)
     return results
 
 
@@ -1003,6 +1040,12 @@ def command_run(args) -> int:
                           "response_mapping_sha256": sha256_bytes(json.dumps(response_map, sort_keys=True, separators=(",", ":")).encode()),
                           "batches": args.batches, "threads": args.threads, "seed_by_radius": [args.seed + i for i in range(3)],
                           "radii_cm": [v["radius_cm"] for v in levels], "radius_levels": levels,
+                          "tally_normalization": {
+                              "raw_openmc_flux_units": "particle-cm per source particle",
+                              "spatial_normalization": "divide cell-filter tracklength mean and standard deviation by exact analytic sphere volume 4*pi*r^3/3",
+                              "energy_normalization": "divide by ln(E_hi/E_lo) for per-unit-lethargy responses",
+                              "mcnp_FM": "apply the exact source-deck multiplier once after spatial normalization",
+                              "normalized_flux_units": "particle/cm^2 per source particle per unit lethargy"},
                           "solver_artifacts": artifacts,
                           "finite_point_approximation_qualification": qualification,
                           "scope": "finite-volume convergence only; does not establish exact F5 equivalence or physical validation",
