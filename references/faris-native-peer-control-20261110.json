@@ -1,0 +1,168 @@
+{
+  "artifacts": [
+    {
+      "bytes": 14988,
+      "path": "runs/continuation/peer-native-faris-20261110-v1/faris-native-control-report.retry2.json",
+      "sha256": "3eded18a46b390dde9f47d314a1b639d474bbcefa2594a39d0f15f753992510d"
+    },
+    {
+      "bytes": 5078,
+      "path": "runs/continuation/peer-native-faris-20261110-v1/faris-maintenance-result.retry2.json",
+      "sha256": "a7df2d151d8075e98e31110e59bb070755441f6fac929a5f35ab4db849541f3a"
+    },
+    {
+      "bytes": 1724,
+      "path": "runs/continuation/peer-native-faris-20261110-v1/transport-cli.json",
+      "sha256": "bd87156232a988b5c975a579e951a3000f1fc2e15264ef8ae538e5404f2acaab"
+    },
+    {
+      "bytes": 1395,
+      "path": "runs/continuation/peer-native-faris-20261110-v1/rate-binding-cli.json",
+      "sha256": "403fc0df31310862501165768de67a5f66cf1b5ffcbbc34dce37759202c6638a"
+    },
+    {
+      "bytes": 2523,
+      "path": "runs/continuation/peer-native-faris-20261110-v1/maintenance-cli.retry2.json",
+      "sha256": "f9c2bde0f32b9b5258cc93bff787499f2c54d2acb52f1521ce8caa7af775897d"
+    },
+    {
+      "bytes": 2507,
+      "path": "runs/continuation/peer-native-faris-20261110-v1/maintenance-retry2-inputs.json",
+      "sha256": "d82a83b44df02e06a93511f83b2f8d45079d202285879eb2c12a43c2677309c4"
+    }
+  ],
+  "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+  "availability_control_comparison": {
+    "FARIS_PROCESS_within_tolerance": true,
+    "FARIS_bluemira_within_tolerance": false,
+    "FARIS_computed": 0.9685632298185763,
+    "FARIS_fixed": 0.9685632298185763,
+    "FARIS_minus_PROCESS": -1.1438274571951013e-07,
+    "FARIS_minus_bluemira": 0.0003437662375643802,
+    "PROCESS_Ward_Taylor": 0.9685633442013221,
+    "absolute_tolerance": 1e-06,
+    "bluemira_pulse_Timeline": 0.968219463581012,
+    "scope": "Availability fractions only. Native FARIS electricity remains separate from the peers authored 500 MW(e) normalization."
+  },
+  "case_files_sha256": {
+    "history_template": "7a118c34dc33230520cea7373945e540154d65be65124f4c43cd23dde329ed90",
+    "maintenance_assumptions": "62d7b41d33fc15a27835edb4a6af54bc8b527d46a10bbb4c709ae56dbaf706bf",
+    "physics": "d13b7170093b445a5e520272b60d55cb2268c26ab001df689c57e11d7a47b95d",
+    "scenario": "af30bb88a853fc9f23618a922503ad1c3b9dafa54418c91634cf935115e05de7"
+  },
+  "case_id": "no-port-breeder-one-boundary-outage-control",
+  "case_manifest_sha256": "3772d9960854ec80dfc1eccaa99e34404c79332e75c191b5806d4de9acc4f28e",
+  "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+  "evidence_class": "verification",
+  "interpretation": "The calibrated 30-day work plus 30-day cooling control gives one 60-day replacement in both native FARIS histories. This checks code execution and coupling under authored assumptions; equality is not a plant-duration prediction. The native FARIS availability agrees with PROCESS in this scoped control. The bluemira pulse-timeline difference remains outside the unchanged tolerance. No scientific validation requirement is promoted.",
+  "native_faris": {
+    "checks": {
+      "computed_history_evaluated": true,
+      "computed_history_horizon_matches_peer_case": true,
+      "fixed_blanket_event_count_matches_one_boundary_replacement": true,
+      "fixed_event_duration_is_60_days": true,
+      "fixed_history_completed": true,
+      "fixed_history_horizon_matches_peer_case": true,
+      "q_star_calibration_evaluated": true
+    },
+    "computed_blanket_events": [
+      {
+        "class": "blanket",
+        "component": "blanket",
+        "end_s": 85043518.27231634,
+        "k": 1,
+        "start_s": 79859518.27231634
+      }
+    ],
+    "computed_not_evaluated": null,
+    "computed_status": "EVALUATED",
+    "computed_summary": {
+      "availability": 0.9685632298185763,
+      "history_end_s": 164902436.5443012,
+      "lifetime_net_electricity_mwh": 7056787.546301072,
+      "outcome": "horizon_completed",
+      "replacements": [
+        {
+          "class": "blanket",
+          "component": "blanket",
+          "end_s": 85043518.27231634,
+          "k": 1,
+          "start_s": 79859518.27231634
+        }
+      ],
+      "total_replacement_downtime_s": 5184000.0
+    },
+    "decay_source": {
+      "actinv_runs": 2,
+      "cache_hits": 2,
+      "kind": "actinv-continuations"
+    },
+    "faris_native_energy_kept_separate": {
+      "computed_lifetime_net_electricity_mwh": 7056787.546301072,
+      "fixed_lifetime_net_electricity_mwh": 7056787.546301072,
+      "note": "FARIS-native energy under authored FARIS assumptions; kept separate from shared peer MW(e) normalization."
+    },
+    "fixed_blanket_events": [
+      {
+        "class": "blanket",
+        "component": "blanket",
+        "end_s": 85043518.27231634,
+        "k": 1,
+        "start_s": 79859518.27231634
+      }
+    ],
+    "fixed_summary": {
+      "availability": 0.9685632298185763,
+      "history_end_s": 164902436.5443012,
+      "lifetime_net_electricity_mwh": 7056787.546301072,
+      "outcome": "horizon_completed",
+      "replacements": [
+        {
+          "class": "blanket",
+          "component": "blanket",
+          "end_s": 85043518.27231634,
+          "k": 1,
+          "start_s": 79859518.27231634
+        }
+      ],
+      "total_replacement_downtime_s": 5184000.0
+    },
+    "inputs": {
+      "actinv": "91ecd4c3e04d36c67780a36fecbf336e174517fba77db0ae1a03ac0a6b9e9687",
+      "assumptions": "62d7b41d33fc15a27835edb4a6af54bc8b527d46a10bbb4c709ae56dbaf706bf",
+      "builder": "3f4d855193a666b0f202ca87ff16b74f2b140165988191ebda35eab4c9aba527",
+      "design/no-port-breeder-one-boundary-outage-control/history_assumptions": "e402dc381c7d824d757ca9155d9418d9fa82508171bcb868b6734e0a76dfd599",
+      "design/no-port-breeder-one-boundary-outage-control/history_run": "d0ca7a524d65c739702aa4f2c96491ac8c091e525274f7312fb947fa4313e571",
+      "design/no-port-breeder-one-boundary-outage-control/physics": "d13b7170093b445a5e520272b60d55cb2268c26ab001df689c57e11d7a47b95d",
+      "design/no-port-breeder-one-boundary-outage-control/scenario": "af30bb88a853fc9f23618a922503ad1c3b9dafa54418c91634cf935115e05de7",
+      "design/no-port-breeder-one-boundary-outage-control/spectrum_run": "d0ca7a524d65c739702aa4f2c96491ac8c091e525274f7312fb947fa4313e571",
+      "designs": "b6ba61ff1dec51e7735586ae4ca95cff7ff959a26cefd28807e560bb7eaeb5ff"
+    },
+    "status": "native FARIS fixed/computed case completed",
+    "thresholds": {
+      "blanket": {
+        "calibration_design": "no-port-breeder-one-boundary-outage-control",
+        "calibration_event_start_s": 79859518.27231634,
+        "not_evaluated": null,
+        "q_star_w_per_m3": 9914.469989647154,
+        "source": "calibrated",
+        "status": "EVALUATED",
+        "target_cooldown_s": 2592000.0
+      }
+    }
+  },
+  "rate_to_integrated_flux_mapping": {
+    "history_sha256": "e402dc381c7d824d757ca9155d9418d9fa82508171bcb868b6734e0a76dfd599",
+    "integrated_flux_limit_n_m2": 1.3884165316083533e+26,
+    "operating_interval_s": 79859518.2721506,
+    "provenance": "Authored verification threshold from native FARIS blanket flux rate 1.7385736373675766e+18 neutrons/m2/s (rates SHA-256 ae5593a6d1153f10537df86b151e1fe83c34e13ab7a36009c3cfdccfe407be34) times 79859518.272150606 s. It controls this test interval; it is not a material limit, measurement, or validated service-life model.",
+    "rate_n_m2_s": 1.7385736373675766e+18,
+    "rates_sha256": "ae5593a6d1153f10537df86b151e1fe83c34e13ab7a36009c3cfdccfe407be34"
+  },
+  "reactor_run_sha256": "d0ca7a524d65c739702aa4f2c96491ac8c091e525274f7312fb947fa4313e571",
+  "recovery": "Completed transport and rate binding were reused after correcting an authored calibration design ID. A separate retry used an isolated prepared cache after the default pre-existing cache exceeded its resource allowance. Failed commands and outputs remain retained; no limits were raised.",
+  "schema": "faris-native-peer-control-observation/v1",
+  "scope": "Actual native FARIS CSG transport and 709-group activation spectra, history-rate binding, and ACTINV fixed/computed heat-governed maintenance under authored one-outage calibration inputs. Not CAD dose validation, measured lifetime validation, or a full reactor-system peer comparison.",
+  "status": "NATIVE_FARIS_CONTROL_COMPLETED; THREE_TOOL_AGREEMENT_INCOMPLETE",
+  "transport_spectra_sha256": "b2561446bdf189c017e75ee4df92b69c9f0bd50500fe3ceb40b58724b775afa8"
+}

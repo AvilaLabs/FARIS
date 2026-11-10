@@ -48,6 +48,17 @@ python3 integrations/lifecycle_peer/run_faris_native_case.py \
 
 This native case is authored cold-data code verification, not experimental validation. It must complete successfully before the peer control can be described as a FARIS-matched comparison.
 
+The [actual native FARIS control](../../references/faris-native-peer-control-20261110.json)
+completed transport, rate binding, and ACTINV maintenance. Both native histories
+contain one 60-day replacement and availability 0.9685632298185763. The computed
+duration uses the authored 30-day work plus calibrated 30-day cooling control;
+their equality verifies this control rather than predicting a plant outage.
+Availability agrees with PROCESS within the unchanged 1e-6 limit, while the
+bluemira pulse-timeline difference remains outside it. Native FARIS electricity
+and the peers' conditional power normalization remain separate. The retained
+transport was reused after an authored calibration-ID correction, and the
+successful maintenance retry used its own bounded ACTINV prepared cache.
+
 After the coordinator creates the separately pinned PROCESS 3.4.2 and bluemira 2.14.0 environments, run the concrete case with:
 
 ```sh
