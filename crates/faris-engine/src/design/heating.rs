@@ -2349,7 +2349,9 @@ mod tests {
             design_sha256: "b".repeat(64),
             check_report_sha256: "c".repeat(64),
             h5m_sha256: "d".repeat(64),
+            h5m_path: "/data/model.h5m".into(),
             cross_sections_sha256: "e".repeat(64),
+            cross_sections_path: "/data/cross_sections.xml".into(),
             source_kernel_path: "/runtime/openmc_plasma_source.py".into(),
             source_kernel_sha256: "f".repeat(64),
         };

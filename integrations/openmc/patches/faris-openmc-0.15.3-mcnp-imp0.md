@@ -19,10 +19,17 @@ git apply /path/to/project-faris/integrations/openmc/patches/faris-openmc-0.15.3
 git apply --unidiff-zero /path/to/project-faris/integrations/openmc/patches/faris-openmc-0.15.3-mcnp-imp0.patch
 ```
 
-The patch was checked for clean application against the local 0.15.3 AIM-patched
-source snapshot used by FARIS. No C++ build or solver run was performed for this
-patch handoff. The compiled patch and control script are still pending the
-coordinator-owned build and live control. Current hashes:
+The coordinator built and linked all 124 targets from the isolated 0.15.3
+AIM-patched source snapshot on 2026-11-10 UTC. The selected runtime passed all
+four live one-batch, 1,000-history controls: neutron entry, neutron source birth,
+marked photon and unmarked neutron. Their canonical receipt SHA-256 is
+`6ca55acdd41bc01117b485aa3dd5986e39c988ea10e0c255abf01fd2c9d36e22`.
+The automatic build driver completed compilation but its parent-process
+capability probe hit an OpenSSL loader conflict; the subsequent control ran in
+the selected OpenMC Python environment. The driver now uses that process for
+its probe too. This establishes the optional termination semantics, not FNS
+transport accuracy or nuclear-data qualification. Build logs, binaries and
+statepoints remain outside Git. Current hashes:
 
 - AIM patch: `8a72af3a15891f5b1972b26427ad4fd414cd6e491fc42db8a0e9262ecbc89dcc`
 - MCNP importance-zero patch: `a8d590734a94b531fd58db7f46185eebcaea15a0b206300987cb450563fd45e0`

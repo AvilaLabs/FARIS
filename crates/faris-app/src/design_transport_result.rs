@@ -397,7 +397,6 @@ pub(crate) mod tests {
             setup_seconds: 95.0,
             windows_reused: false,
             reused_from: None,
-            history_rates_artifact: None,
             fluence_limits: vec![FluenceLimit {
                 group_id: "tf".into(),
                 basis: "peak_piece".into(),

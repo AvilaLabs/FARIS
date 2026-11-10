@@ -20,7 +20,7 @@ itself does not establish winding-pack identity. If no such solid is identified,
 MT=301 heating, photon data or complete atomic-relaxation shell maps, the result is `NOT_EVALUATED` with a next step.
 The separate neutron flux command remains available with its existing energy threshold.
 
-For CAD-driven net-energy histories, first make a complete all-energy history-rate artifact with
+For CAD-driven net-energy histories, first make a complete all-energy history-rate artefact with
 `faris design transport`'s `--history-component`, `--history-scenario` and `--h3-component`
 options, mapping every material-bearing CAD solid exactly once. Then run:
 
@@ -39,7 +39,7 @@ uses one unit-strength source-neutron tally and applies the recorded source rate
 factor once.
 
 The heat and flux/H3 runs are separate samples. Their cross-run covariance is unknown: the combined
-rate artifact preserves the flux/H3 covariance block, marks heating covariance as unknown, and
+rate artefact preserves the flux/H3 covariance block, marks heating covariance as unknown, and
 refuses correlated history-ensemble propagation. It does not assume independent runs. The exact
 CAD design, check report, H5M, cross-sections XML, source definition and source-kernel hash must
 match. The heating report also records and rechecks every used neutron MT=301 and photon HDF hash

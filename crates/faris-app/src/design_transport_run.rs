@@ -841,7 +841,7 @@ mod tests {
         assert_eq!(plan.options.history_scenario, Some(scenario));
         assert_eq!(plan.options.h3_component_id.as_deref(), Some("blanket"));
 
-        let mut partial = inputs;
+        let mut partial = inputs.clone();
         partial.history_components_json.clear();
         assert!(
             refused(&partial)

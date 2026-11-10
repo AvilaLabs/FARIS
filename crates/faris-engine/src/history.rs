@@ -2698,7 +2698,7 @@ mod tests {
         let no_heat_on = no_heat.snapshots.iter().find(|s| s.time_s == 0.0).unwrap();
         assert_eq!(no_heat_on.instantaneous_net_electricity_mw, None);
         assert!(
-            no_heat_on
+            no_heat
                 .energy_unavailable_reason
                 .as_deref()
                 .is_some_and(|why| why.contains("whole-model heating response"))

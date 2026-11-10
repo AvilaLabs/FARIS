@@ -942,7 +942,9 @@ mod tests {
             }
         }
         let mut out = String::new();
-        let full = ctx.run_ui(egui::RawInput::default(), |ui| show_result(ui, shown));
+        let full = ctx.run_ui(egui::RawInput::default(), |ui| {
+            show_result(ui, shown);
+        });
         for clipped in &full.shapes {
             collect(&clipped.shape, &mut out);
         }
