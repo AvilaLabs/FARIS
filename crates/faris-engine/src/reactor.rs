@@ -2548,7 +2548,7 @@ pub fn load_reactor_run(
                 return Err("the recorded batch statistics differ from this build's".into());
             }
             let batch_statistics = parent.join(BATCH_STATISTICS_FILE);
-            if !batch_statistics.is_file() {
+            if crate::vfs::file_len(&batch_statistics).is_none() {
                 return Err("the recorded run is missing batch_statistics.py required by its worker receipt; re-pack from the original run directory to include the bound helper".into());
             }
             if hash_file(&batch_statistics)? != used {
@@ -4103,6 +4103,14 @@ mod tests {
                     recorded_run_fixture_for(scenario.clone(), physics, true, true, None);
                 attach_bound_worker_receipt(&run_json);
                 let bundle = crate::core_evidence::pack_transport(&run_json).unwrap();
+                assert_eq!(
+                    bundle
+                        .files
+                        .get(BATCH_STATISTICS_FILE)
+                        .map(String::as_bytes),
+                    Some(BATCH_STATISTICS_HELPER.as_bytes()),
+                    "the emitted portable bundle carries the exact worker-bound helper",
+                );
                 let (verified_scenario, verified) = bundle.verify().unwrap();
                 assert_eq!(verified_scenario.source_sha256, scenario.source_sha256);
                 assert!(verified.normalized.is_some());
@@ -4111,6 +4119,17 @@ mod tests {
                 let bundle_path = output.join(&bundle_rel);
                 std::fs::create_dir_all(bundle_path.parent().unwrap()).unwrap();
                 std::fs::write(&bundle_path, &bundle_bytes).unwrap();
+                // Exercise the same serialized-file loading/materialization path used by
+                // the app, not only the in-memory bundle verifier above.
+                let replay =
+                    crate::core_evidence::load_recorded_bundle(&bundle_path, &scenario).unwrap();
+                let helper = crate::vfs::read_capped(
+                    &replay.directory.path().join(BATCH_STATISTICS_FILE),
+                    MAX_FILE_BYTES,
+                )
+                .unwrap();
+                assert_eq!(helper, BATCH_STATISTICS_HELPER.as_bytes());
+                assert!(replay.record.normalized.is_some());
                 core.push(json!({"path": bundle_rel, "bytes": bundle_bytes.len(), "sha256": format!("sha256:{}", digest(&bundle_bytes))}));
             }
         }
