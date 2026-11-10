@@ -2530,10 +2530,17 @@ pub fn load_reactor_run(
         if let Some(used) = worker
             .get("batch_statistics_sha256")
             .and_then(Value::as_str)
-            && (used != digest(BATCH_STATISTICS_HELPER.as_bytes())
-                || hash_file(&parent.join(BATCH_STATISTICS_FILE))? != used)
         {
-            return Err("the recorded batch statistics differ from this build's".into());
+            if used != digest(BATCH_STATISTICS_HELPER.as_bytes()) {
+                return Err("the recorded batch statistics differ from this build's".into());
+            }
+            let batch_statistics = parent.join(BATCH_STATISTICS_FILE);
+            if !batch_statistics.is_file() {
+                return Err("the recorded run is missing batch_statistics.py required by its worker receipt; re-pack from the original run directory to include the bound helper".into());
+            }
+            if hash_file(&batch_statistics)? != used {
+                return Err("the recorded batch statistics differ from this build's".into());
+            }
         }
     } else if record.adapter_sha256 == embedded_worker_sha256() {
         return Err("current worker run is missing its bound geometry-ownership receipt".into());
@@ -3796,6 +3803,151 @@ mod tests {
     }
 
     #[cfg(unix)]
+    fn attach_bound_worker_receipt(run_json: &Path) {
+        use serde_json::json;
+
+        let run_directory = run_json.parent().unwrap();
+        let scenario = LoadedScenario::from_bytes(
+            &std::fs::read(run_directory.join("scenario.json")).unwrap(),
+        )
+        .unwrap();
+        let mut record: ReactorRun =
+            serde_json::from_slice(&std::fs::read(run_json).unwrap()).unwrap();
+        let input: Value =
+            serde_json::from_slice(&std::fs::read(run_directory.join("input.json")).unwrap())
+                .unwrap();
+        let physics: PhysicsCase = serde_json::from_value(input["physics"].clone()).unwrap();
+        let manifest = build_manifest(&scenario).unwrap();
+        let variant = manifest
+            .variants
+            .iter()
+            .find(|variant| variant.id == physics.variant_id)
+            .unwrap();
+        let assignments: BTreeMap<_, _> = physics
+            .component_assignments
+            .iter()
+            .map(|assignment| {
+                (
+                    assignment.component_id.as_str(),
+                    assignment.material_id.as_str(),
+                )
+            })
+            .collect();
+        let toroidal = ["1.57079633", "3.14159265", "4.71238898"];
+        let mut probes = Vec::new();
+        for phi in toroidal {
+            probes.push((
+                format!("plasma-interior-phi-{phi}"),
+                "plasma-source-domain".to_string(),
+                None,
+            ));
+            for label in ["near-plasma", "near-first-wall"] {
+                probes.push((
+                    format!("clearance-{label}-phi-{phi}"),
+                    "plasma-first-wall-clearance".to_string(),
+                    None,
+                ));
+            }
+        }
+        for component in &variant.components {
+            let material_id = assignments[component.id.as_str()];
+            let has_material = !matches!(
+                physics
+                    .materials
+                    .iter()
+                    .find(|material| material.id == material_id),
+                Some(faris_model::physics::MaterialDefinition {
+                    recipe: MaterialRecipe::Void { .. },
+                    ..
+                })
+            );
+            for phi in toroidal {
+                for theta in ["0.00000000", "1.57079633", "3.14159265", "4.71238898"] {
+                    probes.push((
+                        format!("{}-mid-phi-{phi}-theta-{theta}", component.id),
+                        component.id.clone(),
+                        has_material.then(|| material_id.to_string()),
+                    ));
+                }
+                for edge in ["near-inner", "near-outer"] {
+                    probes.push((
+                        format!("{}-{edge}-phi-{phi}", component.id),
+                        component.id.clone(),
+                        has_material.then(|| material_id.to_string()),
+                    ));
+                }
+            }
+        }
+        let probes: Vec<Value> = probes
+            .into_iter()
+            .map(|(probe_id, cell, material)| {
+                let expected_material_id = material.as_deref().unwrap_or("void");
+                let openmc_material_name = material.as_deref();
+                json!({
+                    "probe_id": probe_id,
+                    "status": "PASS",
+                    "expected_cell_name": cell,
+                    "observed_cell_name": cell,
+                    "expected_material_id": expected_material_id,
+                    "expected_openmc_material_name": openmc_material_name,
+                    "observed_openmc_material_name": openmc_material_name,
+                    "expected_cell_id": 1,
+                    "observed_cell_id": 1,
+                    "expected_openmc_material_id": 1,
+                    "observed_openmc_material_id": 1,
+                })
+            })
+            .collect();
+        let ownership = json!({
+            "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+            "status": "PASS",
+            "clearance_status": "PASS",
+            "scientific_qualification": "NOT_EVALUATED",
+            "scenario_sha256": scenario.source_sha256,
+            "variant_id": physics.variant_id,
+            "input_sha256": record.input_sha256,
+            "checks_are_geometry_only": true,
+            "probe_count": 117,
+            "failed_probe_count": 0,
+            "plasma_radius_m": manifest.plasma_minor_radius_m,
+            "declared_plasma_to_first_wall_clearance_m": scenario.scenario.geometry.plasma_to_first_wall_gap_m,
+            "first_wall_inner_radius_m": variant.components.first().unwrap().inner_minor_radius_m,
+            "probes": probes,
+        });
+        let precision = json!({
+            "plan_id": "faris-exploratory-precision-goals/v0.1",
+            "purpose": "synthetic recorded worker receipt",
+            "estimator": "fixture",
+            "integrated_goal": 0.05,
+            "local_goal": 0.1,
+            "all_goals_met": true,
+            "checks": [
+                {"response_id":"total-tritium-production","quantity":"whole-model tritium production","target_relative_standard_error":0.05,"observed_relative_standard_error":0.01,"met":true},
+                {"response_id":"heating-total-whole-model","quantity":"whole-model deposited heating","target_relative_standard_error":0.05,"observed_relative_standard_error":0.01,"met":true},
+            ],
+        });
+        let worker = json!({
+            "geometry_ownership_audit": ownership,
+            "sampling_precision": precision,
+            "batch_statistics_sha256": digest(BATCH_STATISTICS_HELPER.as_bytes()),
+            "lost_particle_accounting": record.lost_particle_accounting,
+        });
+        let worker_bytes = serde_json::to_vec(&worker).unwrap();
+        std::fs::write(
+            run_directory.join("solver/worker-result.json"),
+            &worker_bytes,
+        )
+        .unwrap();
+        std::fs::write(
+            run_directory.join(BATCH_STATISTICS_FILE),
+            BATCH_STATISTICS_HELPER.as_bytes(),
+        )
+        .unwrap();
+        record.worker_result_sha256 = Some(digest(&worker_bytes));
+        std::fs::write(run_json, serde_json::to_vec_pretty(&record).unwrap()).unwrap();
+    }
+
+    #[cfg(unix)]
     fn attach_windowed_fixture(parent_run_json: &Path, child_run_json: &Path) -> PathBuf {
         let child_run_directory = child_run_json.parent().unwrap();
         let window_bytes = b"synthetic-window-data";
@@ -3918,6 +4070,40 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(!error.is_empty());
+    }
+
+    // Verifies: GEO-025, NUC-001
+    #[cfg(unix)]
+    #[test]
+    fn packed_run_carries_the_exact_bound_batch_statistics_helper() {
+        let (scenario, run_json, _dir) = recorded_run_fixture(true, true, None);
+        attach_bound_worker_receipt(&run_json);
+        let bundle = crate::core_evidence::pack_transport(&run_json).unwrap();
+        assert_eq!(
+            bundle.files[BATCH_STATISTICS_FILE].as_bytes(),
+            BATCH_STATISTICS_HELPER.as_bytes()
+        );
+        let (verified_scenario, verified) = bundle.verify().unwrap();
+        assert_eq!(verified_scenario.source_sha256, scenario.source_sha256);
+        assert!(verified.normalized.is_some());
+
+        let mut missing = bundle.clone();
+        missing.files.remove(BATCH_STATISTICS_FILE);
+        let error = missing.verify().unwrap_err().to_string();
+        assert!(
+            error.contains("re-pack from the original run directory"),
+            "{error}"
+        );
+
+        let mut tampered = bundle;
+        tampered
+            .files
+            .insert(BATCH_STATISTICS_FILE.into(), "tampered helper".into());
+        let error = tampered.verify().unwrap_err().to_string();
+        assert!(
+            error.contains("recorded batch statistics differ"),
+            "{error}"
+        );
     }
 
     // Verifies: GEO-025, NUC-051

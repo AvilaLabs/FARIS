@@ -36,6 +36,7 @@ const REQUIRED_FILES: &[&str] = &[
     "solver/transport-artifact.json",
 ];
 const OPTIONAL_FILES: &[&str] = &[
+    "batch_statistics.py",
     "solver/worker-result.json",
     "solver/transport-spectra.json",
     "solver/transport-batch-values.json",
