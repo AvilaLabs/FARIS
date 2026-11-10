@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
+import math
 from pathlib import Path
 import unittest
 
@@ -34,6 +36,12 @@ class ControlledCaseTests(unittest.TestCase):
         self.assertEqual(case["authored_inputs"]["blanket_cycle_count"], 2)
         self.assertEqual(case["authored_inputs"]["expected_blanket_replacement_count"], 1)
         self.assertIn("not inferred material service life", case["authored_inputs"]["provenance"]["blanket_lifetime_full_power_years"])
+        process = json.loads(files["process"].read_text(encoding="utf-8"))
+        short_life = process["blanket_lifetime_fpy"]
+        long_life = process["divertor_lifetime_fpy"]
+        self.assertEqual(long_life, 2 * short_life)
+        self.assertEqual(math.ceil(long_life / short_life) - 1, 1)
+        self.assertIn("not a divertor service-life claim", process["provenance"]["divertor_lifetime_fpy"]["reference"])
 
     def test_match_requires_native_outputs_and_keeps_faris_separate(self):
         case, _ = controlled.load_case()

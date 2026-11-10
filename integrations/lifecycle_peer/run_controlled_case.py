@@ -41,6 +41,7 @@ def load_case() -> tuple[dict, dict[str, Path]]:
     process_expectations = {
         "plant_horizon_years": authored["calendar_horizon_years"],
         "blanket_lifetime_fpy": authored["blanket_lifetime_full_power_years"],
+        "divertor_lifetime_fpy": authored["process_divertor_lifetime_fpy"],
         "blanket_replacement_days": authored["fixed_blanket_replacement_days"],
         "net_electric_power_mw": authored["net_electric_normalization_mw"],
         "pulse_burn_seconds": authored["pulse_period_seconds"],

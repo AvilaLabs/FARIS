@@ -2,7 +2,7 @@
   "blanket_lifetime_fpy": 2.530595427793958,
   "blanket_replacement_days": 60.0,
   "combined_replacement_days": 0.0,
-  "divertor_lifetime_fpy": 5.225442889963153,
+  "divertor_lifetime_fpy": 5.061190855587916,
   "divertor_replacement_days": 0.0,
   "net_electric_power_mw": 500.0,
   "plant_horizon_years": 5.225442889963153,
@@ -21,7 +21,7 @@
     },
     "divertor_lifetime_fpy": {
       "kind": "authored",
-      "reference": "Authored at the same finite case horizon so the native PROCESS WARD_TAYLOR rule has one blanket replacement within the controlled horizon; divertor replacement time remains zero."
+      "reference": "Authored at exactly 2 \u00d7 the blanket full-power interval so pinned PROCESS 3.4.2 Ward\u2013Taylor uses n = ceil(longer_life / shorter_life) \u2212 1 = 1 blanket-only maintenance between its combined-cycle boundaries. Zero divertor replacement time keeps this an explicit schedule control, not a divertor service-life claim or physical input."
     },
     "divertor_replacement_days": {
       "kind": "authored",
@@ -33,7 +33,7 @@
     },
     "plant_horizon_years": {
       "kind": "authored",
-      "reference": "Authored as 2 × 79,859,518.2721506 s + 60 days − 600 s; the margin is one configured FARIS history step to avoid counting a replacement exactly at the horizon."
+      "reference": "Authored as 2 \u00d7 79,859,518.2721506 s + 60 days \u2212 600 s; the margin is one configured FARIS history step to avoid counting a replacement exactly at the horizon."
     },
     "pulse_burn_seconds": {
       "kind": "authored",

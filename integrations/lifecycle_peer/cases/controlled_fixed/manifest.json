@@ -3,7 +3,7 @@
     "archived_faris_blanket_campaign_interval_seconds": 79859518.2721506,
     "blanket_cycle_count": 2,
     "blanket_lifetime_full_power_years": 2.530595427793958,
-    "blue_blanket_damage_mapping": "Authored verification mapping: native bluemira blk_dmg is set to 10.2 dpa/FPY × 525/2037 using the documented EU-DEMO example scaling, and both blanket DPA limits equal that rate × the authored campaign lifetime. This does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+    "blue_blanket_damage_mapping": "Authored verification mapping: native bluemira blk_dmg is set to 10.2 dpa/FPY \u00d7 525/2037 using the documented EU-DEMO example scaling, and both blanket DPA limits equal that rate \u00d7 the authored campaign lifetime. This does not establish FARIS fluence-to-DPA equivalence or physical validation.",
     "blue_divertor_compatibility_case": "bluemira 2.14.0 leaves count2 uninitialized when the second blanket interval has zero divertor replacements. To execute its native LifeCycle API without changing upstream code, the control gives it an explicitly authored zero-work divertor schedule (dmd=0 s; div_dmg=1 dpa/FPY and div_dpa=0.4 blanket interval) that creates four zero-duration divertor maintenance phases. These are compatibility scaffolding only, are outside the matched availability scope, and are not physical divertor inputs.",
     "blue_out_of_scope_sentinels": "Authored high damage/fluence thresholds for divertor, vessel, and TF to keep this restricted case focused on blanket maintenance; these are not material limits.",
     "blue_timeline_resolution": "Authored 5,633 s pulse input selected from the exact pinned LifeCycle pulse-array convention to place the native timeline endpoint within the case horizon tolerance. Native actual horizon/FPY are read from Timeline.plant_life and Timeline.ft[-1]; they are not inferred from the continuous LifeCycle lifetime budget. Any availability disagreement remains a failed/incomplete check.",
@@ -16,6 +16,7 @@
     "fusion_power_mw": 525.0,
     "net_electric_normalization_mw": 500.0,
     "parallel_remote_handling_systems": 1,
+    "process_divertor_lifetime_fpy": 5.061190855587916,
     "provenance": {
       "archived_faris_blanket_campaign_interval_seconds": "FARIS archived fixed blanket event: next start minus previous event end in references/maintenance-0.2-parity.json, design no-port__breeder. Simulation output, not a measurement.",
       "blanket_lifetime_full_power_years": "Authored by dividing the archived campaign interval by a 365.25-day year. This is a verification schedule interval, not inferred material service life.",
@@ -24,13 +25,14 @@
       "blue_timeline_resolution": "Authored pulse sampling control used only for native timeline construction; worker reports actual timeline arrays, and strict horizon/availability checks are unchanged.",
       "bluemira_compat_divertor_damage_rate_dpa_fpy": "Authored 1 dpa/FPY solely for zero-duration bluemira 2.14.0 phase-builder compatibility; not physical divertor data.",
       "bluemira_compat_divertor_lifetime_fpy": "Authored at 0.4 of a blanket campaign so the pinned bluemira phase builder has defined counters on both blanket intervals; its replacement durations are zero and it is outside the availability mapping.",
-      "calendar_horizon_years": "Authored as 2 × 79,859,518.2721506 s + 60 days − 600 s; the margin is one configured FARIS history step to avoid counting a replacement exactly at the horizon.",
+      "calendar_horizon_years": "Authored as 2 \u00d7 79,859,518.2721506 s + 60 days \u2212 600 s; the margin is one configured FARIS history step to avoid counting a replacement exactly at the horizon.",
       "expected_blanket_replacement_count": "One boundary replacement between two authored full-power blanket campaigns. The terminal 600 s margin keeps the next trigger outside the horizon.",
       "expected_bluebmira_zero_work_divertor_phases": "Expected count from the explicit compatibility-only native LifeCycle phase inputs; no downtime is attributed to these phases.",
       "fixed_blanket_replacement_days": "Authored 60-day work duration from the archived FARIS fixed blanket histories; not measured maintenance time.",
       "fusion_power_mw": "525 MW from the authored FARIS cold-reference scenario, used as a shared nominal fusion-power boundary.",
       "net_electric_normalization_mw": "Authored shared reporting normalization only; neither availability submodel calculates net electric power.",
       "parallel_remote_handling_systems": "Authored single-system boundary; bluemira LifeCycle has no corresponding native remote-handling count input, so no throughput inference is made.",
+      "process_divertor_lifetime_fpy": "Authored exactly as 2 \u00d7 the blanket interval so PROCESS 3.4.2 Ward\u2013Taylor computes n = ceil(longer_life / shorter_life) \u2212 1 = 1 blanket-only maintenance per combined cycle. The zero divertor replacement duration makes this a comparison schedule boundary, not a divertor lifetime estimate or material claim.",
       "pulse_period_seconds": "Authored repeated no-downtime pulse boundary shared by PROCESS and bluemira; timeline endpoint remains subject to the strict native output checks.",
       "terminal_trigger_margin_s": "One configured 600 s FARIS maximum history step before the second event threshold; boundary convention only.",
       "unplanned_unavailability": "Authored deterministic zero-unplanned verification assumption, not an empirical reliability estimate. PROCESS uses explicit zero fractions; bluemira uses its documented strategy extension point with a zero distribution and fails if it is asked to represent positive unplanned downtime."
@@ -71,7 +73,7 @@
       "api": "PROCESS 3.4.2 `Availability.run(output=False)` with WARD_TAYLOR and data.ife.ife=1, using explicit authored lives and durations. No reactor physics or optimization run.",
       "input": {
         "path": "process-inputs.json",
-        "sha256": "3dcb9e5f194a8347a1ed4ec3737b5feac1fb86fecf7466b9f3e3d28c5861038b"
+        "sha256": "70d68cb3241f67d2174b53f8fafc0aa55699fce519f1ea6be65364f7df3afcc1"
       },
       "python": "Set by the coordinator at run time",
       "version": "3.4.2"
