@@ -660,23 +660,73 @@ fn run_actinv_event_batches(
             ));
         }
         let (result, stats) = activation_result?;
-        if result.zones.len() != batch.activation_request.zones.len()
-            || result.cooling_s != cooling_s
-            || result.zones.iter().any(|z| {
-                z.completeness != crate::activation::Completeness::Complete || !z.gaps.is_empty()
-            })
-        {
-            return Err(format!(
-                "ACTINV component {} returned incomplete zones or data gaps; refusing a whole-plant dose source",
-                batch.component
-            ));
-        }
+        // Persist the typed ACTINV output before applying whole-plant source gates. Failed
+        // completeness checks must remain auditable without turning missing data into zero.
         let result_path = out_dir
             .join("activation")
             .join(format!("component_{batch_index:05}_result.json"));
         let result_bytes = serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?;
+        if result_bytes.len() > MAX_ACTINV_BATCH_BYTES {
+            return Err(format!(
+                "ACTINV component {} result exceeds the {} byte diagnostic artifact limit",
+                batch.component, MAX_ACTINV_BATCH_BYTES
+            ));
+        }
         write_exact(&result_path, &result_bytes)?;
         let result_ref = make_ref(&result_path)?;
+
+        let mut refusal_reasons = Vec::new();
+        if result.zones.len() != batch.activation_request.zones.len() {
+            refusal_reasons.push(format!(
+                "zone_count={} expected={}",
+                result.zones.len(),
+                batch.activation_request.zones.len()
+            ));
+        }
+        if result.cooling_s != cooling_s {
+            refusal_reasons.push("cooling_grid_mismatch".to_string());
+        }
+        let incomplete: Vec<String> = result
+            .zones
+            .iter()
+            .filter(|z| {
+                z.completeness != crate::activation::Completeness::Complete || !z.gaps.is_empty()
+            })
+            .take(64)
+            .map(|zone| {
+                let categories = zone
+                    .gaps
+                    .iter()
+                    .map(|gap| gap.category.chars().take(100).collect::<String>())
+                    .collect::<std::collections::BTreeSet<_>>();
+                if categories.is_empty() {
+                    format!(
+                        "{}:{:?}",
+                        zone.id.chars().take(100).collect::<String>(),
+                        zone.completeness
+                    )
+                } else {
+                    format!(
+                        "{}:{:?}[{}]",
+                        zone.id.chars().take(100).collect::<String>(),
+                        zone.completeness,
+                        categories.into_iter().take(8).collect::<Vec<_>>().join(",")
+                    )
+                }
+            })
+            .collect();
+        if !incomplete.is_empty() {
+            refusal_reasons.push(format!("incomplete_zones={}", incomplete.join(";")));
+        }
+        if !refusal_reasons.is_empty() {
+            return Err(format!(
+                "ACTINV component {} refused as a whole-plant dose source; diagnostic={} sha256={}; reasons: {}",
+                batch.component,
+                result_path.display(),
+                result_ref.sha256,
+                refusal_reasons.join("; ")
+            ));
+        }
         source_artifact_refs.insert(
             format!("activation_result/{}", batch.component),
             result_ref.clone(),
