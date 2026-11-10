@@ -118,6 +118,17 @@ expected records were written. It is not a convergence, uncertainty, VAL043,
 or physical-validation verdict. Source-response mesh convergence and
 activation-grid convergence remain distinct questions.
 
+Summarize the collected artifacts, including incomplete campaigns, with:
+
+```bash
+python3 integrations/openmc/risk_tests/r3_campaign_summary.py \
+  runs/continuation/r3-method-control-replicates-v1 --out campaign-summary.json
+```
+
+The summary checks the recorded artifact identities, retains each replicate and
+grid, and reports descriptive ratios and adjacent grid differences. It preserves
+unknown covariance and source verdicts; it adds no acceptance threshold.
+
 Before every external command the driver persists its exact guarded command,
 start time, UTC deadline, resource limits, and a unique named user systemd
 scope. On cancellation, timeout, output/log limit, or a lingering output-pipe
