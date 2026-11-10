@@ -15,6 +15,7 @@ struct Geo {
     conversion_candidates: RefCell<Vec<Facets>>,
     conversion_chords: RefCell<Vec<f64>>,
     stochastic_volume_h5m: RefCell<Vec<PathBuf>>,
+    stochastic_volume_h5m_sha256: RefCell<Vec<String>>,
     tessellation_chords: RefCell<Vec<f64>>,
     deviation_chords: RefCell<Vec<f64>>,
     tags: Vec<String>,
@@ -211,7 +212,11 @@ impl Backends for Geo {
             .push(request.h5m.to_path_buf());
         let h5m_bytes = std::fs::read(request.h5m)
             .expect("stochastic-volume adapter receives the selected attempt H5M");
-        assert_eq!(super::super::sha256_hex(&h5m_bytes), request.h5m_sha256);
+        let h5m_sha256 = super::super::sha256_hex(&h5m_bytes);
+        assert_eq!(h5m_sha256, request.h5m_sha256);
+        self.stochastic_volume_h5m_sha256
+            .borrow_mut()
+            .push(h5m_sha256);
         let rows = request
             .targets
             .iter()
@@ -298,6 +303,7 @@ fn geo() -> Geo {
         conversion_candidates: RefCell::new(Vec::new()),
         conversion_chords: RefCell::new(Vec::new()),
         stochastic_volume_h5m: RefCell::new(Vec::new()),
+        stochastic_volume_h5m_sha256: RefCell::new(Vec::new()),
         tessellation_chords: RefCell::new(Vec::new()),
         deviation_chords: RefCell::new(Vec::new()),
         tags: vec!["mat:shell".into(), "mat:core".into()],
@@ -450,7 +456,7 @@ fn a_clean_model_passes_checks_6_to_9_and_records_what_was_measured() {
     );
     assert_eq!(Path::new(&conv.directory), attempt_dir);
     assert_eq!(
-        super::super::sha256_file(&selected_h5m).unwrap(),
+        backend.stochastic_volume_h5m_sha256.borrow()[0],
         conv.h5m_sha256
     );
     assert!(!conv.reused && conv.chord_cm == 0.1 && conv.angular_rad == 0.1);
@@ -638,7 +644,7 @@ fn default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_ch
     );
     assert_eq!(Path::new(&conversion.directory), attempt_dir);
     assert_eq!(
-        super::super::sha256_file(&selected_h5m).unwrap(),
+        backend.stochastic_volume_h5m_sha256.borrow()[0],
         conversion.h5m_sha256
     );
 }
