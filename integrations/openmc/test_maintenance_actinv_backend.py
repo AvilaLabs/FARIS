@@ -7,6 +7,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -93,11 +94,11 @@ class ActinvBackendContracts(unittest.TestCase):
         import xml.etree.ElementTree as ET
         root = ET.fromstring("""<model><settings>
           <source type="mesh" mesh="7" strength="1.0">
-            <source type="independent" strength="0.4" particle="neutron">
+            <source type="independent" strength="0.0" particle="neutron">
               <space type="box"><parameters>0 0 0 1 1 1</parameters></space>
               <angle type="isotropic"/><energy type="discrete"><parameters>14e6 1</parameters></energy>
             </source>
-            <source type="independent" strength="0.6" particle="neutron">
+            <source type="independent" strength="1.0" particle="neutron">
               <space type="box"><parameters>1 0 0 2 1 1</parameters></space>
               <angle type="isotropic"/><energy type="discrete"><parameters>14e6 1</parameters></energy>
             </source>
@@ -108,6 +109,45 @@ class ActinvBackendContracts(unittest.TestCase):
         root.find("settings/source/source").set("library", "attacker.py")
         with self.assertRaisesRegex(ValueError, "compiled or external"):
             backend.validate_safe_model_sources(root)
+
+    def test_safe_source_preflight_accepts_bounded_recursive_energy_mixtures(self):
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring("""<model><settings><source type="independent" strength="1" particle="neutron">
+          <angle type="isotropic"/><energy type="mixture">
+            <pair probability="0.25"><dist type="normal" parameters="2450000 16000"/></pair>
+            <pair probability="0.75"><dist type="mixture">
+              <pair probability="0.5"><dist type="normal" parameters="14000000 35000"/></pair>
+              <pair probability="0.5"><dist type="tabular" interpolation="linear-linear">
+                <parameters>1 2 0.25 0.75</parameters>
+              </dist></pair>
+            </dist></pair>
+          </energy></source></settings></model>""")
+        backend.validate_safe_model_sources(root)
+
+    def test_safe_source_preflight_rejects_bad_mixture_weights_and_depth(self):
+        import xml.etree.ElementTree as ET
+        negative = ET.fromstring("""<model><settings><source type="independent" strength="1">
+          <energy type="mixture"><pair probability="-0.1"><dist type="normal" parameters="1 1"/></pair>
+          <pair probability="1.1"><dist type="normal" parameters="2 1"/></pair></energy>
+        </source></settings></model>""")
+        with self.assertRaisesRegex(ValueError, "mixture probability"):
+            backend.validate_safe_model_sources(negative)
+
+        distribution = '<dist type="normal" parameters="1 1"/>'
+        for _ in range(5):
+            distribution = ('<dist type="mixture"><pair probability="1">' + distribution + '</pair></dist>')
+        nested = ET.fromstring('<model><settings><source type="independent" strength="1"><energy type="mixture">'
+                               '<pair probability="1">' + distribution + '</pair>'
+                               '</energy></source></settings></model>')
+        with self.assertRaisesRegex(ValueError, "depth bound"):
+            backend.validate_safe_model_sources(nested)
+
+        bounded = ET.fromstring("""<model><settings><source type="independent" strength="1">
+          <energy type="mixture"><pair probability="1"><dist type="normal" parameters="1 1"/></pair>
+        </energy></source></settings></model>""")
+        with patch.object(backend, "MAX_SOURCE_DISTRIBUTION_NODES", 1):
+            with self.assertRaisesRegex(ValueError, "node-count bound"):
+                backend.validate_safe_model_sources(bounded)
 
 
 if __name__ == "__main__":

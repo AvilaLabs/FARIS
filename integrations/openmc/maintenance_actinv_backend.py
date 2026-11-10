@@ -23,6 +23,10 @@ MAX_SOURCE_GROUPS = 10000
 VOLUME_REL_TOL = 1.0e-5
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_RESPONSE_BYTES = 256 * 1024 * 1024
+MAX_SOURCE_DISTRIBUTION_NODES = 150_000
+MAX_SOURCE_DISTRIBUTION_DEPTH = 8
+MAX_SOURCE_MIXTURE_COMPONENTS = 64
+MAX_SOURCE_DISTRIBUTION_PARAMETER_VALUES = 2_000_000
 
 
 def file_sha256(path: Path) -> str:
@@ -67,6 +71,78 @@ def validate_safe_model_sources(root: ET.Element) -> None:
     if not sources:
         raise ValueError("checked OpenMC model has no explicit source distribution")
 
+    distribution_node_count = 0
+    distribution_parameter_count = 0
+
+    def count_distribution_node(depth: int) -> None:
+        nonlocal distribution_node_count
+        if depth > MAX_SOURCE_DISTRIBUTION_DEPTH:
+            raise ValueError("source distribution nesting exceeds its depth bound")
+        distribution_node_count += 1
+        if distribution_node_count > MAX_SOURCE_DISTRIBUTION_NODES:
+            raise ValueError("source distribution XML exceeds its node-count bound")
+
+    def numeric_values(text: str | None, label: str) -> list[float]:
+        nonlocal distribution_parameter_count
+        tokens = (text or "").replace(",", " ").split()
+        distribution_parameter_count += len(tokens)
+        if distribution_parameter_count > MAX_SOURCE_DISTRIBUTION_PARAMETER_VALUES:
+            raise ValueError("source distribution parameters exceed their aggregate count bound")
+        return [_finite(float(value), label) for value in tokens]
+
+    def validate_mixture(node: ET.Element, depth: int) -> None:
+        count_distribution_node(depth)
+        if node.tag not in {"energy", "dist"} or node.attrib != {"type": "mixture"}:
+            raise ValueError("mixture source distributions contain unsupported fields")
+        if (node.text or "").strip():
+            raise ValueError("mixture source distributions must contain only weighted components")
+        pairs = list(node)
+        if not 1 <= len(pairs) <= MAX_SOURCE_MIXTURE_COMPONENTS:
+            raise ValueError("mixture source distribution component count is outside its bound")
+        weights = []
+        for pair in pairs:
+            count_distribution_node(depth + 1)
+            if pair.tag != "pair" or set(pair.attrib) != {"probability"} or \
+                    (pair.text or "").strip() or len(pair) != 1 or pair[0].tag != "dist":
+                raise ValueError("mixture source distribution has an unsupported component")
+            weight = _finite(float(pair.attrib["probability"]), "mixture probability", minimum=0.0)
+            weights.append(weight)
+            distribution = pair[0]
+            kind = distribution.attrib.get("type", "").lower()
+            if kind == "mixture":
+                validate_mixture(distribution, depth + 2)
+            elif kind == "normal":
+                count_distribution_node(depth + 2)
+                if distribution.tag != "dist" or set(distribution.attrib) != {"type", "parameters"} or \
+                        len(distribution) != 0:
+                    raise ValueError("normal mixture component contains unsupported fields")
+                parameters = numeric_values(distribution.get("parameters"), "normal distribution parameter")
+                if len(parameters) != 2 or parameters[1] <= 0:
+                    raise ValueError("normal mixture components require finite mean and positive standard deviation")
+            elif kind == "tabular":
+                count_distribution_node(depth + 2)
+                if distribution.tag != "dist" or set(distribution.attrib) != {"type", "interpolation"} or \
+                        distribution.get("interpolation") not in {"linear-linear", "histogram"} or len(distribution) != 1:
+                    raise ValueError("tabular mixture component contains unsupported fields")
+                parameter = distribution[0]
+                count_distribution_node(depth + 3)
+                if parameter.tag != "parameters" or parameter.attrib or len(parameter) or \
+                        (parameter.tail or "").strip():
+                    raise ValueError("tabular mixture parameters contain unsupported XML")
+                values = numeric_values(parameter.text, "tabular distribution parameter")
+                if len(values) < 4 or len(values) % 2:
+                    raise ValueError("tabular mixture parameters must contain paired energy and density arrays")
+                midpoint = len(values) // 2
+                energies, densities = values[:midpoint], values[midpoint:]
+                if any(value < 0 for value in energies) or any(b <= a for a, b in zip(energies, energies[1:])) or \
+                        any(value < 0 for value in densities):
+                    raise ValueError("tabular mixture energies must ascend and densities must be nonnegative")
+            else:
+                raise ValueError(f"unsupported mixture component distribution {distribution.tag}:{kind}")
+        total = math.fsum(weights)
+        if not math.isclose(total, 1.0, rel_tol=1e-10, abs_tol=1e-12):
+            raise ValueError(f"mixture source probabilities must sum to one; found {total}")
+
     def check_independent(source: ET.Element) -> float:
         if source.attrib.get("type", "independent").lower() != "independent":
             raise ValueError("mesh source bins must be built-in IndependentSources")
@@ -80,6 +156,11 @@ def validate_safe_model_sources(root: ET.Element) -> None:
         for child in source:
             if child.tag in source_types:
                 kind = child.attrib.get("type", "").lower()
+                if kind == "mixture":
+                    if child.tag != "energy":
+                        raise ValueError("mixture source distributions are supported only for energy")
+                    validate_mixture(child, 1)
+                    continue
                 if kind not in source_types[child.tag]:
                     raise ValueError(f"unsupported data-defined source distribution {child.tag}:{kind}")
                 allowed_attrs = {"type", "mesh"} if kind == "mesh" else {"type"}
@@ -118,8 +199,8 @@ def validate_safe_model_sources(root: ET.Element) -> None:
         source_type = source.attrib.get("type", "independent").lower()
         if source_type == "independent":
             strength = check_independent(source)
-            if strength <= 0:
-                raise ValueError("source strength must be positive")
+            if strength < 0:
+                raise ValueError("source strength must be nonnegative")
             total_strength += strength
         elif source_type == "mesh":
             if set(source.attrib) - {"type", "mesh", "strength"}:
@@ -130,8 +211,8 @@ def validate_safe_model_sources(root: ET.Element) -> None:
             if not bins:
                 raise ValueError("mesh source has no data-defined source bins")
             strengths = [check_independent(item) for item in bins]
-            if any(value <= 0 for value in strengths):
-                raise ValueError("mesh source bin strengths must be positive")
+            if any(value < 0 for value in strengths):
+                raise ValueError("mesh source bin strengths must be nonnegative")
             outer = _finite(float(source.attrib.get("strength", "nan")), "mesh source strength", minimum=0)
             if not math.isclose(math.fsum(strengths), outer, rel_tol=1e-12, abs_tol=1e-12):
                 raise ValueError("mesh source outer strength does not equal its source-bin strengths")
