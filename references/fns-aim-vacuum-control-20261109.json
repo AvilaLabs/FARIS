@@ -1,0 +1,428 @@
+{
+  "schema_version": "faris-fns-aim-vacuum-summary/v1",
+  "class": "verification",
+  "status": "PASS",
+  "scope": "weighted isotropic point-source vacuum control for aperture sampling and finite-cell volume normalization; it does not test material transport, finite-volume convergence in FNS, or MCNP F5 equivalence",
+  "case_geometry_source": "fns-tof-fe-5",
+  "full_material_case_qualification": "NOT_EVALUATED; finite-detector/F5 equivalence and source/reference high-energy mismatch remain unresolved",
+  "raw_receipt_sha256": "431068baf89fedfd31e5a49e139408f03c982144ed41dc006b73abbe49092746",
+  "raw_receipt_file_sha256": "e669187d68d331b274d0f3d9201d2f080c27067a3efaa9af67f44cb1a2a0a54d",
+  "raw_receipt_local_path": "runs/continuation/fns-aim-vacuum-control-20261109-v3/fns-aim-vacuum-control.json",
+  "histories_per_radius": 1000000,
+  "batches": 100,
+  "threads": 1,
+  "seed_by_radius": [
+    1701,
+    1702,
+    1703
+  ],
+  "beta": 0.1,
+  "acceptance": {
+    "all_four_detector_points_at_all_three_radii": true,
+    "analytic_cell_flux_bias": "absolute z-score <= 3 and relative MCSE <= 2% for each detector/radius",
+    "source_direction_law": "isotropic law retained through a positive (1-beta) mixture component",
+    "source_likelihood_ratio_bound": "0 < p_iso/q <= 1/(1-beta); per-plan finite positive lower bound also recorded",
+    "zero_lost_particles_and_zero_importance_kills": true
+  },
+  "source_deck_sha256": "ab8427a7df40eae83434cbd4adfaa93fc038b2e603717c6f76e7f6360f4a2acd",
+  "manifest_sha256": "d760a630d273da6f6754f511301ec7a6847ba527951783fbcae5dd4e14bdbb6f",
+  "runtime": {
+    "cross_sections_xml_sha256": "e6e6fee1b71bdcb8f5d0ac68497cf99bf6915f15bf63b44da6621292f40bd728",
+    "executable_sha256": "9142ac02604fe0f986d5b53b616225283d95ff3802537b6073d1d3d9550a7d73",
+    "linked_library_sha256": "1c0d70bfe54653a16f0234ef697e8c1402c12c10d2ff5c41443271e8734f3c8e",
+    "openmc_python_module_sha256": "5fdeabd8cbe085a0862082efd97954249bad4cb847ba71c86d6e95983259cf07",
+    "openmc_python_version": "0.15.3",
+    "patch_version": 1
+  },
+  "patch_sha256": "8a72af3a15891f5b1972b26427ad4fd414cd6e491fc42db8a0e9262ecbc89dcc",
+  "radius_levels": [
+    {
+      "radius_cm": 2.5,
+      "status": "PASS",
+      "patch_statepoint": {
+        "cell_entry_kill_events": 0,
+        "current_batch": 100,
+        "intentional_kill_events": 0,
+        "lost_particles": 0,
+        "n_batches": 100,
+        "n_particles": 10000,
+        "n_realizations": 100,
+        "patch_version": 1,
+        "solver_version": "0.15.3",
+        "source": "child statepoint datasets; imp0 kills and normal lost count are distinct",
+        "source_birth_kill_events": 0
+      },
+      "results": [
+        {
+          "analytic_flux_cm-2_per_source": 1.3669165209918782e-07,
+          "analytic_z_score": 1.7613999971138061,
+          "angle_deg": 0.0,
+          "estimated_flux_cm-2_per_source": 1.384858629295762e-07,
+          "mcnp_tally_number": 5,
+          "passed": true,
+          "position_cm": [
+            0.0,
+            0.0,
+            738.0
+          ],
+          "radius_cm": 2.5,
+          "raw_tracklength_mean_particle_cm_per_source": 9.063878533449993e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 6.666902715850426e-08,
+          "relative_bias": 0.013125972236303296,
+          "relative_mcse": 0.0073554634379161266,
+          "sphere_volume_cm3": 65.44984694978736,
+          "u_mc_cm-2_per_source": 1.018627701446762e-09
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.367817266226762e-07,
+          "analytic_z_score": -1.0101937313312899,
+          "angle_deg": 24.9,
+          "estimated_flux_cm-2_per_source": 1.3565181034321532e-07,
+          "mcnp_tally_number": 25,
+          "passed": true,
+          "position_cm": [
+            311.5665,
+            0.0,
+            671.21257
+          ],
+          "radius_cm": 2.5,
+          "raw_tracklength_mean_particle_cm_per_source": 8.878390225425024e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 7.320659915334177e-08,
+          "relative_bias": -0.008260725371436961,
+          "relative_mcse": 0.008245481139553904,
+          "sphere_volume_cm3": 65.44984694978736,
+          "u_mc_cm-2_per_source": 1.1185144437313251e-09
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.3675655634839785e-07,
+          "analytic_z_score": 1.4323949810206853,
+          "angle_deg": 41.8,
+          "estimated_flux_cm-2_per_source": 1.3814868121415291e-07,
+          "mcnp_tally_number": 35,
+          "passed": true,
+          "position_cm": [
+            495.90016,
+            0.0,
+            554.63414
+          ],
+          "radius_cm": 2.5,
+          "raw_tracklength_mean_particle_cm_per_source": 9.041810041781272e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 6.360980079233222e-08,
+          "relative_bias": 0.0101795840940051,
+          "relative_mcse": 0.007035073784828248,
+          "sphere_volume_cm3": 65.44984694978736,
+          "u_mc_cm-2_per_source": 9.718861656182818e-10
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.366219730050366e-07,
+          "analytic_z_score": 0.809077807458193,
+          "angle_deg": 66.8,
+          "estimated_flux_cm-2_per_source": 1.374750912573848e-07,
+          "mcnp_tally_number": 45,
+          "passed": true,
+          "position_cm": [
+            692.10891,
+            0.0,
+            296.63826
+          ],
+          "radius_cm": 2.5,
+          "raw_tracklength_mean_particle_cm_per_source": 8.997723682203885e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 6.901247139836475e-08,
+          "relative_bias": 0.006244370752256367,
+          "relative_mcse": 0.007669992304260334,
+          "sphere_volume_cm3": 65.44984694978736,
+          "u_mc_cm-2_per_source": 1.0544328919716285e-09
+        }
+      ]
+    },
+    {
+      "radius_cm": 1.25,
+      "status": "PASS",
+      "patch_statepoint": {
+        "cell_entry_kill_events": 0,
+        "current_batch": 100,
+        "intentional_kill_events": 0,
+        "lost_particles": 0,
+        "n_batches": 100,
+        "n_particles": 10000,
+        "n_realizations": 100,
+        "patch_version": 1,
+        "solver_version": "0.15.3",
+        "source": "child statepoint datasets; imp0 kills and normal lost count are distinct",
+        "source_birth_kill_events": 0
+      },
+      "results": [
+        {
+          "analytic_flux_cm-2_per_source": 1.3669143197601787e-07,
+          "analytic_z_score": -1.9842156947342937,
+          "angle_deg": 0.0,
+          "estimated_flux_cm-2_per_source": 1.3448960504877187e-07,
+          "mcnp_tally_number": 5,
+          "passed": true,
+          "position_cm": [
+            0.0,
+            0.0,
+            738.0
+          ],
+          "radius_cm": 1.25,
+          "raw_tracklength_mean_particle_cm_per_source": 1.1002905083474336e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 9.078475930099739e-09,
+          "relative_bias": -0.016108009810244073,
+          "relative_mcse": 0.008250980864803636,
+          "sphere_volume_cm3": 8.18123086872342,
+          "u_mc_cm-2_per_source": 1.1096711577724152e-09
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.3678150620930512e-07,
+          "analytic_z_score": 0.009708278191461093,
+          "angle_deg": 24.9,
+          "estimated_flux_cm-2_per_source": 1.3679131751359293e-07,
+          "mcnp_tally_number": 25,
+          "passed": true,
+          "position_cm": [
+            311.5665,
+            0.0,
+            671.21257
+          ],
+          "radius_cm": 1.25,
+          "raw_tracklength_mean_particle_cm_per_source": 1.119121349415553e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 8.268051648178819e-09,
+          "relative_bias": 7.172975762381739e-05,
+          "relative_mcse": 0.007387984915573905,
+          "sphere_volume_cm3": 8.18123086872342,
+          "u_mc_cm-2_per_source": 1.010612190371905e-09
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.3675633601613932e-07,
+          "analytic_z_score": -0.24848356314196,
+          "angle_deg": 41.8,
+          "estimated_flux_cm-2_per_source": 1.365260685014902e-07,
+          "mcnp_tally_number": 35,
+          "passed": true,
+          "position_cm": [
+            495.90016,
+            0.0,
+            554.63414
+          ],
+          "radius_cm": 1.25,
+          "raw_tracklength_mean_particle_cm_per_source": 1.1169512860098397e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 7.581474102717307e-09,
+          "relative_bias": -0.0016837794968560527,
+          "relative_mcse": 0.0067876497369917695,
+          "sphere_volume_cm3": 8.18123086872342,
+          "u_mc_cm-2_per_source": 9.266911329566602e-10
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.366217531062269e-07,
+          "analytic_z_score": 0.2078126731508674,
+          "angle_deg": 66.8,
+          "estimated_flux_cm-2_per_source": 1.3683098674645842e-07,
+          "mcnp_tally_number": 45,
+          "passed": true,
+          "position_cm": [
+            692.10891,
+            0.0,
+            296.63826
+          ],
+          "radius_cm": 1.25,
+          "raw_tracklength_mean_particle_cm_per_source": 1.1194458925680106e-06,
+          "raw_tracklength_std_dev_particle_cm_per_source": 8.237171921631277e-09,
+          "relative_bias": 0.0015314811548994278,
+          "relative_mcse": 0.007358258202846402,
+          "sphere_volume_cm3": 8.18123086872342,
+          "u_mc_cm-2_per_source": 1.006837730630695e-09
+        }
+      ]
+    },
+    {
+      "radius_cm": 0.625,
+      "status": "PASS",
+      "patch_statepoint": {
+        "cell_entry_kill_events": 0,
+        "current_batch": 100,
+        "intentional_kill_events": 0,
+        "lost_particles": 0,
+        "n_batches": 100,
+        "n_particles": 10000,
+        "n_realizations": 100,
+        "patch_version": 1,
+        "solver_version": "0.15.3",
+        "source": "child statepoint datasets; imp0 kills and normal lost count are distinct",
+        "source_birth_kill_events": 0
+      },
+      "results": [
+        {
+          "analytic_flux_cm-2_per_source": 1.366913769454628e-07,
+          "analytic_z_score": -0.402710199000601,
+          "angle_deg": 0.0,
+          "estimated_flux_cm-2_per_source": 1.3623588352110208e-07,
+          "mcnp_tally_number": 5,
+          "passed": true,
+          "position_cm": [
+            0.0,
+            0.0,
+            738.0
+          ],
+          "radius_cm": 0.625,
+          "raw_tracklength_mean_particle_cm_per_source": 1.3932215196133107e-07,
+          "raw_tracklength_std_dev_particle_cm_per_source": 1.1566930987619983e-09,
+          "relative_bias": -0.0033322762162419917,
+          "relative_mcse": 0.008302291361986994,
+          "sphere_volume_cm3": 1.0226538585904275,
+          "u_mc_cm-2_per_source": 1.1310699989499121e-09
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.367814511062002e-07,
+          "analytic_z_score": 1.022930279119041,
+          "angle_deg": 24.9,
+          "estimated_flux_cm-2_per_source": 1.378931743114471e-07,
+          "mcnp_tally_number": 25,
+          "passed": true,
+          "position_cm": [
+            311.5665,
+            0.0,
+            671.21257
+          ],
+          "radius_cm": 0.625,
+          "raw_tracklength_mean_particle_cm_per_source": 1.4101698678288378e-07,
+          "raw_tracklength_std_dev_particle_cm_per_source": 1.1114227907197924e-09,
+          "relative_bias": 0.008127733667511183,
+          "relative_mcse": 0.007881481629096144,
+          "sphere_volume_cm3": 1.0226538585904275,
+          "u_mc_cm-2_per_source": 1.0868025201134227e-09
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.3675628093331243e-07,
+          "analytic_z_score": -1.1429712344685101,
+          "angle_deg": 41.8,
+          "estimated_flux_cm-2_per_source": 1.3560030285742817e-07,
+          "mcnp_tally_number": 35,
+          "passed": true,
+          "position_cm": [
+            495.90016,
+            0.0,
+            554.63414
+          ],
+          "radius_cm": 0.625,
+          "raw_tracklength_mean_particle_cm_per_source": 1.3867217294317947e-07,
+          "raw_tracklength_std_dev_particle_cm_per_source": 1.034291506293855e-09,
+          "relative_bias": -0.00845283352249071,
+          "relative_mcse": 0.007458536809094734,
+          "sphere_volume_cm3": 1.0226538585904275,
+          "u_mc_cm-2_per_source": 1.0113798501865218e-09
+        },
+        {
+          "analytic_flux_cm-2_per_source": 1.366216981317615e-07,
+          "analytic_z_score": -0.4398617469451689,
+          "angle_deg": 66.8,
+          "estimated_flux_cm-2_per_source": 1.3616449277948584e-07,
+          "mcnp_tally_number": 45,
+          "passed": true,
+          "position_cm": [
+            692.10891,
+            0.0,
+            296.63826
+          ],
+          "radius_cm": 0.625,
+          "raw_tracklength_mean_particle_cm_per_source": 1.392491439439496e-07,
+          "raw_tracklength_std_dev_particle_cm_per_source": 1.062976766950299e-09,
+          "relative_bias": -0.0033465061445415722,
+          "relative_mcse": 0.007633632328671028,
+          "sphere_volume_cm3": 1.0226538585904275,
+          "u_mc_cm-2_per_source": 1.0394296740985759e-09
+        }
+      ]
+    }
+  ],
+  "solver_artifacts": [
+    {
+      "aim_plan_sha256": "2e166fe5942b981b8f15d26dff9c7bc8cfd72bbdc8c5ea7ef86d349026788f6f",
+      "geometry_xml_sha256": "e9c1d63b99256e7b0fcf81550d4741f7767e0d84aca0d5b03f4ffcdccc54c145",
+      "log_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/fns-aim-vacuum-control-20261109-v3/aim-vacuum-radius-2.5cm/openmc.log",
+      "log_sha256": "e6cdd9cea2b7d296d4aa24e6e58de6217ef0dad839f0bcdad73794917c2ea63b",
+      "materials_xml_sha256": "387f4241a1cea79740ac3564b5480fab039201fbf2445c0c7c693de852500f4d",
+      "model_xml_sha256": null,
+      "patch_statepoint": {
+        "cell_entry_kill_events": 0,
+        "current_batch": 100,
+        "intentional_kill_events": 0,
+        "lost_particles": 0,
+        "n_batches": 100,
+        "n_particles": 10000,
+        "n_realizations": 100,
+        "patch_version": 1,
+        "solver_version": "0.15.3",
+        "source": "child statepoint datasets; imp0 kills and normal lost count are distinct",
+        "source_birth_kill_events": 0
+      },
+      "radius_cm": 2.5,
+      "settings_xml_sha256": "6c591d7c11e89d3a3e9b1c36fb1d27600304fa37d113a5a36eb45569326873d6",
+      "statepoint_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/fns-aim-vacuum-control-20261109-v3/aim-vacuum-radius-2.5cm/statepoint.100.h5",
+      "statepoint_sha256": "7d5d9c74f333e7b86ac6378a9c0d2fcc70ab055306d9c4a13897bcf9a5e2f3fe",
+      "tallies_xml_sha256": "95e8fbf1ff94f59a78efbb32320d47ef9013d755db74852d06d6b31b2ce0ca05"
+    },
+    {
+      "aim_plan_sha256": "e7756576ba6ecd4a9e8369ec9811bfec42d50b7d51aecf55585d6c8a92f35001",
+      "geometry_xml_sha256": "160cf785df21cfc04a40a8f3f69e323df6299d3ba1e99bd24014fed73b1563f9",
+      "log_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/fns-aim-vacuum-control-20261109-v3/aim-vacuum-radius-1.25cm/openmc.log",
+      "log_sha256": "293acf3130e2e6b531be7f357c632745554dfacb13778b506a6ac5f8d12e1c5b",
+      "materials_xml_sha256": "387f4241a1cea79740ac3564b5480fab039201fbf2445c0c7c693de852500f4d",
+      "model_xml_sha256": null,
+      "patch_statepoint": {
+        "cell_entry_kill_events": 0,
+        "current_batch": 100,
+        "intentional_kill_events": 0,
+        "lost_particles": 0,
+        "n_batches": 100,
+        "n_particles": 10000,
+        "n_realizations": 100,
+        "patch_version": 1,
+        "solver_version": "0.15.3",
+        "source": "child statepoint datasets; imp0 kills and normal lost count are distinct",
+        "source_birth_kill_events": 0
+      },
+      "radius_cm": 1.25,
+      "settings_xml_sha256": "56385cee808072c287401977c2d93221c7bbddb566a87cf92e346cac9c0def50",
+      "statepoint_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/fns-aim-vacuum-control-20261109-v3/aim-vacuum-radius-1.25cm/statepoint.100.h5",
+      "statepoint_sha256": "c80589adeff24a3fcf9bde1db8c678bdc29f5e6c3b7d9628f3760b3f8698c85e",
+      "tallies_xml_sha256": "95e8fbf1ff94f59a78efbb32320d47ef9013d755db74852d06d6b31b2ce0ca05"
+    },
+    {
+      "aim_plan_sha256": "7d55637d64706444f30720b8f9dab0507d77d266fcf28e76571fc1f9e2d575b3",
+      "geometry_xml_sha256": "e4fa5527fcbb377b0ac99580fefec452d4786a740443e49af7a7a4c72e46dd48",
+      "log_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/fns-aim-vacuum-control-20261109-v3/aim-vacuum-radius-0.625cm/openmc.log",
+      "log_sha256": "e57192a7712d6fbe2a0f361379cffa3c28f8a8125e9c6024f4f4db3664a496da",
+      "materials_xml_sha256": "387f4241a1cea79740ac3564b5480fab039201fbf2445c0c7c693de852500f4d",
+      "model_xml_sha256": null,
+      "patch_statepoint": {
+        "cell_entry_kill_events": 0,
+        "current_batch": 100,
+        "intentional_kill_events": 0,
+        "lost_particles": 0,
+        "n_batches": 100,
+        "n_particles": 10000,
+        "n_realizations": 100,
+        "patch_version": 1,
+        "solver_version": "0.15.3",
+        "source": "child statepoint datasets; imp0 kills and normal lost count are distinct",
+        "source_birth_kill_events": 0
+      },
+      "radius_cm": 0.625,
+      "settings_xml_sha256": "13cb33da9c2cad9c05508585631e90e5c37e8b83798bd28665ca8c33550e5006",
+      "statepoint_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/fns-aim-vacuum-control-20261109-v3/aim-vacuum-radius-0.625cm/statepoint.100.h5",
+      "statepoint_sha256": "f4dd91ab2b7d7270c1c7216bb55ce97a7e7f6c29a7e0373bde7a54d50c947dea",
+      "tallies_xml_sha256": "95e8fbf1ff94f59a78efbb32320d47ef9013d755db74852d06d6b31b2ce0ca05"
+    }
+  ],
+  "qualification_limit": "Only source-importance sampling and volume-normalized vacuum flux against the exact finite-sphere analytic integral. No material interactions, physical benchmark validation, or F5 estimator equivalence is established.",
+  "earlier_attempts": [
+    {
+      "id": "fns-aim-vacuum-control-20261109-v1",
+      "outcome": "CLI preflight failed before solver execution: missing parser Namespace case attribute; fixed with parser-backed regression."
+    },
+    {
+      "id": "fns-aim-vacuum-control-20261109-v2",
+      "outcome": "All three solver passes completed without losses or importance kills; analytic control failed. Inscribed apertures left part of detector response to rare isotropic fallback. Raw failure retained; full tangent-disk proposal was derived before fresh v3."
+    }
+  ]
+}

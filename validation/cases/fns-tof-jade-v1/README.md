@@ -181,6 +181,29 @@ material run can opt in with `--aim-aperture-beta 0.1 --aim-vacuum-control
 /path/to/new-fns-aim-vacuum-control/fns-aim-vacuum-control.json`. Without both
 flags, the adapter runs analog.
 
+### Recorded vacuum control and remaining Fe-5 limit
+
+The fresh 2026-11-09 vacuum control passed all four detector points at all
+three radii with one million starting histories per radius, zero lost particles
+and zero importance kills. The largest relative Monte Carlo standard error was
+0.008303 and the largest absolute analytic z score was 1.985. The
+[verification summary](../../../references/fns-aim-vacuum-control-20261109.json)
+retains all twelve estimates, uncertainties, identities and the raw receipt
+digest. The earlier inscribed-aperture control failed and remains retained;
+the new proposal covers the complete tangent disk. This verifies the scoped
+vacuum sampling calculation only.
+
+The material Fe-5 case has not qualified. Its pinned source histogram ends at
+18.097 MeV, while eight nonzero reference rows occupy 18.561–19.5125 and
+19.5125–20.464 MeV across the four detector angles. The available
+[JADE description](https://jade-a-nuclear-data-libraries-vv-tool.readthedocs.io/en/stable/benchmarks/experimental.html)
+does not establish a detector-response transformation for those rows. Resolving
+their meaning requires the Fe-specific report JAERI-M 94-014, listed in the
+[NEA FNS references](https://cms.oecd-nea.org/science/wprs/shielding/sinbad/fns/fns.htm).
+All rows and the original all-response gate remain intact. No passing reduced
+subset or zero-response comparison is claimed. The vacuum control does not
+resolve this source/reference mismatch or establish F5 equivalence.
+
 ## Build manifests
 
 The 14 generated, sub-megabyte manifests are checked in one level above this
