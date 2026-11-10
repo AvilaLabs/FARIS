@@ -167,6 +167,72 @@ mod jobs {
         assert!(output.join("execution.json").is_file());
     }
 
+    // Verifies: PERF-024. `adapters list` probes a real process and descendant; SIGINT
+    // must reach the same job cancellation token used by all other CLI solver routes.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn sigint_cancels_adapter_health_probe_and_reaps_descendant_within_two_seconds() {
+        let dir = tempfile::tempdir().unwrap();
+        let (script, pid_file) = sleeper(dir.path());
+        std::os::unix::fs::symlink(&script, dir.path().join("openmc")).unwrap();
+        let mut child = Command::new(env!("CARGO_BIN_EXE_faris"))
+            .args(["adapters", "list"])
+            .env("FARIS_MEMORY_CAP_MB", "256")
+            .env("FARIS_MEMORY_MARGIN_MB", "16")
+            .env(
+                "PATH",
+                format!(
+                    "{}:{}",
+                    dir.path().display(),
+                    std::env::var("PATH").unwrap_or_default()
+                ),
+            )
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let startup = Instant::now();
+        let descendant_pid = loop {
+            if let Some(pid) = std::fs::read_to_string(&pid_file)
+                .ok()
+                .and_then(|text| text.trim().parse::<u32>().ok())
+            {
+                break pid;
+            }
+            assert!(
+                startup.elapsed() < Duration::from_secs(20),
+                "adapter probe never started: {}",
+                script.display()
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        let cancelled = Instant::now();
+        let sent = Command::new("kill")
+            .args(["-INT", &child.id().to_string()])
+            .status()
+            .unwrap();
+        assert!(sent.success());
+        let status = child.wait().unwrap();
+        let elapsed = cancelled.elapsed();
+        assert!(
+            elapsed <= Duration::from_secs(2),
+            "adapter probe took {elapsed:?} to stop"
+        );
+        assert!(
+            status.success(),
+            "health check should report cancellation as an unhealthy tool, not crash"
+        );
+        let proc = std::path::PathBuf::from(format!("/proc/{descendant_pid}"));
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while proc.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(
+            !proc.exists(),
+            "adapter descendant pid {descendant_pid} outlived cancelled probe"
+        );
+    }
+
     // Verifies: AUTO-004, PERF-041
     #[test]
     fn a_job_the_memory_check_refuses_exits_five_and_names_the_setting() {

@@ -57,7 +57,10 @@ fn hash_bounded(path: &Path) -> Result<String, String> {
 }
 
 /// The first line of the tool's `--version` output, its health, and why when not OK.
-fn probe(program: &Path) -> (Option<String>, &'static str, Option<String>) {
+fn probe(
+    program: &Path,
+    cancellation: &Cancellation,
+) -> (Option<String>, &'static str, Option<String>) {
     let Ok(program) = program.canonicalize() else {
         return (None, "FAILED", Some("the file cannot be resolved".into()));
     };
@@ -81,7 +84,7 @@ fn probe(program: &Path) -> (Option<String>, &'static str, Option<String>) {
         resource_limits: ResourceLimits::default(),
         memory_workload: None,
     };
-    match run_job(&spec, &Cancellation::default()) {
+    match run_job(&spec, cancellation) {
         Ok(result) if result.execution_status == ExecutionStatus::Succeeded => {
             let version = result
                 .stdout
@@ -106,6 +109,14 @@ fn probe(program: &Path) -> (Option<String>, &'static str, Option<String>) {
 
 /// One entry per tool, in `TOOLS` order.
 pub fn list(path_variable: Option<&std::ffi::OsStr>, probing: bool) -> Value {
+    list_with_cancellation(path_variable, probing, &Cancellation::default())
+}
+
+pub fn list_with_cancellation(
+    path_variable: Option<&std::ffi::OsStr>,
+    probing: bool,
+    cancellation: &Cancellation,
+) -> Value {
     let tools: Vec<Value> = TOOLS
         .into_iter()
         .map(|name| match find_on_path(name, path_variable) {
@@ -117,7 +128,7 @@ pub fn list(path_variable: Option<&std::ffi::OsStr>, probing: bool) -> Value {
             Some(path) => {
                 let hash = hash_bounded(&path);
                 let (version, health, why) = if probing {
-                    probe(&path)
+                    probe(&path, cancellation)
                 } else {
                     (
                         None,
@@ -161,10 +172,19 @@ fn bundled() -> Value {
 
 pub fn run(command: AdaptersCommand) -> Result<(), Box<dyn std::error::Error>> {
     let AdaptersCommand::List { no_probe } = command;
+    let interrupt = crate::control::interrupt_cancellation()?;
+    #[cfg(unix)]
+    let cancellation = &interrupt.cancellation;
+    #[cfg(not(unix))]
+    let cancellation = &interrupt;
     let path = std::env::var_os("PATH");
     println!(
         "{}",
-        serde_json::to_string_pretty(&list(path.as_deref(), !no_probe))?
+        serde_json::to_string_pretty(&list_with_cancellation(
+            path.as_deref(),
+            !no_probe,
+            cancellation,
+        ))?
     );
     Ok(())
 }
