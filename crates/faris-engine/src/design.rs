@@ -63,11 +63,12 @@ pub use geometry::{
 };
 pub use heating::{
     DESIGN_HEATING_OUTPUTS, DesignHeatingOptions, DesignHeatingReport, ELEMENTARY_CHARGE_C,
-    HISTORY_ENERGY_RATES_VERSION, HeatingEstimate, HeatingPeak, HeatingProgress, HeatingProgressFn,
-    HeatingScore, HistoryEnergyClosure, HistoryEnergyRatesArtifact, HistoryEnergyResponse,
-    HistoryEnergyScore, SolidHeating, VolumeEstimator, VoxelHeating, combine_history_energy_rates,
-    design_heating, design_heating_with_history_rates, load_history_energy_rates,
-    normalize_heating_ev_per_source, power_density_kw_m3, render_design_heating_text,
+    HISTORY_ENERGY_RATES_OUTPUTS, HISTORY_ENERGY_RATES_VERSION, HeatingEstimate, HeatingPeak,
+    HeatingProgress, HeatingProgressFn, HeatingScore, HistoryEnergyClosure,
+    HistoryEnergyRatesArtifact, HistoryEnergyResponse, HistoryEnergyScore, SolidHeating,
+    VolumeEstimator, VoxelHeating, combine_history_energy_rates, design_heating,
+    design_heating_with_history_rates, load_history_energy_rates, normalize_heating_ev_per_source,
+    power_density_kw_m3, render_design_heating_text,
 };
 pub use life::{
     FluenceAssessment, LimitStatus, PowerHistory, SECONDS_PER_YEAR, assess_fluence, power_history,
