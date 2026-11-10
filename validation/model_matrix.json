@@ -644,7 +644,7 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/design/transport.rs": "7937bc0b0e3a9ec75f1b91dd598f6adf7b0c39d2f832c41496ec0d908a2de9ee",
+        "crates/faris-engine/src/design/transport.rs": "47d6c3fadb44b28e346923822e9f21270df6a984ec583dd1737c194054e86ebc",
         "integrations/openmc/design_transport.py": "271d0ab9c6b9f5e134bede6236599e72d228de30de0ca4e4cfb1b8e5a2503358"
       },
       "status": "not validated",
