@@ -538,6 +538,57 @@ fn an_identical_request_is_served_from_the_cache_and_a_changed_data_file_is_not(
     assert_eq!(s4.actinv_runs, 1);
 }
 
+#[test]
+#[cfg(unix)]
+fn full_raw_actinv_ledger_is_retained_before_the_typed_reply_is_truncated() {
+    let rig = rig(RECORDED);
+    let mut raw = recorded(RECORDED, &rig.config.data);
+    let entries: serde_json::Map<String, Value> = (0..37)
+        .map(|i| (format!("{i:06}_0"), json!(1.0e-11)))
+        .collect();
+    raw["ledger"]["products_no_evaluated_decay_data"] = Value::Object(entries);
+    let expected = serde_json::to_vec(&raw).unwrap();
+    std::fs::write(rig.scratch.path().join("canned.json"), &expected).unwrap();
+
+    let (result, stats) = run_activation(
+        &fixture_request(1.0e8),
+        &rig.config,
+        &Cancellation::default(),
+    )
+    .unwrap();
+
+    assert_eq!(stats.actinv_runs, 1);
+    let gap = result.zones[0]
+        .gaps
+        .iter()
+        .find(|gap| gap.category.contains("products_no_evaluated_decay_data"))
+        .unwrap();
+    assert_eq!(gap.count, 37);
+    assert_eq!(gap.items.len(), MAX_LISTED_ITEMS);
+
+    let raw_dir = rig.config.work_dir.join("actinv-raw");
+    let files: Vec<_> = std::fs::read_dir(&raw_dir)
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(files.len(), 1);
+    let filename = files[0].file_name().into_string().unwrap();
+    assert!(filename.ends_with(".json"));
+    let key = filename.trim_end_matches(".json");
+    assert_eq!(key.len(), 64);
+    assert!(key.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    let retained = std::fs::read(files[0].path()).unwrap();
+    assert_eq!(retained, expected);
+    let retained_json: Value = serde_json::from_slice(&retained).unwrap();
+    assert_eq!(
+        retained_json["ledger"]["products_no_evaluated_decay_data"]
+            .as_object()
+            .unwrap()
+            .len(),
+        37
+    );
+}
+
 // Verifies: ACT-006
 #[test]
 #[cfg(unix)]

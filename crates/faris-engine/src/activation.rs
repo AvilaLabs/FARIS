@@ -523,7 +523,7 @@ impl ActivationData {
 pub struct ActivationConfig {
     pub actinv: PathBuf,
     pub data: ActivationData,
-    /// Scratch folder for problems and results (results are deleted after they are read).
+    /// Scratch folder for problems and bounded raw replies (`actinv-raw/<query-sha256>.json`).
     pub work_dir: PathBuf,
     /// Content-addressed zone results; None runs ACTINV every time.
     pub cache_dir: Option<PathBuf>,
@@ -1465,6 +1465,15 @@ fn read_cache(path: &Path, key: &str) -> Option<ZoneResult> {
     (file.schema == CACHE_SCHEMA && file.key == key).then_some(file.zone)
 }
 
+/// Retain ACTINV's complete, size-bounded reply before the adapter reduces its ledgers.
+/// The directory and filename are fixed/hex-derived, never supplied by the solver.
+fn retain_raw_reply(work_dir: &Path, key: &str, bytes: &[u8]) -> Result<(), String> {
+    let directory = work_dir.join("actinv-raw");
+    std::fs::create_dir_all(&directory).map_err(|e| format!("{}: {e}", directory.display()))?;
+    let path = directory.join(format!("{key}.json"));
+    crate::atomic_file::write_atomic(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Runs the request: one ACTINV problem per zone, in zone order, cache first.
 pub fn run_activation(
     request: &ActivationRequest,
@@ -1519,6 +1528,7 @@ pub fn run_activation(
                         }
                         let bytes = std::fs::read(&result_path)
                             .map_err(|e| format!("{}: {e}", result_path.display()))?;
+                        retain_raw_reply(&config.work_dir, &key, &bytes)?;
                         serde_json::from_slice::<Value>(&bytes)
                             .map_err(|e| format!("ACTINV result is not JSON: {e}"))
                     });
