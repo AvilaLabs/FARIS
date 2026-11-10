@@ -13,5 +13,11 @@ serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+process-wrap.workspace = true
+
 [lints]
 workspace = true

@@ -215,6 +215,8 @@ dependencies = [
 name = "faris-occt-client"
 version = "0.2.0"
 dependencies = [
+ "nix",
+ "process-wrap",
  "serde",
  "serde_json",
  "tempfile",
