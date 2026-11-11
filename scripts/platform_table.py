@@ -39,19 +39,34 @@ def parse_rows(text):
     return rows
 
 
-def job_ids(workflow_text):
-    """Job ids of a workflow file: the keys one level under `jobs:`."""
-    ids, in_jobs = [], False
+def job_blocks(workflow_text):
+    """Map each job id to its YAML block, so runner labels are tied to the named job."""
+    jobs = {}
+    in_jobs = False
+    current = None
+    block = []
+
+    def save():
+        if current is not None:
+            jobs[current] = "\n".join(block)
+
     for line in workflow_text.splitlines():
         if re.match(r"^jobs:\s*$", line):
             in_jobs = True
+            continue
         elif in_jobs and re.match(r"^\S", line):
+            save()
             in_jobs = False
         elif in_jobs:
             m = re.match(r"^  ([\w-]+):\s*(#.*)?$", line)
             if m:
-                ids.append(m.group(1))
-    return ids
+                save()
+                current = m.group(1)
+                block = [line]
+            elif current is not None:
+                block.append(line)
+    save()
+    return jobs
 
 
 def check(table_text, workflows_dir):
@@ -77,10 +92,12 @@ def check(table_text, workflows_dir):
             problems.append(f"{platform}: workflow {ref.group(1)} does not exist")
             continue
         text = wf.read_text()
-        if ref.group(2) not in job_ids(text):
+        jobs = job_blocks(text)
+        if ref.group(2) not in jobs:
             problems.append(f"{platform}: job {ref.group(2)} is not in {ref.group(1)}")
+            continue
         label = runner.strip("`")
-        if label and label != "none" and label not in text:
+        if label and label != "none" and label not in jobs[ref.group(2)]:
             problems.append(f"{platform}: runner or image '{label}' does not appear in {ref.group(1)}")
     return problems, gaps
 

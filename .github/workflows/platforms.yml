@@ -3,8 +3,8 @@ name: Platforms
 # Evidence for the support table in docs/guide/platforms.md (PLAT-001, -003, -004, -005): the command-line
 # crates are built and tested on each hosted runner that stands for a Tier 1 or Tier 2 row, the desktop app
 # is built there (it is not started: hosted runners have no display), and the Linux command-line binary is
-# built on glibc 2.31 and run on four distributions. Ubuntu 24.04 on x86_64 is the `check` job of ci.yml,
-# which runs the whole workspace; it is not repeated here. scripts/platform_table.py checks that every row of
+# built on glibc 2.31 and run in older and current distribution containers. Ubuntu 24.04 on x86_64 is the `check`
+# job of ci.yml, which runs the whole workspace; Ubuntu 26.04 is also checked here. scripts/platform_table.py checks that every row of
 # the table names a job that exists in these workflows.
 
 on:
@@ -24,6 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { name: "Ubuntu 26.04 x86_64", runner: ubuntu-26.04 }
           - { name: "Ubuntu 24.04 aarch64", runner: ubuntu-24.04-arm }
           - { name: "Windows Server 2022 x86_64", runner: windows-2022 }
           - { name: "Windows Server 2025 x86_64", runner: windows-2025 }
@@ -81,7 +82,7 @@ jobs:
               | tee -a "$GITHUB_STEP_SUMMARY"
           done
       - name: Rust tests of the command-line crates
-        run: cargo test --locked --no-fail-fast -p faris-model -p faris-engine -p faris-report -p faris-study -p faris-cli
+        run: cargo test --locked --no-fail-fast -p faris-occt-client -p faris-model -p faris-engine -p faris-report -p faris-study -p faris-cli
       - name: Command-line scenario check
         run: |
           set -euo pipefail

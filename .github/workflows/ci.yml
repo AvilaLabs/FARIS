@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CARGO_BUILD_JOBS: 1
       RUST_TEST_THREADS: 1

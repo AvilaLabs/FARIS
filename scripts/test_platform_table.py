@@ -34,6 +34,11 @@ class PlatformTableTests(unittest.TestCase):
         problems, _ = self.run_check(table("| A | 1 | `macos-99` | `p.yml:native` | ok |"))
         self.assertIn("macos-99", problems[0])
 
+    def test_runner_label_must_be_used_by_referenced_job(self):
+        problems, _ = self.run_check(table("| A | 1 | `x` | `p.yml:native` | ok |"))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("runner or image 'x'", problems[0])
+
     def test_none_needs_reason_and_is_listed(self):
         problems, gaps = self.run_check(table("| A | 1 | none | NONE: no runner | ok |"))
         self.assertEqual((problems, gaps), ([], ["A"]))
