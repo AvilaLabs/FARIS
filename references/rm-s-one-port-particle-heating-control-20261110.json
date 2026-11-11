@@ -29,7 +29,8 @@
       "distinct_residual_values": 93,
       "mean_residual_in_total_mean_ulps": 400.65,
       "note": "Diagnostic only. No floating-point allowance is added to the strict gate."
-    }
+    },
+    "terminal_raw_mean_residual_ev_per_source": "7.46119185350835323333740234375E-7"
   },
   "identities": {
     "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
@@ -58,5 +59,9 @@
       "sha256": "1c6a001f9d854577f5da7d58294838afad44a117674c6c74ff44297297c410e3"
     }
   },
-  "timing_scope": "Shared host, one thread, coupled-heating control."
+  "timing_scope": "Shared host, one thread, coupled-heating control.",
+  "terminal_statepoint_crosscheck": {
+    "path": "runs/continuation/nuc013-oneport-90k-20261110-v1/run-port-reference-90k/terminal-heating-closure-crosscheck.json",
+    "sha256": "8bd43d739c559e421c1f7f8b06d5ded1b63b8f29ce93b0deeeefc96fb3440c4c"
+  }
 }

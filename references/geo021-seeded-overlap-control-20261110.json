@@ -5,7 +5,7 @@
   "status": "PASS",
   "scope": "All six overlap fixtures in the committed defect corpus, reconstructed as STEP and checked with the FARIS CLI and its Python CAD reader. Each real OCCT boolean reported the overlapping pair and blocked import before imprinting.",
   "cli": {
-    "path": "runs/continuation/native-target-v33/debug/faris",
+    "path": "runs/continuation/nuc013-oneport-90k-20261110-v1/faris-v107",
     "sha256": "b234e0515bab5c60a12723f9adc70909f4fae2795f3a5a43fe75499ade6e0571"
   },
   "cad_helper": {
