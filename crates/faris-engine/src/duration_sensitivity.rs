@@ -151,7 +151,22 @@ pub fn duration_tornado(
     rates: &TransportDrivingRates,
     ranges: &[DurationRange],
 ) -> Result<DurationTornado, String> {
+    duration_tornado_with_progress(assumptions, rates, ranges, |_, _| {})
+}
+
+/// Run the duration tornado and report completed history runs against the known total.
+/// The callback is presentation progress only; the operating-history calculation stays here.
+pub fn duration_tornado_with_progress(
+    assumptions: &OperatingHistoryAssumptions,
+    rates: &TransportDrivingRates,
+    ranges: &[DurationRange],
+    mut progress: impl FnMut(usize, usize),
+) -> Result<DurationTornado, String> {
+    let total = 1 + ranges.len() * 2;
+    let mut completed = 0;
     let base = outputs(&run_operating_history(assumptions, rates)?);
+    completed += 1;
+    progress(completed, total);
     let mut bars = Vec::with_capacity(ranges.len());
     for range in ranges {
         if !(range.low_s.is_finite() && range.high_s.is_finite() && range.low_s > 0.0) {
@@ -171,7 +186,12 @@ pub fn duration_tornado(
             let a = with_replacement_duration_s(assumptions, &range.component_id, d)?;
             Ok(outputs(&run_operating_history(&a, rates)?))
         };
-        let (at_low, at_high) = (run(range.low_s)?, run(range.high_s)?);
+        let at_low = run(range.low_s)?;
+        completed += 1;
+        progress(completed, total);
+        let at_high = run(range.high_s)?;
+        completed += 1;
+        progress(completed, total);
         bars.push(TornadoBar {
             component_id: range.component_id.clone(),
             base_s,
@@ -301,6 +321,22 @@ mod tests {
         assert_eq!(t.bars[0].component_id, "magnets");
         assert_eq!(t.bars[0].base_s, 5.0);
         assert_eq!(t.bars[1].base_s, 2.0);
+    }
+
+    // Verifies: PERF-022. Every known history run advances the count exactly once.
+    #[test]
+    fn tornado_reports_each_completed_history_against_the_known_total() {
+        let assumptions = assumptions();
+        let rates = rates_without_covariance(0.0, 'a');
+        let mut progress = Vec::new();
+        duration_tornado_with_progress(
+            &assumptions,
+            &rates,
+            &[range("magnets", 2.0, 10.0)],
+            |done, total| progress.push((done, total)),
+        )
+        .unwrap();
+        assert_eq!(progress, [(1, 3), (2, 3), (3, 3)]);
     }
 
     // Verifies: OPS-031

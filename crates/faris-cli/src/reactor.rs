@@ -277,8 +277,8 @@ fn run_case(
     Ok(())
 }
 
-/// The normal CLI run watches both product targets. An explicit historical
-/// scalar remains an override using the preexisting magnet-only behavior.
+/// The explicit Production tier watches both targets. Scalar-only plans
+/// keep the historical magnet trigger, and the default run uses fixed batches.
 fn sampling_plan(
     batches: u32,
     particles_per_batch: u32,
@@ -379,9 +379,11 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
             "batches_realized": outcome.batches_realized,
             "histories_realized": outcome.histories_realized,
             "target_relative_error": outcome.target_relative_error,
+            "limiting_target_relative_error": outcome.limiting_target_relative_error,
             "achieved_relative_error": outcome.achieved_relative_error,
             "limiting_response": outcome.limiting_response,
             "variance_of_variance": outcome.variance_of_variance,
+            "stop_reason": outcome.stop_reason,
             "summary": outcome.summary(),
         });
     }
@@ -403,8 +405,10 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
             "sampling_outcome": windowed.sampling_outcome.as_ref().map(|outcome| serde_json::json!({
                 "batches_realized": outcome.batches_realized,
                 "histories_realized": outcome.histories_realized,
+                "limiting_target_relative_error": outcome.limiting_target_relative_error,
                 "achieved_relative_error": outcome.achieved_relative_error,
                 "variance_of_variance": outcome.variance_of_variance,
+                "stop_reason": outcome.stop_reason,
                 "summary": outcome.summary(),
             })),
         });
@@ -503,10 +507,25 @@ mod tests {
             "faris",
             "reactor",
             "run",
+            "--scenario",
+            "scenario.json",
+            "--physics",
+            "physics.json",
+            "--audit",
+            "audit.json",
+            "--cross-sections",
+            "cross_sections.xml",
+            "--python",
+            "python",
+            "--openmc",
+            "openmc",
+            "--output",
+            "run-output",
             "--production",
             "--target-error",
             "0.05",
         ]);
-        assert!(result.is_err());
+        let error = result.err().expect("the options conflict");
+        assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
     }
 }

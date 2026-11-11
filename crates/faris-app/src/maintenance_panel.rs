@@ -22,8 +22,8 @@ use crate::{
 use eframe::egui;
 use faris_engine::{
     duration_sensitivity::{
-        DurationRange, DurationTornado, base_replacement_duration_s, duration_tornado,
-        with_replacement_duration_s,
+        DurationRange, DurationTornado, base_replacement_duration_s,
+        duration_tornado_with_progress, with_replacement_duration_s,
     },
     history::{HistoryOutcome, JULIAN_YEAR_SECONDS},
     maintenance::{
@@ -52,6 +52,13 @@ pub struct DurationSnapshot {
 }
 
 type TornadoReceiver = Receiver<(u64, Result<DurationTornado, String>)>;
+
+#[derive(Clone, Copy, Debug)]
+struct TornadoProgress {
+    done: usize,
+    total: usize,
+    started: crate::time::Instant,
+}
 
 /// What "computed" means, shown under the summary.
 pub const COMPUTED_MEANING: &str = "Computed: each replacement's outage is the cooldown until the decay heat per volume of the governing components falls below the class threshold q*, plus the class's work time; the operating history is rerun with those outages until they stop changing. Fixed is the authored duration. The two models are compared on downtime, availability and lifetime electricity; the comparison makes no ranking claim.";
@@ -96,6 +103,7 @@ pub struct MaintenancePanel {
     pending_history_edit: Option<OperatingHistoryAssumptions>,
     tornado: Option<DurationTornado>,
     tornado_receiver: Option<TornadoReceiver>,
+    tornado_progress: Option<std::sync::Arc<std::sync::Mutex<TornadoProgress>>>,
     tornado_error: Option<String>,
     duration_revision: u64,
 }
@@ -118,6 +126,7 @@ impl Default for MaintenancePanel {
             pending_history_edit: None,
             tornado: None,
             tornado_receiver: None,
+            tornado_progress: None,
             tornado_error: None,
             duration_revision: 0,
         }
@@ -289,7 +298,35 @@ impl MaintenancePanel {
                     }
                 });
                 if self.tornado_receiver.is_some() {
-                    ui.horizontal(|ui| { ui.spinner(); ui.weak("Calculating base plus two endpoints per component…"); });
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.weak("Calculating base plus two endpoints per component…");
+                    });
+                    if let Some(progress) = self.tornado_progress.as_ref()
+                        .and_then(|progress| progress.lock().ok().map(|snapshot| *snapshot))
+                    {
+                        let fraction = progress.done as f32 / progress.total as f32;
+                        ui.add(egui::ProgressBar::new(fraction).text(format!(
+                            "History runs: {} of {} ({:.0}%)",
+                            progress.done, progress.total, 100.0 * fraction
+                        )));
+                        let elapsed = progress.started.elapsed().as_secs_f64();
+                        ui.weak(format!("Elapsed: {}", crate::maintenance_run::elapsed_text(
+                            crate::time::Duration::from_secs_f64(elapsed)
+                        )));
+                        if let Some(remaining) =
+                            crate::design_check_run::stage_remaining_s(elapsed, progress.done, progress.total)
+                        {
+                            ui.weak(format!(
+                                "Estimate: about {} left at the pace so far; later work may take longer or shorter.",
+                                crate::maintenance_run::elapsed_text(
+                                    crate::time::Duration::from_secs_f64(remaining)
+                                )
+                            ));
+                        } else {
+                            ui.weak("No time estimate yet: it appears after 20 % of the counted history runs.");
+                        }
+                    }
                     ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
                 }
                 if let Some(error) = &self.tornado_error {
@@ -366,10 +403,27 @@ impl MaintenancePanel {
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
         let revision = self.duration_revision;
+        let progress = std::sync::Arc::new(std::sync::Mutex::new(TornadoProgress {
+            done: 0,
+            total: 1 + ranges.len() * 2,
+            started: crate::time::Instant::now(),
+        }));
+        let worker_progress = progress.clone();
         let spawned = crate::thread::Builder::new()
             .name("faris-duration-tornado".into())
             .spawn(move || {
-                let result = duration_tornado(&snapshot.assumptions, &snapshot.rates, &ranges);
+                let result = duration_tornado_with_progress(
+                    &snapshot.assumptions,
+                    &snapshot.rates,
+                    &ranges,
+                    |done, total| {
+                        if let Ok(mut progress) = worker_progress.lock() {
+                            progress.done = done;
+                            progress.total = total;
+                        }
+                        context.request_repaint();
+                    },
+                );
                 let _ = sender.send((revision, result));
                 context.request_repaint();
             });
@@ -378,6 +432,7 @@ impl MaintenancePanel {
                 self.tornado = None;
                 self.tornado_error = None;
                 self.tornado_receiver = Some(receiver);
+                self.tornado_progress = Some(progress);
             }
             Err(error) => {
                 self.tornado_error = Some(format!("Cannot start tornado worker: {error}"))
@@ -410,12 +465,14 @@ impl MaintenancePanel {
         match receiver.try_recv() {
             Ok((revision, Ok(result))) => {
                 self.tornado_receiver = None;
+                self.tornado_progress = None;
                 if revision == self.duration_revision {
                     self.tornado = Some(result);
                 }
             }
             Ok((revision, Err(error))) => {
                 self.tornado_receiver = None;
+                self.tornado_progress = None;
                 if revision == self.duration_revision {
                     self.tornado_error = Some(error);
                 }
@@ -425,6 +482,7 @@ impl MaintenancePanel {
             }
             Err(TryRecvError::Disconnected) => {
                 self.tornado_receiver = None;
+                self.tornado_progress = None;
                 self.tornado_error = Some("The tornado worker ended unexpectedly.".into());
             }
         }
@@ -2003,6 +2061,7 @@ fn contrast_table(ui: &mut egui::Ui, contrasts: &[Contrast]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use faris_engine::{
         history::HistoryOutcome,
         maintenance::{GoverningShare, IterationRecord, ReplacementSummary},

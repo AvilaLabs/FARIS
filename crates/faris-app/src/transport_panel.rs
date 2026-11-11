@@ -654,14 +654,14 @@ impl TransportPanel {
                             relative(faris_engine::reactor::STOP_RULE_RESPONSE_ID),
                             relative("total-tritium-production"),
                         ) {
-                            ui.label(format!("Magnet fast flux {magnet:.1} % and total tritium {tritium:.2} % relative error. Choose Production to sample until the magnet flux is known to 5 %."));
+                            ui.label(format!("Magnet fast flux {magnet:.1} % and total tritium {tritium:.2} % relative error. Production targets 5 % for magnet fast flux and 1 % for total tritium."));
                         }
                     }
                 }
             });
             if let Some(precision) = &record.sampling_precision_summary {
                 let targets = format!(
-                    "Targets: {:.0}% integrated · {:.0}% local relative SE",
+                    "Review thresholds: {:.0}% integrated · {:.0}% local relative SE",
                     precision.integrated_goal * 100.0,
                     precision.local_goal * 100.0,
                 );

@@ -1013,6 +1013,7 @@ fn optional_path(value: &str) -> Option<PathBuf> {
 
 fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut Option<String>) {
     ui.label("Criterion: ICRP-116 AP photon effective dose rate at the authored task location (Sv/h). Missing curves are computed with the bounded OpenMC event worker when a design supplies a dose-physics adapter; heterogeneous histories use R2S with D1S marked NOT_EVALUATED.");
+    ui.label("These are recorded model estimates. IN_BAND and OUTSIDE_BAND report D1S/R2S code comparison only; neither is validation against physical measurements.");
     let names: Vec<_> = result.designs.keys().cloned().collect();
     if selected
         .as_ref()
@@ -1180,6 +1181,16 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
                                 ),
                         );
                         ui.end_row();
+                        if let Some(detail) =
+                            event_gap_detail(event, design.computed.not_evaluated.as_ref())
+                        {
+                            ui.label("Unavailable event quantity");
+                            ui.colored_label(egui::Color32::from_rgb(165, 90, 20), detail);
+                            for _ in 2..10 {
+                                ui.label("");
+                            }
+                            ui.end_row();
+                        }
                     }
                 }
             });
@@ -1291,6 +1302,31 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
     }
 }
 
+fn event_gap_detail(
+    event: &faris_engine::maintenance::DoseEventRecord,
+    design_reason: Option<&faris_engine::maintenance::NotEvaluated>,
+) -> Option<String> {
+    if event.curve.is_some() && event.cooldown_s.is_some() {
+        return None;
+    }
+    let fallback = faris_engine::maintenance::NotEvaluated {
+        reason:
+            "The event has no complete event-specific dose curve or computed cooldown recorded."
+                .into(),
+        next_step: "Provide a matching hash-bound event curve and rerun dose-governed maintenance."
+            .into(),
+    };
+    let reason = event
+        .not_evaluated
+        .as_ref()
+        .or(design_reason)
+        .unwrap_or(&fallback);
+    Some(format!(
+        "NOT_EVALUATED. Why: {} Next step: {}",
+        reason.reason, reason.next_step
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1348,6 +1384,83 @@ mod tests {
         assert!(
             rendered
                 .contains("propagate transport, activation, and operating-schedule uncertainty")
+        );
+    }
+
+    #[test]
+    fn dose_result_explains_missing_event_quantities_and_physical_validation_scope() {
+        fn texts(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        texts(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut result = parse_result(include_bytes!(
+            "../../../fuzz/entries/tests/fixtures/dose-maintenance-result-v02.json"
+        ))
+        .unwrap();
+        let design = result.designs.get_mut("synthetic-format-seed").unwrap();
+        design
+            .computed
+            .iterations
+            .push(faris_engine::maintenance::DoseIterationRecord {
+                iteration: 1,
+                durations_in_s: Default::default(),
+                durations_out_s: Default::default(),
+                max_change_s: 0.0,
+                window_limited: false,
+                events: vec![faris_engine::maintenance::DoseEventRecord {
+                    class: "magnet".into(),
+                    component: "coil".into(),
+                    replacement_k: 1,
+                    start_s: 0.0,
+                    end_s: None,
+                    duration_used_s: 0.0,
+                    cooldown_s: None,
+                    work_s: 0.0,
+                    duration_computed_s: None,
+                    window_limited: false,
+                    dose_limit_sv_h: 0.001,
+                    dose_limit_source: "authored threshold".into(),
+                    quantity: "effective_dose_rate".into(),
+                    location_id: "worker-position".into(),
+                    location_sha256: "a".repeat(64),
+                    curve: None,
+                    not_evaluated: None,
+                }],
+            });
+        let ctx = egui::Context::default();
+        let mut selected = None;
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            show_result(ui, &result, &mut selected)
+        });
+        let mut rendered = Vec::new();
+        for clipped in &output.shapes {
+            texts(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        let rendered = rendered.join("\n");
+        assert!(
+            rendered.contains("These are recorded model estimates"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Unavailable event quantity"),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Why: Synthetic format seed: exact event curve is absent."),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains("Next step: Provide a matching hash-bound event curve."),
+            "{rendered}"
         );
     }
 

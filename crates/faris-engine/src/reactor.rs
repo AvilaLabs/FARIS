@@ -506,7 +506,8 @@ pub const RESERVED_WINDOW_SEEDS: [u64; 2] = [811_500_991, 811_500_993];
 pub const STOP_RULE_MAX_TARGET: f64 = 0.5;
 
 /// Why a run stopped.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum StopReason {
     /// A fixed run did the batches it was asked for.
     FixedCount,
@@ -530,9 +531,9 @@ pub struct SamplingOutcome {
     /// The target for the limiting response. Absent in older run receipts, which used the scalar target.
     pub limiting_target_relative_error: Option<f64>,
     /// Relative standard error of the watched response, when a target was set. With several watched responses,
-    /// that of the least precise.
+    /// that of the response furthest from its target.
     pub achieved_relative_error: Option<f64>,
-    /// The watched response that limited the run (the least precise one).
+    /// The watched response that limited the run.
     pub limiting_response: Option<String>,
     /// Variance of the variance of the batch values of the watched responses (the worst), when known.
     pub variance_of_variance: Option<f64>,
@@ -544,7 +545,8 @@ impl SamplingOutcome {
     fn limiting_label(&self) -> String {
         match self.limiting_response.as_deref() {
             None | Some(STOP_RULE_RESPONSE_ID) => "magnet fast flux".into(),
-            Some(id) => format!("the least precise watched response ({id})"),
+            Some(TOTAL_TBR_RESPONSE_ID) => "total tritium production".into(),
+            Some(id) => format!("the limiting watched response ({id})"),
         }
     }
 
@@ -3461,7 +3463,7 @@ mod tests {
             met.limiting_response.as_deref(),
             Some("total-tritium-production")
         );
-        assert!(met.summary().contains("total-tritium-production"));
+        assert!(met.summary().contains("total tritium production"));
         // met with a VOV above the limit may not stop early, and may not be called met
         assert!(sampling_outcome(&with(40, "target_met", 0.04, 0.3), &plan).is_err());
         assert!(sampling_outcome(&with(40, "target_unsettled", 0.04, 0.3), &plan).is_err());

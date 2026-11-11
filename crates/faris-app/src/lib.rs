@@ -1504,6 +1504,7 @@ impl FarisApp {
                     badge::Kind::Calculated,
                     &format!("Gross births per primary neutron; recovery and fuel availability are separate. {note}"),
                 );
+                Self::show_validation_note(ui, faris_model::validation::Quantity::Tbr);
                 ui.add_space(6.0);
             }
             if let Some(flux) = self.transport.response(&variant.id, "magnets-flux") {
@@ -1533,6 +1534,7 @@ impl FarisApp {
                     badge::Kind::Calculated,
                     &explanation,
                 );
+                Self::show_validation_note(ui, faris_model::validation::Quantity::Flux);
                 ui.add_space(6.0);
             }
             if let Some(heat) = self
@@ -1551,6 +1553,7 @@ impl FarisApp {
                     badge::Kind::Calculated,
                     &format!("Coupled neutron/photon deposition. Includes material reaction energy and can exceed D–T source power; heat recovery is an authored assumption. {note}"),
                 );
+                Self::show_validation_note(ui, faris_model::validation::Quantity::Heating);
                 ui.add_space(6.0);
             }
             badge::metric(
@@ -1563,6 +1566,21 @@ impl FarisApp {
                 &format!("Particle histories sampled in the recorded run (seed {}). {note}", record.sampling.seed),
             );
         });
+    }
+
+    /// Keep the matrix-derived validation tag beside the Simulate card's calculated values,
+    /// with its scope, reason and next step visible as text and on hover.
+    fn show_validation_note(ui: &mut egui::Ui, quantity: faris_model::validation::Quantity) {
+        let mark = faris_model::validation::ValidationMark::current(quantity);
+        let note = faris_model::validation::note(quantity);
+        let detail = format!(
+            "{} · Scope: {}. Why: {}. Next step: {}",
+            mark.tag(),
+            note.scope,
+            note.why,
+            note.next_step
+        );
+        ui.small(&detail).on_hover_text(detail);
     }
 
     fn simulate_step(&mut self, ui: &mut egui::Ui) {
