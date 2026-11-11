@@ -1,0 +1,210 @@
+{
+  "schema": "faris-heating-runtime-package-control/v1",
+  "date_utc": "2026-11-11",
+  "status": "PASS_FOR_DECLARED_CONTROL",
+  "scope": "Local Linux x86-64 CSG runtime, OpenMP enabled, MPI and DAGMC disabled. The recorded dependency prefix remains external. Scientific qualification remains NOT_EVALUATED.",
+  "requirement_status": "NUC-013 remains Partial for its remaining output audit.",
+  "package": {
+    "path": "runs/continuation/nuc013-runtime-package-v3/faris-openmc-0.15.3-compensated-heating-linux.tar.gz",
+    "sha256": "cd97a13b0e614f1a8baf7e1b53468c25f62aa3a549b416ba9adc12c8fd651768",
+    "bytes": 46139823
+  },
+  "source_commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+  "patch_sha256": "cb1537776fefd4bf733dd33cc8b9b265a4e8a5d07af82362126de783fdc55cec",
+  "source_manifest_sha256": "84928673ebe47fc96ca61e78e03b9639ef8a14d2ac2afd507fd342c4acafa4fa",
+  "patched_source_manifest_sha256": "7183e1a5aa1c3cf74fac7cbfccb8879ea36212999a763397a7369ba8747b46f4",
+  "vendor_gitlinks": {
+    "vendor/Catch2": "5a40b2275caa05cf809bf04df848764a9d7df2e2",
+    "vendor/fmt": "0c9fce2ffefecfdce794e1859584e25877b7b592",
+    "vendor/pugixml": "ee86beb30e4973f5feffe3ce63bfa4fbadf72f38",
+    "vendor/xtensor": "3634f2ded19e0cf38208c8b86cea9e1d7c8e397d",
+    "vendor/xtl": "a7c1c5444dfc57f76620391af4c94785ff82c8d6"
+  },
+  "runtime_manifest_sha256": "4b3644e691890cedd282e15914c2724010313b8dfcc194905f4e2411fd3c0eaf",
+  "runtime_files_sha256": "fe9a3b829cdb61ce1655b16b9753aa9e6bd854c49c7bd4b9ed7c7413cb0aaa6b",
+  "binary_identity": {
+    "bin/openmc": "6ec9b488c79058ff084d69049442ce5549f16868ec23bfcc3136fd1bc8fe01b5",
+    "bin/python": "254873b41e0fbfb6bb08ea3e9aee6e14b32cb1111cfc1c5e01dd41ef8f981f20",
+    "lib/libopenmc.so": "5fa4c15836ff083b63a51c2358a02817eebf4990e41bb1c53dd3c0179a8d62d2"
+  },
+  "reproducibility": {
+    "status": "PASS_FOR_CLI_AND_SHARED_LIBRARY",
+    "clean_builds": 2,
+    "cli_bits_equal": true,
+    "shared_library_bits_equal": true,
+    "matched_runtime_entries": 152,
+    "scope": "Binary equality on the recorded machine, compiler and dependency prefix. Archive metadata includes build paths. Deterministic archive metadata is covered by the unit regression."
+  },
+  "relocation": {
+    "status": "PASS",
+    "cli_version": "OpenMC version 0.15.3\nCommit hash: 27e38e894697bb32a1dac7848d2618818b6b8daf\nCopyright (c) 2011-2025 MIT, UChicago Argonne LLC, and contributors\nMIT/X license at <https://docs.openmc.org/en/latest/license.html>\nBuild type:            Release\nCompiler ID:           GNU 15.2.0\nMPI enabled:           no\nParallel HDF5 enabled: no\nPNG support:           yes\nDAGMC support:         no\nlibMesh support:       no\nMCPL support:          no\nCoverage testing:      no\nProfiling flags:       no\nUWUW support:          no",
+    "same_cli_and_python_library": true,
+    "loader_overrides_cleared": true,
+    "file_inventory_checked": true,
+    "external_native_libraries_checked": 30,
+    "python_dependencies_checked": {
+      "endf": {
+        "metadata_sha256": "9b600f814f4348de119befd9b08dd46fd3e02fe7794eb6dca9ec833d9a5c7603",
+        "version": "0.1.12"
+      },
+      "h5py": {
+        "metadata_sha256": "e461fcf7eb9fee6242205f9225cc178455a0212d1c0cb8f997f7eebf8cd9695e",
+        "version": "3.16.0"
+      },
+      "ipython": {
+        "metadata_sha256": "e78cb2a71fde4012b32de9b2db8d3c50ba618a1bb1975acc1bf107453365a1be",
+        "version": "9.17.1"
+      },
+      "lxml": {
+        "metadata_sha256": "aad89f8107bc74045b86c9b7f7c0984196102520dd7faed5e4e45693b7c315ef",
+        "version": "6.1.3"
+      },
+      "matplotlib": {
+        "metadata_sha256": "ff762e3dfe40aecf214974ab1d57f52cb11b4c9c09a9dfd33832bd66bae4ecc6",
+        "version": "3.11.2"
+      },
+      "numpy": {
+        "metadata_sha256": "451a9b8028000588e66b0b415587b6aef0bbc51a96d8e8a0cba0dc23acf64f99",
+        "version": "2.5.3"
+      },
+      "pandas": {
+        "metadata_sha256": "9eb4d20fc21b7851d6f782bd5186ded152fce80a48ac93120bf88e03c89ebc39",
+        "version": "3.0.6"
+      },
+      "scipy": {
+        "metadata_sha256": "48c20b804bd0eb3b5e216809a44b2f3657832a3506a4bc1b346d5eb33a6a5246",
+        "version": "1.18.1"
+      },
+      "setuptools": {
+        "metadata_sha256": null,
+        "version": null
+      },
+      "uncertainties": {
+        "metadata_sha256": "f1e4b47d49c5c12967a500f30074732a9ad6e24538adde330376bafadad9066d",
+        "version": "3.2.3"
+      }
+    }
+  },
+  "license_files": {
+    "LICENSE-FARIS-AGPL-3.0": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+    "LICENSE-OpenMC-MIT": "d1bec36976ea5a5bf1b0bf56c5c52e64b96fa4a4a7da816100222afd6e858a41",
+    "share/licenses/Catch2/LICENSE.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+    "share/licenses/fmt/LICENSE": "07580f2a3b35709ce703d523f447b242f6dfec7582a8c0df102c7fa2849375f8",
+    "share/licenses/pugixml/LICENSE.md": "0d0b3772af2fa45628a548a3b34583707ebcc68bb6f83ec48ca273aab4a510f1",
+    "share/licenses/xtensor/LICENSE": "c810b7b1fe91f0f8ff2fa24c4016031c9e988a525e78d48f77d1bf9a9bd02556",
+    "share/licenses/xtl/LICENSE": "b5ab7b1d364112a59b717b622f7914a9d545de1fa62febf22f50e728a241a487"
+  },
+  "guard_controls": [
+    {
+      "case": "xml-tracklength",
+      "passed": true,
+      "rejection_origin": "nuc013-accumulator-guard"
+    },
+    {
+      "case": "mg",
+      "passed": true,
+      "rejection_origin": "openmc-multigroup-score-validation"
+    },
+    {
+      "case": "late-setter",
+      "passed": true,
+      "setter_code": -5,
+      "before_estimator_enum": 2,
+      "after_estimator_enum": 2
+    },
+    {
+      "case": "non-target",
+      "passed": true,
+      "setter_code": 0,
+      "before_estimator_enum": 2,
+      "after_estimator_enum": 1
+    }
+  ],
+  "numerical_control": {
+    "sampling": {
+      "seed": 20261111,
+      "particles_per_batch": 900,
+      "total_batches": 100,
+      "threads": 1,
+      "mpi_ranks": 1
+    },
+    "histories": {
+      "continuous": 90000,
+      "split_first": 45000,
+      "split_resume": 45000,
+      "split_total": 90000
+    },
+    "lost_particle_events": 0,
+    "checkpoint_bits_equal_at_batches": [
+      50,
+      100
+    ],
+    "unversioned_target_checkpoint": "Rejected.",
+    "strict_closure": {
+      "mean_eV_per_source": 1.1175870895385742e-10,
+      "sample_se_eV_per_source": 8.120369011112443e-09,
+      "three_se_eV_per_source": 2.436110703333733e-08,
+      "residual_to_three_se_ratio": 0.004587587452447029,
+      "strict_gate": "abs(mean residual) <= 3*SE; no additive floor",
+      "gate_pass": true
+    },
+    "independent_decimal_closure": {
+      "n": 100,
+      "mean_eV_per_source": "-1.92085281014442443847656250000E-11",
+      "sample_se_eV_per_source": "8.12168431341705640473703666844851639829258582570707298806570006384711849167398657871878665E-9",
+      "three_se_eV_per_source": "2.43650529402511692142111100053455491948777574771212189641971001915413554750219597361563600E-8",
+      "min_eV_per_source": "-2.5579356588423252105712890625E-7",
+      "max_eV_per_source": "2.897577360272407531738281250E-7",
+      "positive_count": 55,
+      "negative_count": 45,
+      "zero_count": 0,
+      "abs_mean_over_total_mean_ulp": "0.01031250000",
+      "residual_to_three_se_ratio": "0.000788363897609747267969226780318536430379706933191754110847767994698789434609928909456835202",
+      "strict_gate": "abs(mean residual) <= 3*SE; no additive floor",
+      "gate_pass": true
+    },
+    "run_binding": "The numerical control ran from the relocated v2 package. The final clean v3 build has byte-identical CLI, shared library, interpreter and 152 critical runtime entries, with matching effective venv settings. The final archive was independently relocated and its four guard controls rerun."
+  },
+  "unit_regressions": {
+    "passed": 4,
+    "scope": "Stable archive bytes under mtime changes, file corruption and extra-file detection, traversal and symlink-parent rejection, preservation of all seven notices."
+  },
+  "evidence": {
+    "first_clean_build": {
+      "path": "runs/continuation/nuc013-runtime-package-v2/build-receipt.json",
+      "sha256": "e69e6a79e66f9668242436931e37ace5beaa51591546199a610fd7bd076600ac"
+    },
+    "final_clean_build": {
+      "path": "runs/continuation/nuc013-runtime-package-v3/build-receipt.json",
+      "sha256": "dc2453836b9720599caf1b325fdddc09492a1ba3305e02e86ab3de5d31833df3"
+    },
+    "build_equivalence": {
+      "path": "runs/continuation/nuc013-runtime-package-control-v1/clean-build-equivalence.json",
+      "sha256": "a292a1eeaba9d7c35ea58df2635f0410b5ede104dab2bfb69183d2f8d753184e"
+    },
+    "relocation": {
+      "path": "runs/continuation/nuc013-runtime-package-control-v1/final-package-verification.json",
+      "sha256": "ef3fbbcf3119f2b9c5db3e935e80d109ee1fbc628e495dcf786b18a5f59c3fcf"
+    },
+    "guard_controls": {
+      "path": "runs/continuation/nuc013-runtime-package-control-v1/final-guard-result/negative-control.json",
+      "sha256": "4dddc47fe655461c500ea8319e25797332ceb00d726d172beb357a75c1c7b3b5"
+    },
+    "checkpoint": {
+      "path": "runs/continuation/nuc013-runtime-package-control-v1/checkpoint-result/verification.json",
+      "sha256": "49d33ff8d858af40ac0da9963304c3fa48aac450c271ebabba63eb7c3e636fee"
+    },
+    "decimal_audit": {
+      "path": "runs/continuation/nuc013-runtime-package-control-v1/decimal-audit/decimal-audit.json",
+      "sha256": "ff6b4f163408342d0183f334ce1772abba75daaf7bd7916fb8e29e42f2e53de2"
+    },
+    "unit_tests": {
+      "path": "runs/continuation/nuc013-runtime-package-control-v1/unit-tests.log",
+      "sha256": "54c3a40d12fdcdee6f451a77459919bfe3a48bf32e5f7824a503cb77d2c34336"
+    }
+  },
+  "execution_notes": [
+    "The first configure attempt applied the CMake layout hook to vendor projects and stopped before compilation. The hook is now scoped to the openmc project.",
+    "License notices and explicit Python dependency provenance were finalized during v2 packaging. The completed recipe then ran end-to-end in a fresh v3 build. Earlier artifacts are retained."
+  ]
+}
