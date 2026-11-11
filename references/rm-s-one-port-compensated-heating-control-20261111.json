@@ -1,0 +1,120 @@
+{
+  "schema": "faris-rm-s-compensated-heating-control/v1",
+  "date_utc": "2026-11-11",
+  "scope": "Exact one-port RM-S numerical control, fixed-count, single rank, one thread. The isolated compensation prototype refuses statepoint restart. The solver change has no physical-validation verdict.",
+  "openmc": {
+    "version": "0.15.3",
+    "source_commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+    "patch": {
+      "path": "runs/continuation/nuc013-openmc-compensated-build-v3/openmc-heating-compensation.patch",
+      "sha256": "7db21d8e123ad3a009e4b4c711390e7abf23166a2e529c4884ae46a3612ff2d1"
+    },
+    "loaded_library": {
+      "path": "runs/continuation/nuc013-openmc-compensated-build-v3/capi-prefix/lib/libopenmc.so",
+      "sha256": "a1ba16d19c0df92e5737b4d7898a0af70bfa689faa8d8e29e47b8b24cbaaa53b"
+    },
+    "prefix_identity": {
+      "path": "runs/continuation/nuc013-openmc-compensated-build-v3/capi-prefix-identity.txt",
+      "sha256": "097fd0ef787b4f78686ee9d8fead3123fc091a52a642a533e5ca751695cbf0ea"
+    }
+  },
+  "histories": 90000,
+  "seed": 20261111,
+  "batches": 100,
+  "particles_per_batch": 900,
+  "lost_particle_events": 0,
+  "stock_strict_result": {
+    "requirement_id": "NUC-013",
+    "status": "FAIL",
+    "rule": "abs(mean over same-batch [neutron + photon + electron + positron - total]) <= 3 * sample_standard_error(residual); no additive tolerance",
+    "units": "raw tally units per source neutron, per batch (difference of consecutive cumulative statepoint sums)",
+    "batch_count": 100,
+    "response_ids": [
+      "heating-total-whole-model",
+      "heating-neutron-whole-model",
+      "heating-photon-whole-model",
+      "heating-electron-whole-model",
+      "heating-positron-whole-model"
+    ],
+    "response_means": {
+      "heating-total-whole-model": 16541678.65368471,
+      "heating-neutron-whole-model": 10984421.311249994,
+      "heating-photon-whole-model": 3012.457420740183,
+      "heating-electron-whole-model": 5279979.677887684,
+      "heating-positron-whole-model": 274265.20712703804
+    },
+    "four_particle_sum_mean": 16541678.653685456,
+    "four_particle_sum_minus_total_mean": 7.462687790393829e-07,
+    "aligned_residual_standard_error": 2.4364084599029594e-08,
+    "three_sigma_bound": 7.309225379708878e-08,
+    "residual_to_three_sigma_ratio": 10.209957146910503,
+    "strict_pass": false,
+    "quantization_diagnostic": {
+      "total_mean_ulp": 1.862645149230957e-09,
+      "response_scale": 16541678.653685456,
+      "ulp_relative_to_scale": 1.1260315160432422e-16,
+      "maximum_absolute_batch_residual": 1.475214958190918e-06,
+      "minimum_batch_residual": 2.905726432800293e-07,
+      "maximum_batch_residual": 1.475214958190918e-06,
+      "distinct_residual_values": 93,
+      "mean_residual_in_total_mean_ulps": 400.65,
+      "note": "Diagnostic only. No floating-point allowance is added to the strict gate."
+    }
+  },
+  "compensated_strict_result": {
+    "requirement_id": "NUC-013",
+    "status": "PASS",
+    "rule": "abs(mean over same-batch [neutron + photon + electron + positron - total]) <= 3 * sample_standard_error(residual); no additive tolerance",
+    "units": "raw tally units per source neutron, per batch (difference of consecutive cumulative statepoint sums)",
+    "batch_count": 100,
+    "response_ids": [
+      "heating-total-whole-model",
+      "heating-neutron-whole-model",
+      "heating-photon-whole-model",
+      "heating-electron-whole-model",
+      "heating-positron-whole-model"
+    ],
+    "response_means": {
+      "heating-total-whole-model": 16541678.653686069,
+      "heating-neutron-whole-model": 10984421.311250037,
+      "heating-photon-whole-model": 3012.457420740183,
+      "heating-electron-whole-model": 5279979.677888254,
+      "heating-positron-whole-model": 274265.20712703816
+    },
+    "four_particle_sum_mean": 16541678.653686069,
+    "four_particle_sum_minus_total_mean": 1.1175870895385742e-10,
+    "aligned_residual_standard_error": 8.120369011112443e-09,
+    "three_sigma_bound": 2.436110703333733e-08,
+    "residual_to_three_sigma_ratio": 0.004587587452447029,
+    "strict_pass": true,
+    "quantization_diagnostic": {
+      "total_mean_ulp": 1.862645149230957e-09,
+      "response_scale": 16541678.653686069,
+      "ulp_relative_to_scale": 1.1260315160432005e-16,
+      "maximum_absolute_batch_residual": 2.905726432800293e-07,
+      "minimum_batch_residual": -2.551823854446411e-07,
+      "maximum_batch_residual": 2.905726432800293e-07,
+      "distinct_residual_values": 68,
+      "mean_residual_in_total_mean_ulps": 0.06,
+      "note": "Diagnostic only. No floating-point allowance is added to the strict gate."
+    }
+  },
+  "evidence": {
+    "input_hashes": {
+      "path": "runs/continuation/nuc013-oneport-compensated-v3/inputs.sha256",
+      "sha256": "563fbce07bc328d476056d1f3f425b38aaa6e057752fd7024a62fa72b34b25ad"
+    },
+    "worker_result": {
+      "path": "runs/continuation/nuc013-oneport-compensated-v3/run/solver/worker-result.json",
+      "sha256": "f1c3350c81b90b7b821a280cd1bf9cd50c258c2a205bc2cf9eb8055102da1051"
+    },
+    "aligned_batches": {
+      "path": "runs/continuation/nuc013-oneport-compensated-v3/run/solver/transport-batch-values.json",
+      "sha256": "b11023940be31c0cd9be700e00934a05aef0e284e5b640d24afd55be119f9efd"
+    },
+    "independent_decimal_statepoint_check": {
+      "path": "runs/continuation/nuc013-oneport-compensated-v3/independent-terminal-statepoint.json",
+      "sha256": "8a02dd0ef23c95f4cc1c885183d3791e85b2579887b585d464e4aecf93e12623"
+    }
+  }
+}
