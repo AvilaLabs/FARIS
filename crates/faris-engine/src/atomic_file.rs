@@ -897,7 +897,7 @@ mod tests {
         commit(temporary, &stream_target, Existing::Replace).unwrap();
         assert_eq!(std::fs::read(&stream_target).unwrap(), b"stream new");
         assert!(recovery_files(&stream_target).unwrap().is_empty());
-        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 4);
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
     }
 
     /// Check that the recorded writer sequence cannot persist a rename without the data.
