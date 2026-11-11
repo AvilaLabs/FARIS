@@ -1,0 +1,70 @@
+{
+  "schema": "faris-rel010-recovery-writer-study-campaign/v1",
+  "date": "2026-11-10",
+  "requirement": "REL-010",
+  "status": "PASS",
+  "study_campaign": {
+    "trials": 10000,
+    "complete_old": 4862,
+    "complete_new": 5138,
+    "damaged": 0,
+    "not_run": 0,
+    "leftover_temporaries_observed": 4619,
+    "seed": 20261014,
+    "elapsed_seconds": 1123.47,
+    "log": {
+      "path": "runs/continuation/rel010-safe-recovery-validation-v1/study-10000-v3.log",
+      "sha256": "692f3f86eb0d09d609b54e80d47965d86e44ebabe04a8fbde1d47ee609dc2d43"
+    },
+    "binary": {
+      "path": "runs/continuation/rel010-safe-recovery-validation-v1/faris-study-campaign",
+      "sha256": "4b4f6a473c98d44cd827d09d295f8c0f4f22143074f108798b834f690fd432ef"
+    },
+    "build_message_log": {
+      "path": "runs/continuation/rel010-safe-recovery-validation-v1/study-optimized-build-v2.jsonl",
+      "sha256": "75163ba698d3aef330ac8a35736ec694136866a89e273137d9308dae902d9a7c"
+    },
+    "limits": {
+      "cpu_quota_percent": 100,
+      "memory_max_bytes": 2147483648,
+      "swap_max_bytes": 0,
+      "runtime_max_seconds": 5400
+    },
+    "filesystem": "local Linux ext filesystem"
+  },
+  "source_identities": [
+    {
+      "path": "crates/faris-engine/src/atomic_file.rs",
+      "sha256": "09c8cf5c338f6e2251be31e03c6a08d6e192bfbb58cf9b5ba6d112bb44dcd9e1"
+    },
+    {
+      "path": "crates/faris-engine/src/atomic_file/campaign.rs",
+      "sha256": "7d3fa5c632bc8700ace61379aa2a0ff01c327ddc689f2a32f639cfff5be75713"
+    },
+    {
+      "path": "crates/faris-study/src/write.rs",
+      "sha256": "c525b6ec103bbea35d1631dadd772ea2dae9b06547fa29c59f50d3259481b3ce"
+    },
+    {
+      "path": "crates/faris-study/src/kill_tests.rs",
+      "sha256": "fdddee785f66444c29f78b207d574d813666698db74b126488ac9fdd6515d739"
+    }
+  ],
+  "writer_production_prefix_sha256": "d372c3c099ebdd1faeebd0682ec38fa862e06503e3c9f9bfcfdbf0fe5c2a31e0",
+  "fault_injection": {
+    "writer_tests": {
+      "path": "runs/continuation/rel010-safe-recovery-validation-v1/atomic-focused-v3.log",
+      "sha256": "aa81c4f2bde5122bbade41837e9310e1fd6c9b688885ae1d8fa4edfa55c2849d"
+    },
+    "shared_SIGKILL_regression": {
+      "path": "runs/continuation/rel010-safe-recovery-validation-v1/sigkill-v3.log",
+      "sha256": "918afa02f87ecc35b5731b90c732aec82837be12870de488854c2f2ecb522123"
+    },
+    "description": "Post-rename directory sync failure restores the previous destination. When another I/O error blocks rollback, the exact previous bytes remain in the named, durable recovery file. Each subsequent save preserves older recovery files."
+  },
+  "power_loss": {
+    "path": "references/atomic-save-recovery-qemu-20261110.json",
+    "sha256": "853ded76890620031a27d506b77daf84d5f1a5449719f43eb600f866edd08703"
+  },
+  "scope": "The campaign and QEMU cuts establish the tested Linux filesystem behavior. Windows keeps file-data sync and same-directory replacement. Windows namespace durability has no power-loss evidence."
+}

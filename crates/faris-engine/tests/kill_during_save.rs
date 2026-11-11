@@ -4,12 +4,17 @@
 //! binary starts itself as the child with `FARIS_KILL_CHILD` set.
 
 use faris_engine::atomic_file::{
+    Existing, Step,
     campaign::{Config, Found, Tally, announce_go, run, trials_from_env},
-    write_atomic,
+    recovery_files, write_atomic, write_with,
 };
-use std::{path::Path, process::Command};
+use std::{
+    path::Path,
+    process::{Command, Stdio},
+};
 
 const CHILD_ENV: &str = "FARIS_KILL_CHILD";
+const PAUSE_AFTER_RENAME_ENV: &str = "FARIS_KILL_PAUSE_AFTER_RENAME";
 const PAYLOAD_BYTES: usize = 1 << 20;
 
 /// FNV-1a over 8-byte words: cheap even in a debug build, and any partial or
@@ -58,6 +63,34 @@ fn classify(path: &Path) -> Result<Found, String> {
     }
 }
 
+fn classify_and_cleanup_recovery(path: &Path) -> Result<Found, String> {
+    let found = classify(path)?;
+    let recoveries = recovery_files(path)
+        .map_err(|error| format!("cannot enumerate recovery copies: {error}"))?;
+    for recovery in &recoveries {
+        match classify(recovery)? {
+            Found::Previous => {}
+            Found::New => {
+                return Err(format!(
+                    "recovery copy is NEW instead of OLD: {}",
+                    recovery.display()
+                ));
+            }
+        }
+    }
+    // Test-only cleanup happens only after target and every preserved OLD copy were
+    // checksummed and classified. Production recovery artifacts are never auto-deleted here.
+    for recovery in recoveries {
+        std::fs::remove_file(&recovery).map_err(|error| {
+            format!(
+                "verified recovery artifact could not be test-cleaned at {}: {error}",
+                recovery.display()
+            )
+        })?;
+    }
+    Ok(found)
+}
+
 /// The child process: saves version 2 over version 1. Does nothing in a
 /// normal test run.
 #[test]
@@ -67,7 +100,92 @@ fn kill_child_entry() {
     };
     let bytes = versioned(2);
     announce_go();
-    write_atomic(Path::new(&target), &bytes).unwrap();
+    if std::env::var_os(PAUSE_AFTER_RENAME_ENV).is_some() {
+        write_with(Path::new(&target), Existing::Replace, &bytes, &mut |step| {
+            if step == Step::Rename {
+                println!("FARIS_KILL_AFTER_TARGET_RENAME");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(60));
+                }
+            }
+        })
+        .unwrap();
+    } else {
+        write_atomic(Path::new(&target), &bytes).unwrap();
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn save_after_sigkill_preserves_old_version_and_continues() {
+    if std::env::var(CHILD_ENV).is_ok() {
+        return;
+    }
+    use std::{io::BufRead, sync::mpsc};
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("saved.dat");
+    write_atomic(&target, &versioned(1)).unwrap();
+    let exe = std::env::current_exe().unwrap();
+    let mut child = Command::new(exe)
+        .args([
+            "--exact",
+            "kill_child_entry",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(CHILD_ENV, &target)
+        .env(PAUSE_AFTER_RENAME_ENV, "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let (marker_tx, marker_rx) = mpsc::channel();
+    let marker_reader = std::thread::spawn(move || {
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut marker = String::new();
+        let mut reached = false;
+        while reader.read_line(&mut marker).unwrap_or(0) > 0 {
+            if marker.contains("FARIS_KILL_AFTER_TARGET_RENAME") {
+                reached = true;
+                break;
+            }
+            marker.clear();
+        }
+        let _ = marker_tx.send(reached);
+    });
+    let reached = marker_rx
+        .recv_timeout(std::time::Duration::from_secs(15))
+        .unwrap_or(false);
+    if !reached {
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = marker_reader.join();
+        panic!("child did not reach the post-rename pause");
+    }
+    child.kill().unwrap();
+    let _ = child.wait();
+    marker_reader.join().unwrap();
+
+    assert_eq!(classify(&target).unwrap(), Found::New);
+    let first_recoveries = recovery_files(&target).unwrap();
+    assert_eq!(first_recoveries.len(), 1);
+    assert!(
+        first_recoveries[0]
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with(".faris-previous-")
+    );
+    assert_eq!(classify(&first_recoveries[0]).unwrap(), Found::Previous);
+
+    // A subsequent successful save cleans its own copy and leaves the earlier one.
+    write_atomic(&target, &versioned(2)).unwrap();
+    assert_eq!(classify(&target).unwrap(), Found::New);
+    let recoveries = recovery_files(&target).unwrap();
+    assert_eq!(recoveries, first_recoveries);
+    assert_eq!(classify(&recoveries[0]).unwrap(), Found::Previous);
 }
 
 fn campaign(trials: usize) -> Tally {
@@ -97,7 +215,7 @@ fn campaign(trials: usize) -> Tally {
                 .env(CHILD_ENV, &target);
             command
         },
-        &|| classify(&target),
+        &|| classify_and_cleanup_recovery(&target),
     )
 }
 
@@ -111,14 +229,14 @@ fn check(tally: &Tally, trials: usize) {
         tally.not_run.len(),
         tally.leftover_temporaries
     );
+    let shown = &tally.damaged[..tally.damaged.len().min(5)];
+    assert!(tally.damaged.is_empty(), "{shown:?}");
     assert!(
         tally.not_run.is_empty(),
         "trials not run: {:?}",
         tally.not_run
     );
     assert_eq!(tally.trials, trials);
-    let shown = &tally.damaged[..tally.damaged.len().min(5)];
-    assert!(tally.damaged.is_empty(), "{shown:?}");
     assert_eq!(tally.previous + tally.new, trials);
 }
 

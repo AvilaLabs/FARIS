@@ -142,7 +142,12 @@ pub fn run(
         match classify() {
             Ok(Found::Previous) => tally.previous += 1,
             Ok(Found::New) => tally.new += 1,
-            Err(why) => tally.damaged.push(format!("trial {trial}: {why}")),
+            Err(why) => {
+                tally.damaged.push(format!("trial {trial}: {why}"));
+                // Keep the destination and all recovery artifacts untouched for diagnosis.
+                // Continuing could accumulate archives or overwrite evidence via prepare().
+                break;
+            }
         }
     }
     tally

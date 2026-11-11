@@ -31,7 +31,11 @@ cells in the 24-case corpus and all 30 explicit RM-M cells against CAD volumes
 NUC-056 meets the void-window comparison criterion on checked CAD. The
 explicit void and the bounded complement both passed paired analogue and
 windowed runs ([NUC-056 receipt](../references/checked-cad-void-window-control-20261110.json)).
-The tables now record 28 of 44 release-gate IDs as Met. Release-candidate
+REL-010 meets the save recovery criterion in the Linux controls. The real
+study writer passed 10,000 SIGKILL trials and the shared writer recovered at
+all ten QEMU cut points
+([REL-010 receipt](../references/atomic-study-save-recovery-20261110.json)).
+The tables now record 29 of 44 release-gate IDs as Met. Release-candidate
 checks and physical validation are tracked separately. The NUC-053 control does not assert formal PRNG
 stream non-overlap. VAL-023 remains No/NOT_EVALUATED; its approved access
 outcome is checked separately and does not establish physical validation. The

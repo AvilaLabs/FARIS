@@ -9,6 +9,7 @@ use crate::{StudyReader, tests::draft, write_study};
 use faris_engine::atomic_file::campaign::{
     Config, Found, Tally, announce_go, run, trials_from_env,
 };
+use faris_engine::atomic_file::recovery_files;
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -61,6 +62,39 @@ fn classify(path: &Path) -> Result<Found, String> {
     }
 }
 
+fn classify_and_cleanup_recovery(path: &Path) -> Result<Found, String> {
+    let found = classify(path)?;
+    let recoveries = recovery_files(path)
+        .map_err(|error| format!("cannot enumerate recovery copies: {error}"))?;
+    for recovery in &recoveries {
+        let mut reader = StudyReader::open(recovery).map_err(|error| {
+            format!("cannot open recovery copy {}: {error}", recovery.display())
+        })?;
+        reader.verify().map_err(|error| {
+            format!(
+                "recovery copy failed blob verification at {}: {error}",
+                recovery.display()
+            )
+        })?;
+        if reader.manifest.view.year != 1.0 {
+            return Err(format!(
+                "recovery copy is not the previous year-1 study at {}",
+                recovery.display()
+            ));
+        }
+    }
+    // Test-only cleanup is allowed only after target and all saved OLD studies verify.
+    for recovery in recoveries {
+        std::fs::remove_file(&recovery).map_err(|error| {
+            format!(
+                "verified recovery artifact could not be test-cleaned at {}: {error}",
+                recovery.display()
+            )
+        })?;
+    }
+    Ok(found)
+}
+
 fn campaign(trials: usize) -> Tally {
     // FARIS_KILL_DIR picks the filesystem under test; /tmp is often memory-backed.
     let dir = match std::env::var_os("FARIS_KILL_DIR") {
@@ -92,7 +126,7 @@ fn campaign(trials: usize) -> Tally {
                 .env(CHILD_ENV, &work);
             command
         },
-        &|| classify(&target),
+        &|| classify_and_cleanup_recovery(&target),
     )
 }
 
@@ -106,14 +140,14 @@ fn check(tally: &Tally, trials: usize) {
         tally.not_run.len(),
         tally.leftover_temporaries
     );
+    let shown = &tally.damaged[..tally.damaged.len().min(5)];
+    assert!(tally.damaged.is_empty(), "{shown:?}");
     assert!(
         tally.not_run.is_empty(),
         "trials not run: {:?}",
         tally.not_run
     );
     assert_eq!(tally.trials, trials);
-    let shown = &tally.damaged[..tally.damaged.len().min(5)];
-    assert!(tally.damaged.is_empty(), "{shown:?}");
     assert_eq!(tally.previous + tally.new, trials);
 }
 
