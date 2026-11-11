@@ -442,6 +442,10 @@ pub struct SamplingPlan {
     /// fast flux alone. The analog pass of a windowed Production run watches the whole-model responses.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub watch_responses: Vec<String>,
+    /// Optional response-specific trigger thresholds. The scalar above remains the legacy fallback/override.
+    /// When a response is present here it uses this threshold instead of the scalar target.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub response_targets: BTreeMap<String, f64>,
 }
 impl Default for SamplingPlan {
     fn default() -> Self {
@@ -452,11 +456,46 @@ impl Default for SamplingPlan {
             threads: 1,
             target_relative_error: None,
             watch_responses: Vec::new(),
+            response_targets: BTreeMap::new(),
+        }
+    }
+}
+
+impl SamplingPlan {
+    /// Shared Production defaults for CLI and desktop runs. Legacy scalar-only
+    /// plans remain magnet-only; Preview remains a fixed-count plan.
+    pub fn production_default(
+        batches: u32,
+        particles_per_batch: u32,
+        seed: u64,
+        threads: u32,
+    ) -> Self {
+        let response_targets = BTreeMap::from([
+            (
+                STOP_RULE_RESPONSE_ID.to_string(),
+                DEFAULT_MAGNET_TARGET_RELATIVE_ERROR,
+            ),
+            (
+                TOTAL_TBR_RESPONSE_ID.to_string(),
+                DEFAULT_TBR_TARGET_RELATIVE_ERROR,
+            ),
+        ]);
+        Self {
+            batches,
+            particles_per_batch,
+            seed,
+            threads,
+            target_relative_error: Some(DEFAULT_MAGNET_TARGET_RELATIVE_ERROR),
+            watch_responses: response_targets.keys().cloned().collect(),
+            response_targets,
         }
     }
 }
 /// Response the stop rule watches: the panel's headline magnet fast flux.
 pub const STOP_RULE_RESPONSE_ID: &str = "magnets-fast-flux";
+pub const TOTAL_TBR_RESPONSE_ID: &str = "total-tritium-production";
+pub const DEFAULT_MAGNET_TARGET_RELATIVE_ERROR: f64 = 0.05;
+pub const DEFAULT_TBR_TARGET_RELATIVE_ERROR: f64 = 0.01;
 /// Fewest batches a target-error run may stop at; a relative error estimated
 /// from fewer batches is not trustworthy.
 pub const STOP_RULE_MIN_BATCHES: u32 = 30;
@@ -488,6 +527,8 @@ pub struct SamplingOutcome {
     pub batches_realized: u32,
     pub histories_realized: u64,
     pub target_relative_error: Option<f64>,
+    /// The target for the limiting response. Absent in older run receipts, which used the scalar target.
+    pub limiting_target_relative_error: Option<f64>,
     /// Relative standard error of the watched response, when a target was set. With several watched responses,
     /// that of the least precise.
     pub achieved_relative_error: Option<f64>,
@@ -511,11 +552,10 @@ impl SamplingOutcome {
     pub fn summary(&self) -> String {
         let histories = self.histories_realized;
         let what = self.limiting_label();
-        match (
-            self.stop_reason,
-            self.target_relative_error,
-            self.achieved_relative_error,
-        ) {
+        let target = self
+            .limiting_target_relative_error
+            .or(self.target_relative_error);
+        match (self.stop_reason, target, self.achieved_relative_error) {
             (StopReason::TargetMet, Some(target), Some(achieved)) => format!(
                 "Stopped after {histories} histories because the target was met: {what} {:.1}% (target {:.1}%).",
                 achieved * 100.0,
@@ -587,6 +627,71 @@ pub fn sampling_outcome(
         .get("target_response_id")
         .and_then(Value::as_str)
         .map(str::to_string);
+    let configured_limiting_target = limiting_response
+        .as_ref()
+        .and_then(|id| plan.response_targets.get(id).copied())
+        .or(target);
+    let expected_ids = if plan.watch_responses.is_empty() {
+        if plan.response_targets.is_empty() {
+            vec![STOP_RULE_RESPONSE_ID.to_string()]
+        } else {
+            plan.response_targets.keys().cloned().collect()
+        }
+    } else {
+        plan.watch_responses.clone()
+    };
+    let expected_targets: BTreeMap<String, f64> = expected_ids
+        .iter()
+        .map(|id| {
+            (
+                id.clone(),
+                plan.response_targets
+                    .get(id)
+                    .copied()
+                    .unwrap_or(plan.target_relative_error.unwrap_or_default()),
+            )
+        })
+        .collect();
+    if plan.target_relative_error.is_some() {
+        if !plan.response_targets.is_empty()
+            && (raw.get("watched_responses").is_none() || raw.get("watched_targets").is_none())
+        {
+            return Err(bad("response-specific watch identity is missing"));
+        }
+        if !plan.response_targets.is_empty()
+            && limiting_response
+                .as_ref()
+                .is_none_or(|id| !expected_ids.contains(id))
+        {
+            return Err(bad(
+                "limiting response is missing or not watched by the plan",
+            ));
+        }
+        if let Some(ids) = raw.get("watched_responses") {
+            let ids: Vec<String> = serde_json::from_value(ids.clone())
+                .map_err(|_| bad("watched responses are malformed"))?;
+            if ids != expected_ids {
+                return Err(bad("watched responses disagree with the plan"));
+            }
+        }
+        if let Some(targets) = raw.get("watched_targets") {
+            let targets: BTreeMap<String, f64> = serde_json::from_value(targets.clone())
+                .map_err(|_| bad("watched targets are malformed"))?;
+            if targets != expected_targets {
+                return Err(bad("watched targets disagree with the plan"));
+            }
+        }
+    }
+    let receipt_limiting_target = raw
+        .get("limiting_target_relative_error")
+        .and_then(Value::as_f64);
+    if !plan.response_targets.is_empty() && receipt_limiting_target.is_none() {
+        return Err(bad("limiting response target is missing"));
+    }
+    if receipt_limiting_target.is_some() && receipt_limiting_target != configured_limiting_target {
+        return Err(bad("limiting response target disagrees with the plan"));
+    }
+    let limiting_target = configured_limiting_target.or(receipt_limiting_target);
     if let Some(limit) = raw
         .get("variance_of_variance_limit")
         .and_then(Value::as_f64)
@@ -601,29 +706,100 @@ pub fn sampling_outcome(
         Some("budget_exhausted") => StopReason::BudgetExhausted,
         _ => return Err(bad("stop reason is unknown")),
     };
+    let response_specific_verdict = if plan.response_targets.is_empty() {
+        None
+    } else {
+        let errors = raw
+            .get("achieved_relative_errors")
+            .and_then(Value::as_object)
+            .ok_or_else(|| bad("per-response errors are missing"))?;
+        if errors.len() != expected_ids.len() {
+            return Err(bad("per-response errors include an unwatched response"));
+        }
+        let mut limiting: Option<(String, f64, f64)> = None;
+        let mut all_met = true;
+        let mut all_resolved = true;
+        for id in &expected_ids {
+            let error = errors
+                .get(id)
+                .ok_or_else(|| bad("a watched response error is missing"))?;
+            let Some(error) = error.as_f64() else {
+                if !error.is_null() {
+                    return Err(bad("a watched response error is invalid"));
+                }
+                all_resolved = false;
+                all_met = false;
+                continue;
+            };
+            if !error.is_finite() || error < 0.0 {
+                return Err(bad("a watched response error is invalid"));
+            }
+            let threshold = expected_targets[id];
+            let ratio = error / threshold;
+            all_met &= ratio <= 1.0 + 1e-9;
+            if limiting
+                .as_ref()
+                .is_none_or(|(_, largest, _)| ratio > *largest)
+            {
+                limiting = Some((id.clone(), ratio, error));
+            }
+        }
+        if all_resolved
+            && (limiting.as_ref().map(|(id, _, _)| id.as_str()) != limiting_response.as_deref()
+                || limiting_target
+                    != limiting_response
+                        .as_ref()
+                        .and_then(|id| expected_targets.get(id).copied())
+                || limiting.as_ref().is_none_or(|(_, _, error)| {
+                    achieved.is_none_or(|value| {
+                        (value - error).abs() > 1e-12_f64.max(error.abs() * 1e-9)
+                    })
+                }))
+        {
+            return Err(bad(
+                "limiting response does not match the per-response errors",
+            ));
+        }
+        if !all_resolved && reason != StopReason::BudgetExhausted {
+            return Err(bad(
+                "unresolved watched responses may only exhaust the batch budget",
+            ));
+        }
+        Some((all_resolved, all_met))
+    };
     if histories_realized != u64::from(batches_realized) * u64::from(plan.particles_per_batch)
         || target != plan.target_relative_error
         || achieved.is_some_and(|v| !v.is_finite() || v < 0.0)
+        || limiting_target.is_some_and(|v| !v.is_finite() || v <= 0.0 || v > STOP_RULE_MAX_TARGET)
     {
         return Err(bad("disagrees with the sampling plan"));
     }
     let consistent = match plan.target_relative_error {
         None => reason == StopReason::FixedCount && batches_realized == plan.batches,
-        Some(target) => {
+        Some(_target) => {
             (STOP_RULE_MIN_BATCHES..=plan.batches).contains(&batches_realized)
                 && match reason {
                     StopReason::TargetMet => {
-                        achieved.is_some_and(|v| v <= target * (1.0 + 1e-9))
+                        limiting_target.is_some_and(|limit| {
+                            achieved.is_some_and(|v| v <= limit * (1.0 + 1e-9))
+                        }) && response_specific_verdict
+                            .is_none_or(|(resolved, met)| resolved && met)
                             && vov.is_none_or(|v| v <= VOV_LIMIT)
                     }
                     StopReason::TargetUnsettled => {
                         batches_realized == plan.batches
-                            && achieved.is_some_and(|v| v <= target * (1.0 + 1e-9))
+                            && limiting_target.is_some_and(|limit| {
+                                achieved.is_some_and(|v| v <= limit * (1.0 + 1e-9))
+                            })
+                            && response_specific_verdict
+                                .is_none_or(|(resolved, met)| resolved && met)
                             && vov.is_some_and(|v| v > VOV_LIMIT)
                     }
                     StopReason::BudgetExhausted => {
                         batches_realized == plan.batches
-                            && achieved.is_none_or(|v| v > target * (1.0 + 1e-9))
+                            && limiting_target.is_some_and(|limit| {
+                                achieved.is_none_or(|v| v > limit * (1.0 + 1e-9))
+                            })
                     }
                     StopReason::FixedCount => false,
                 }
@@ -638,6 +814,7 @@ pub fn sampling_outcome(
         batches_realized,
         histories_realized,
         target_relative_error: target,
+        limiting_target_relative_error: limiting_target,
         achieved_relative_error: achieved,
         limiting_response,
         variance_of_variance: vov,
@@ -691,6 +868,17 @@ impl SamplingPlan {
             && !(target.is_finite() && target > 0.0 && target <= STOP_RULE_MAX_TARGET)
         {
             return Err("target relative error must be above 0 and at most 0.5".into());
+        }
+        if self.response_targets.iter().any(|(id, target)| {
+            id.is_empty() || !target.is_finite() || *target <= 0.0 || *target > STOP_RULE_MAX_TARGET
+        }) {
+            return Err(
+                "response-specific targets need nonempty response ids and values in (0, 0.5]"
+                    .into(),
+            );
+        }
+        if !self.response_targets.is_empty() && self.target_relative_error.is_none() {
+            return Err("response-specific targets need a target-error run".into());
         }
         let mut seen = std::collections::BTreeSet::new();
         if !self.watch_responses.is_empty()
@@ -1910,6 +2098,25 @@ fn build_pass(job: &ReactorJob<'_>, sampling: &SamplingPlan) -> Result<PassInput
     let default_mesh = FieldMesh::for_preset(&build_manifest(job.scenario)?, MeshPreset::Coarse)?;
     let requested_mesh = job.mesh.clone().unwrap_or(default_mesh);
     let (mut request, mesh) = request_for_case_with_mesh(job.scenario, &physics, requested_mesh)?;
+    let response_ids = request
+        .responses
+        .iter()
+        .map(|response| response.id.as_str())
+        .collect::<BTreeSet<_>>();
+    if sampling
+        .response_targets
+        .keys()
+        .any(|id| !response_ids.contains(id.as_str()))
+        || sampling
+            .watch_responses
+            .iter()
+            .any(|id| !response_ids.contains(id.as_str()))
+    {
+        return Err(
+            "a watched response or response-specific target is absent from the reactor request"
+                .into(),
+        );
+    }
     if job.activation_spectra.is_some() {
         request.activation_spectra = job.activation_spectra.clone();
         request.validate_against(job.scenario)?;
@@ -1966,6 +2173,7 @@ fn execute_pass(
         openmc_sha256,
         cross_sections_sha256,
     } = built;
+    input.sampling = sampling.clone();
     input.variance_reduction = prepared.as_ref().and_then(|p| p.plan.clone());
     let variance_reduction = prepared.as_ref().map(|p| p.record.clone());
     let input_bytes = serde_json::to_vec_pretty(&input)?;
@@ -2204,9 +2412,15 @@ pub fn analog_watch(request: &TransportRequest) -> Vec<String> {
 const ANALOG_PASS_PARTICLES: u32 = 10_000;
 const ANALOG_PASS_BATCHES: u32 = 100;
 
-/// Sampling of the analog pass of a windowed Production run: the same target error, watching the whole-model
+/// Sampling of the analog pass of a windowed explicit response-target run: the same target error, watching the whole-model
 /// responses, in small batches. Its seed differs from the windowed pass's, so the passes are independent.
 fn analog_pass_sampling(windowed: &SamplingPlan, watch: Vec<String>) -> SamplingPlan {
+    let response_targets = windowed
+        .response_targets
+        .iter()
+        .filter(|(id, _)| watch.contains(id))
+        .map(|(id, target)| (id.clone(), *target))
+        .collect();
     SamplingPlan {
         batches: ANALOG_PASS_BATCHES,
         particles_per_batch: ANALOG_PASS_PARTICLES,
@@ -2214,7 +2428,23 @@ fn analog_pass_sampling(windowed: &SamplingPlan, watch: Vec<String>) -> Sampling
         threads: windowed.threads,
         target_relative_error: windowed.target_relative_error,
         watch_responses: watch,
+        response_targets,
     }
+}
+
+/// The weighted pass only stops on the response for which its windows were generated.
+fn windowed_pass_sampling(sampling: &SamplingPlan) -> SamplingPlan {
+    let mut plan = sampling.clone();
+    if plan.target_relative_error.is_none() || plan.response_targets.is_empty() {
+        // Keep fixed runs and historical scalar-only windowed pass records in their legacy empty-watch shape.
+        plan.watch_responses.clear();
+        plan.response_targets.clear();
+        return plan;
+    }
+    plan.watch_responses = vec![STOP_RULE_RESPONSE_ID.into()];
+    plan.response_targets
+        .retain(|id, _| id == STOP_RULE_RESPONSE_ID);
+    plan
 }
 
 /// A seed for the other pass: next to this one, and not a reserved one.
@@ -2277,11 +2507,12 @@ fn run_two_passes(
         }
     };
     let windowed_dir = output.join(WINDOWED_PASS_DIRECTORY);
-    let windowed_job = job.for_pass(&windowed_dir, job.sampling.clone());
+    let windowed_sampling = windowed_pass_sampling(&job.sampling);
+    let windowed_job = job.for_pass(&windowed_dir, windowed_sampling.clone());
     let windowed = if record.import_error.is_none() && record.normalized.is_some() {
         execute_pass(
             &windowed_job,
-            &job.sampling,
+            &windowed_sampling,
             &windowed_dir,
             built,
             Some(prepared),
@@ -2359,6 +2590,7 @@ fn load_windowed_pass(
         return Err("the recorded windowed pass differs from its hash".into());
     }
     let windowed = load_reactor_run(&path, scenario)?;
+    let expected_sampling = windowed_pass_sampling(&analog.sampling);
     if !windowed
         .variance_reduction
         .as_ref()
@@ -2369,7 +2601,9 @@ fn load_windowed_pass(
         || windowed.cross_sections_sha256 != analog.cross_sections_sha256
         || windowed.openmc_sha256 != analog.openmc_sha256
         || windowed.mesh != analog.mesh
-        || windowed.sampling.target_relative_error != analog.sampling.target_relative_error
+        || windowed.sampling.target_relative_error != expected_sampling.target_relative_error
+        || windowed.sampling.watch_responses != expected_sampling.watch_responses
+        || windowed.sampling.response_targets != expected_sampling.response_targets
     {
         return Err("the windowed pass does not match the analog pass that holds it".into());
     }
@@ -3147,6 +3381,7 @@ mod tests {
             threads: 3,
             target_relative_error: Some(0.05),
             watch_responses: Vec::new(),
+            response_targets: BTreeMap::new(),
         };
         let analog = analog_pass_sampling(&windowed, watch.clone());
         analog.validate().unwrap();
@@ -3174,6 +3409,33 @@ mod tests {
         // plans without watched responses write exactly as before
         let json = serde_json::to_string(&plan(Some(0.05), &[])).unwrap();
         assert!(!json.contains("watch"));
+    }
+
+    #[test]
+    fn production_sampling_default_watches_tbr_and_magnet_targets() {
+        let plan = SamplingPlan::production_default(100, 10_000, 123, 1);
+        assert_eq!(
+            plan.target_relative_error,
+            Some(DEFAULT_MAGNET_TARGET_RELATIVE_ERROR)
+        );
+        assert_eq!(
+            plan.response_targets.get(STOP_RULE_RESPONSE_ID),
+            Some(&0.05)
+        );
+        assert_eq!(
+            plan.response_targets.get(TOTAL_TBR_RESPONSE_ID),
+            Some(&0.01)
+        );
+        assert_eq!(plan.watch_responses.len(), 2);
+        plan.validate().unwrap();
+    }
+
+    #[test]
+    fn fixed_windowed_pass_keeps_no_watchers() {
+        let plan = windowed_pass_sampling(&SamplingPlan::default());
+        assert_eq!(plan.target_relative_error, None);
+        assert!(plan.watch_responses.is_empty());
+        assert!(plan.response_targets.is_empty());
     }
 
     // Verifies: NUC-043
@@ -3304,6 +3566,70 @@ mod tests {
             expected_histories(&SamplingPlan::default(), None).unwrap(),
             1_000_000
         );
+    }
+
+    #[test]
+    fn sampling_outcome_checks_the_limiting_response_specific_target() {
+        let plan = SamplingPlan {
+            batches: 100,
+            target_relative_error: Some(0.05),
+            watch_responses: vec![STOP_RULE_RESPONSE_ID.into(), TOTAL_TBR_RESPONSE_ID.into()],
+            response_targets: BTreeMap::from([
+                (STOP_RULE_RESPONSE_ID.into(), 0.05),
+                (TOTAL_TBR_RESPONSE_ID.into(), 0.01),
+            ]),
+            ..Default::default()
+        };
+        let mut met = outcome_json(40, "target_met", Some(0.009));
+        met["sampling_outcome"]["target_response_id"] = "total-tritium-production".into();
+        met["sampling_outcome"]["watched_responses"] =
+            serde_json::json!(["magnets-fast-flux", "total-tritium-production"]);
+        met["sampling_outcome"]["watched_targets"] =
+            serde_json::json!({"total-tritium-production": 0.01, "magnets-fast-flux": 0.05});
+        met["sampling_outcome"]["achieved_relative_errors"] =
+            serde_json::json!({"total-tritium-production": 0.009, "magnets-fast-flux": 0.04});
+        met["sampling_outcome"]["limiting_target_relative_error"] = 0.01.into();
+        let outcome = sampling_outcome(&met, &plan).unwrap().unwrap();
+        assert_eq!(outcome.limiting_target_relative_error, Some(0.01));
+        assert!(outcome.summary().contains("target 1.0%"));
+
+        let mut false_met = met.clone();
+        false_met["sampling_outcome"]["achieved_relative_error"] = 0.02.into();
+        false_met["sampling_outcome"]["achieved_relative_errors"]["total-tritium-production"] =
+            0.02.into();
+        assert!(sampling_outcome(&false_met, &plan).is_err());
+        let mut false_limiter = met.clone();
+        false_limiter["sampling_outcome"]["achieved_relative_errors"]["magnets-fast-flux"] =
+            0.049.into();
+        assert!(sampling_outcome(&false_limiter, &plan).is_err());
+        let mut unresolved = outcome_json(100, "budget_exhausted", None);
+        unresolved["sampling_outcome"]["target_response_id"] = "total-tritium-production".into();
+        unresolved["sampling_outcome"]["watched_responses"] =
+            serde_json::json!(["magnets-fast-flux", "total-tritium-production"]);
+        unresolved["sampling_outcome"]["watched_targets"] =
+            serde_json::json!({"magnets-fast-flux": 0.05, "total-tritium-production": 0.01});
+        unresolved["sampling_outcome"]["achieved_relative_errors"] =
+            serde_json::json!({"magnets-fast-flux": 0.04, "total-tritium-production": null});
+        unresolved["sampling_outcome"]["limiting_target_relative_error"] = 0.01.into();
+        assert_eq!(
+            sampling_outcome(&unresolved, &plan)
+                .unwrap()
+                .unwrap()
+                .stop_reason,
+            StopReason::BudgetExhausted
+        );
+        let mut wrong_watch = met.clone();
+        wrong_watch["sampling_outcome"]["watched_responses"] =
+            serde_json::json!(["total-tritium-production"]);
+        assert!(sampling_outcome(&wrong_watch, &plan).is_err());
+        let mut wrong_targets = met.clone();
+        wrong_targets["sampling_outcome"]["watched_targets"]["total-tritium-production"] =
+            0.05.into();
+        assert!(sampling_outcome(&wrong_targets, &plan).is_err());
+
+        let mut mismatched = met.clone();
+        mismatched["sampling_outcome"]["limiting_target_relative_error"] = 0.05.into();
+        assert!(sampling_outcome(&mismatched, &plan).is_err());
     }
 
     // Verifies: GEO-046

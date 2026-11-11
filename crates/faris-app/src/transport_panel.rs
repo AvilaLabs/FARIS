@@ -50,8 +50,6 @@ enum Tier {
 /// so the result view states both errors beside the numbers.
 const PREVIEW_BATCHES: u32 = 30;
 const PREVIEW_PARTICLES: u32 = 3_000;
-/// Production stops once the magnet fast flux is known to this relative error.
-const PRODUCTION_TARGET: f64 = 0.05;
 /// Production budget: the engine's whole history cap (`MAX_RUN_HISTORIES`,
 /// 50 million) in 250,000-history batches, so the run can stop at any batch
 /// from the 30th on.
@@ -102,21 +100,20 @@ fn sampling_for(tier: Tier, threads: u32, windows: bool) -> SamplingPlan {
             threads,
             ..SamplingPlan::default()
         },
-        Tier::Production => SamplingPlan {
-            batches: if windows {
+        Tier::Production => SamplingPlan::production_default(
+            if windows {
                 WINDOWED_PRODUCTION_BATCHES
             } else {
                 PRODUCTION_BATCHES
             },
-            particles_per_batch: if windows {
+            if windows {
                 WINDOWED_PRODUCTION_PARTICLES
             } else {
                 PRODUCTION_PARTICLES
             },
+            123_456_789,
             threads,
-            target_relative_error: Some(PRODUCTION_TARGET),
-            ..SamplingPlan::default()
-        },
+        ),
     }
 }
 
@@ -547,12 +544,12 @@ impl TransportPanel {
             ui.radio_value(
                 &mut self.tier,
                 Tier::Production,
-                "Production · stop at 5 % on the magnet flux",
+                "Production · stop at 1 % TBR and 5 % magnet flux",
             );
             ui.small(match self.tier {
                 Tier::Preview => "A fixed small run. The errors are stated beside the results; the magnet flux is only roughly known at this size.",
                 Tier::Production if self.window_python().is_some() => "Makes weight windows aimed at the magnet flux first (kept for the next run on the same model), runs an ordinary pass for the whole-model results (tritium, heating), then a windowed pass until the magnet flux is known to 5 % or the 20 million history budget is used. Each result is taken from the pass that is valid for it. You can cancel at any time.",
-                Tier::Production => "Runs until the magnet fast flux is known to 5 %, or until the 50 million history budget is used. Without a Window Python (OpenMC 0.16, under Transport configuration) it is analog and can take hours; you can cancel at any time.",
+                Tier::Production => "Runs until TBR is known to 1 % and the magnet fast flux to 5 %, or until the 50 million history budget is used. Without a Window Python (OpenMC 0.16, under Transport configuration) it is analog and can take hours; you can cancel at any time.",
             });
             if let Some(pending) = &self.pending {
                 ui.horizontal(|ui| {
@@ -1765,6 +1762,12 @@ mod tests {
         let production = sampling_for(Tier::Production, 3, false);
         assert_eq!(production.target_relative_error, Some(0.05));
         assert_eq!(
+            production
+                .response_targets
+                .get(faris_engine::reactor::TOTAL_TBR_RESPONSE_ID),
+            Some(&0.01)
+        );
+        assert_eq!(
             u64::from(production.batches) * u64::from(production.particles_per_batch),
             faris_engine::reactor::MAX_RUN_HISTORIES
         );
@@ -1776,6 +1779,12 @@ mod tests {
         // With windows the batches are small, so a run can stop soon after its 30th batch.
         let windowed = sampling_for(Tier::Production, 3, true);
         assert_eq!(windowed.target_relative_error, Some(0.05));
+        assert_eq!(
+            windowed
+                .response_targets
+                .get(faris_engine::reactor::TOTAL_TBR_RESPONSE_ID),
+            Some(&0.01)
+        );
         assert!(
             u64::from(windowed.batches) * u64::from(windowed.particles_per_batch)
                 <= faris_engine::reactor::MAX_RUN_HISTORIES

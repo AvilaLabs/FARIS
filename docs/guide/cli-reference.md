@@ -1157,7 +1157,9 @@ Options:
       --report <REPORT>
           Also write the result as JSON to this new file
       --target-error <TARGET_ERROR>
-          Relative standard error of the mean flux at which the run stops [default: 0.05]
+          Relative standard error of the mean aggregate flux at which the run stops (5% default). When supplied, this legacy option also sets the history-response target unless that target is explicitly set with --tbr-target-error
+      --tbr-target-error <TBR_TARGET_ERROR>
+          Relative standard error target for the whole-model and blanket TBR responses (1% default)
       --max-histories <MAX_HISTORIES>
           Stop after this many histories even when the target is not reached [default: 50000000]
       --max-seconds <MAX_SECONDS>
@@ -1192,14 +1194,14 @@ Options:
           cross_sections.xml of the audited library [env: FARIS_CROSS_SECTIONS]
       --plasma-source-path <DIR>
           Directory holding the openmc_plasma_source package, for the source sites of check 9 [env: FARIS_PLASMA_SOURCE_PATH]
-      --cad-reader <READER>
-          Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
-      --occt-worker <WORKER>
-          The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
+      --cad-reader <READER>
+          Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
       --units <SYSTEM>
           Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+      --occt-worker <WORKER>
+          The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
   -h, --help
           Print help
 ```
@@ -2138,7 +2140,9 @@ Options:
       --timeout-seconds <TIMEOUT_SECONDS>
           [default: 3600]
       --target-error <TARGET_ERROR>
-          Stop once the relative standard error of the magnet fast flux reaches this (for example 0.05), after at least 30 batches, or when --batches is used up; the record states the achieved error and why it stopped
+          Legacy scalar target: stop on magnet fast-flux relative error at this value (for example 0.05). Without --production, omitting this option preserves the fixed-batch behavior
+      --production
+          Run the normal Production target plan (TBR 1%, magnet fast flux 5%). Without this or --target-error, the historical fixed-batch behavior is retained
       --mesh-preset <MESH_PRESET>
           Spatial flux tally resolution; local variants use the same outboard bounds [default: coarse] [possible values: coarse, outboard-local-coarse, outboard-local, outboard-port-window]
       --activation-spectra <ACTIVATION_SPECTRA>

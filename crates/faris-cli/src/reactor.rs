@@ -44,11 +44,15 @@ pub enum ReactorCommand {
         threads: u32,
         #[arg(long, default_value_t = 3600, value_parser = clap::value_parser!(u64).range(1..=faris_engine::reactor::MAX_RUN_TIMEOUT_SECONDS))]
         timeout_seconds: u64,
-        /// Stop once the relative standard error of the magnet fast flux reaches
-        /// this (for example 0.05), after at least 30 batches, or when --batches
-        /// is used up; the record states the achieved error and why it stopped.
+        /// Legacy scalar target: stop on magnet fast-flux relative error at
+        /// this value (for example 0.05). Without --production, omitting this
+        /// option preserves the fixed-batch behavior.
         #[arg(long, value_parser = parse_target_error)]
         target_error: Option<f64>,
+        /// Run the normal Production target plan (TBR 1%, magnet fast flux 5%).
+        /// Without this or --target-error, the historical fixed-batch behavior is retained.
+        #[arg(long, conflicts_with = "target_error")]
+        production: bool,
         /// Spatial flux tally resolution; local variants use the same outboard bounds.
         #[arg(long, default_value = "coarse", value_parser = ["coarse", "outboard-local-coarse", "outboard-local", "outboard-port-window"])]
         mesh_preset: String,
@@ -103,6 +107,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             threads,
             timeout_seconds,
             target_error,
+            production,
             mesh_preset,
             activation_spectra,
             window_python,
@@ -122,6 +127,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             threads,
             timeout_seconds,
             target_error,
+            production,
             mesh_preset,
             activation_spectra,
             window_python,
@@ -147,6 +153,7 @@ fn run_case(
     threads: u32,
     timeout_seconds: u64,
     target_error: Option<f64>,
+    production: bool,
     mesh_preset: String,
     activation_spectra: Option<String>,
     window_python: Option<PathBuf>,
@@ -156,14 +163,7 @@ fn run_case(
     let scenario = LoadedScenario::from_bytes(&read_bounded(&scenario)?)?;
     let physics = load_physics_case(&physics, &scenario)
         .map_err(|error| std::io::Error::other(error.to_string()))?;
-    let sampling = SamplingPlan {
-        batches,
-        particles_per_batch: particles,
-        seed,
-        threads,
-        target_relative_error: target_error,
-        watch_responses: Vec::new(),
-    };
+    let sampling = sampling_plan(batches, particles, seed, threads, target_error, production);
     sampling
         .validate()
         .map_err(|error| std::io::Error::other(error.to_string()))?;
@@ -189,7 +189,11 @@ fn run_case(
     const ADAPTER: &[u8] = include_bytes!("../../../integrations/openmc/reactor_transport.py");
     eprintln!(
         "Running fixed-source OpenMC job ({}{} batches × {} particles; {} thread(s), {}s limit). Ctrl-C cancels the process group.",
-        if target_error.is_some() { "up to " } else { "" },
+        if sampling.target_relative_error.is_some() {
+            "up to "
+        } else {
+            ""
+        },
         batches,
         particles,
         threads,
@@ -271,6 +275,38 @@ fn run_case(
         return Err(format!("transport artifact was not accepted: {reason}; see run.json").into());
     }
     Ok(())
+}
+
+/// The normal CLI run watches both product targets. An explicit historical
+/// scalar remains an override using the preexisting magnet-only behavior.
+fn sampling_plan(
+    batches: u32,
+    particles_per_batch: u32,
+    seed: u64,
+    threads: u32,
+    target_override: Option<f64>,
+    production: bool,
+) -> SamplingPlan {
+    if let Some(target) = target_override {
+        return SamplingPlan {
+            batches,
+            particles_per_batch,
+            seed,
+            threads,
+            target_relative_error: Some(target),
+            ..SamplingPlan::default()
+        };
+    }
+    if production {
+        return SamplingPlan::production_default(batches, particles_per_batch, seed, threads);
+    }
+    SamplingPlan {
+        batches,
+        particles_per_batch,
+        seed,
+        threads,
+        ..SamplingPlan::default()
+    }
 }
 
 fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
@@ -381,6 +417,7 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
 mod tests {
     use super::*;
     use clap::Parser;
+    use faris_engine::reactor::{STOP_RULE_RESPONSE_ID, TOTAL_TBR_RESPONSE_ID};
 
     #[test]
     fn reactor_help_exposes_required_identity_inputs_and_bounded_sampling() {
@@ -403,6 +440,7 @@ mod tests {
             "--threads",
             "--timeout-seconds",
             "--target-error",
+            "--production",
             "--mesh-preset",
             "--activation-spectra",
             "--window-python",
@@ -432,5 +470,43 @@ mod tests {
         assert_eq!(sampling.particles_per_batch, 10_000);
         assert_eq!(sampling.seed, 123_456_789);
         assert_eq!(sampling.threads, 1);
+    }
+
+    #[test]
+    fn reactor_production_targets_are_opt_in_and_scalar_override_stays_legacy() {
+        let fixed = sampling_plan(100, 10_000, 123, 1, None, false);
+        assert_eq!(fixed.target_relative_error, None);
+        assert!(fixed.response_targets.is_empty());
+        assert!(fixed.watch_responses.is_empty());
+
+        let plan = sampling_plan(100, 10_000, 123, 1, None, true);
+        assert_eq!(plan.target_relative_error, Some(0.05));
+        assert_eq!(
+            plan.response_targets.get(STOP_RULE_RESPONSE_ID),
+            Some(&0.05)
+        );
+        assert_eq!(
+            plan.response_targets.get(TOTAL_TBR_RESPONSE_ID),
+            Some(&0.01)
+        );
+        assert_eq!(plan.watch_responses.len(), 2);
+
+        let legacy = sampling_plan(100, 10_000, 123, 1, Some(0.03), false);
+        assert_eq!(legacy.target_relative_error, Some(0.03));
+        assert!(legacy.response_targets.is_empty());
+        assert!(legacy.watch_responses.is_empty());
+    }
+
+    #[test]
+    fn production_and_legacy_target_options_are_mutually_exclusive() {
+        let result = crate::Arguments::try_parse_from([
+            "faris",
+            "reactor",
+            "run",
+            "--production",
+            "--target-error",
+            "0.05",
+        ]);
+        assert!(result.is_err());
     }
 }

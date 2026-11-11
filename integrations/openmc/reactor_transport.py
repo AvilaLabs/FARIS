@@ -339,11 +339,22 @@ def stop_rule(sampling: dict) -> dict | None:
     budget = int(sampling["batches"])
     require(math.isfinite(target) and 0.0 < target <= 0.5, "target relative error must be in (0, 0.5]")
     require(budget >= STOP_RULE_MIN_BATCHES, f"a target-error run needs a budget of at least {STOP_RULE_MIN_BATCHES} batches")
-    ids = list(sampling.get("watch_responses") or [STOP_RULE_RESPONSE_ID])
+    targets = sampling.get("response_targets") or {}
+    require(isinstance(targets, dict), "response_targets must be an object")
+    configured_ids = sampling.get("watch_responses")
+    ids = list(configured_ids or (list(targets) if targets else [STOP_RULE_RESPONSE_ID]))
     require(len(set(ids)) == len(ids) and all(isinstance(i, str) and i for i in ids), "the watched responses must be distinct response ids")
+    require(set(targets).issubset(ids), "response targets must name only watched responses")
+    per_response = {}
+    for response_id in ids:
+        value = float(targets.get(response_id, target))
+        require(math.isfinite(value) and 0.0 < value <= 0.5,
+                f"target relative error for {response_id} must be in (0, 0.5]")
+        per_response[response_id] = value
     return {
         "response_id": ids[0],
         "response_ids": ids,
+        "response_targets": per_response,
         "target_relative_error": target,
         "min_batches": STOP_RULE_MIN_BATCHES,
         "max_batches": budget,
@@ -359,7 +370,7 @@ def variance_reduction_plan(inp: dict) -> dict | None:
         return None
     require(plan.get("kind") == VARIANCE_REDUCTION_KIND, "unsupported variance reduction")
     require(stop_rule(inp["sampling"]) is not None, "weight windows are for a target-error run")
-    require(plan["response_id"] == STOP_RULE_RESPONSE_ID and stop_rule(inp["sampling"])["response_ids"] == [STOP_RULE_RESPONSE_ID],
+    require(plan["response_id"] == STOP_RULE_RESPONSE_ID and STOP_RULE_RESPONSE_ID in stop_rule(inp["sampling"])["response_ids"],
             "the windows are aimed at another response than the one the run stops on")
     return plan
 
@@ -417,7 +428,7 @@ def apply_stop_rule(openmc, settings, tallies_by_name: dict, rule: dict | None) 
     for response_id in rule["response_ids"]:
         matches = [t for name, t in tallies_by_name.items() if name == f"response-{response_id}"]
         require(len(matches) == 1, f"a target-error run needs the {response_id} response in the request")
-        trigger = openmc.Trigger("rel_err", rule["target_relative_error"])
+        trigger = openmc.Trigger("rel_err", rule["response_targets"][response_id])
         trigger.scores = list(matches[0].scores)
         matches[0].triggers = [trigger]
     settings.batches = rule["min_batches"]
@@ -435,32 +446,42 @@ def guard_verdict(rule: dict, sums: dict[str, list[float]], vov_limit: float = V
     """Where the watched responses stand after the batches in SUMS: the worst relative error, the worst variance of
     the variance (batch_statistics, the same RunningSum and VOV_LIMIT the design transport run stops on), and
     whether the target is met (every watched error within it) and settled (every VOV within its limit)."""
-    worst, worst_id, vov = None, None, None
+    worst, worst_id, worst_target, worst_ratio, vov = None, None, None, None, None
+    relative_errors = {}
     for response_id in rule["response_ids"]:
         stats = RunningSum()
         for value in batch_values(sums[f"response-{response_id}"]):
             stats.add(value)
         relative = stats.relative_error
+        relative_errors[response_id] = relative
         if relative is None:
-            worst, worst_id = None, response_id
-            break
-        if worst is None or relative > worst:
-            worst, worst_id = relative, response_id
+            if worst_ratio is None or not math.isinf(worst_ratio):
+                worst, worst_id, worst_target, worst_ratio = None, response_id, rule["response_targets"][response_id], math.inf
+            continue
+        target = rule["response_targets"][response_id]
+        ratio = relative / target
+        if worst_ratio is None or ratio > worst_ratio:
+            worst, worst_id, worst_target, worst_ratio = relative, response_id, target, ratio
         spread = stats.variance_of_variance
         if spread is not None and (vov is None or spread > vov):
             vov = spread
-    met = worst is not None and worst <= rule["target_relative_error"] * (1.0 + 1.0e-9)
-    return {"limiting_response_id": worst_id, "relative_error": worst, "variance_of_variance": vov, "met": met,
+    met = worst is not None and worst_ratio <= 1.0 + 1.0e-9
+    return {"limiting_response_id": worst_id, "relative_error": worst, "target_relative_error": worst_target,
+            "relative_errors": relative_errors, "variance_of_variance": vov, "met": met,
             "settled": vov is None or vov <= vov_limit}
 
 
-def judge_stop(rule: dict | None, realized: int, achieved: float | None, vov: float | None = None) -> tuple[str, str]:
+def judge_stop(rule: dict | None, realized: int, achieved: float | None, vov: float | None = None,
+               met: bool | None = None, target: float | None = None) -> tuple[str, str]:
     """Why a run stopped: (code, plain words). Refuses a stop the rule cannot explain. A target that is met while
     the variance of the variance is above VOV_LIMIT only stops the run at its budget, as "target_unsettled"."""
     if rule is None:
         return "fixed_count", "ran the requested number of batches"
     require(rule["min_batches"] <= realized <= rule["max_batches"], "realized batches are outside the stop-rule range")
-    met = achieved is not None and achieved <= rule["target_relative_error"] * (1.0 + 1.0e-9)
+    target = target if target is not None else rule["target_relative_error"]
+    if target is None:
+        target = next(iter(rule["response_targets"].values()))
+    met = (achieved is not None and achieved <= target * (1.0 + 1.0e-9)) if met is None else met
     settled = vov is None or vov <= VOV_LIMIT
     if met and settled:
         return "target_met", "target error met"
@@ -1814,18 +1835,17 @@ def main() -> int:
             (out / "transport-spectra.json").write_text(json.dumps({"schema_version":"faris-transport-spectra/v0.1","request":request,"scenario_sha256":request["scenario_sha256"],"variant_id":request["variant_id"],"input_sha256":sha256(args.input),"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"histories":artifact["histories"],"spectra":spectra}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
         after_export_xml_hashes = {path.name: sha256(path) for path in sorted(out.glob("*.xml"))}
         require(after_export_xml_hashes == exported_xml_hashes, "OpenMC export XML changed during solver execution")
-        achieved, limiting, vov = None, None, None
+        achieved, limiting, limiting_target, vov = None, None, None, None
+        verdict = None
         if rule is not None:
-            errors = []
-            for response_id in rule["response_ids"]:
-                tally = next(t for t in raw_tallies if t["response_id"] == response_id)
-                errors.append((tally["standard_error"] / abs(tally["mean"]) if tally["mean"] != 0.0 else None, response_id))
-            # the least precise watched response limits the run; one that scored nothing means the target is unknown
-            unknown = [response_id for error, response_id in errors if error is None]
-            achieved, limiting = (None, unknown[0]) if unknown else max(errors)
-            vov = guard_verdict(rule, batch_sums)["variance_of_variance"]
-        stop_code, stop_words = judge_stop(rule, n_batches, achieved, vov)
-        sampling_outcome = {"mode": "fixed" if rule is None else "target_error", "batches_realized": n_batches, "histories_realized": artifact["histories"], "batch_budget": budget, "target_response_id": limiting, "watched_responses": rule["response_ids"] if rule else None, "target_relative_error": rule["target_relative_error"] if rule else None, "achieved_relative_error": achieved, "variance_of_variance": vov, "variance_of_variance_limit": VOV_LIMIT if rule else None, "restarts": restarts, "stop_reason": stop_code, "stop_reason_text": stop_words}
+            verdict = guard_verdict(rule, batch_sums)
+            limiting = verdict["limiting_response_id"]
+            achieved = verdict["relative_error"]
+            limiting_target = verdict["target_relative_error"]
+            vov = verdict["variance_of_variance"]
+        stop_code, stop_words = judge_stop(rule, n_batches, achieved, vov,
+                                           verdict["met"] if verdict else None, limiting_target)
+        sampling_outcome = {"mode": "fixed" if rule is None else "target_error", "batches_realized": n_batches, "histories_realized": artifact["histories"], "batch_budget": budget, "target_response_id": limiting, "watched_responses": rule["response_ids"] if rule else None, "watched_targets": rule["response_targets"] if rule else None, "target_relative_error": rule["target_relative_error"] if rule else None, "limiting_target_relative_error": limiting_target, "achieved_relative_error": achieved, "achieved_relative_errors": verdict["relative_errors"] if verdict else None, "variance_of_variance": vov, "variance_of_variance_limit": VOV_LIMIT if rule else None, "restarts": restarts, "stop_reason": stop_code, "stop_reason_text": stop_words}
         precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
         record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"batch_statistics_sha256":sha256(Path(batch_statistics.__file__)),"variance_reduction":variance_reduction_receipt(inp),"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","solver_execution_mode":"openmc-c-api-through-selected-executable-linked-library","openmc_c_api_library":{"path":str(capi_library),"sha256":capi_library_sha256},"lost_particle_accounting":lost_particle_accounting,"lost_particle_check":"counted from selected OpenMC C API per pass; threshold is checked by FARIS engine"})
     except Exception as error:
