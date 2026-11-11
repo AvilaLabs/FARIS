@@ -1,0 +1,81 @@
+{
+  "schema": "faris-cad-native-replay-control/v1",
+  "date_utc": "2026-11-11",
+  "scope": "Checked native Linux CLI zero-loss route and a deliberate CSG parent-gap fixture through the same worker. Loss replay records sampled post-loss OpenMC coordinates in cm and is a diagnostic, with no physical qualification.",
+  "worker": {
+    "path": "integrations/openmc/design_transport.py",
+    "sha256": "b1287778f25f01253f9fa5cce83efd9d1d0c9608869acd3afedcc97700211462"
+  },
+  "native_zero_loss": {
+    "histories": 30000,
+    "lost_particles": 0,
+    "replay_status": "NOT_NEEDED",
+    "binary": {
+      "path": "runs/continuation/geo025-native-v114-zero-loss-v1/faris-v114",
+      "sha256": "7c5603e743dce5fcf87746c40b0ad519b29cdae3c0abcf96c6076d0da9c3bed5"
+    },
+    "report": {
+      "path": "runs/continuation/geo025-native-v114-zero-loss-v1/report.json",
+      "sha256": "d880f6e37082df7fbb2f5cd250a827c49f12e83611d0d5dfc0a7daf371656d6a"
+    },
+    "worker_record": {
+      "path": "runs/continuation/geo025-native-v114-zero-loss-v1/transport/solver/result.json",
+      "sha256": "72e595a08b82077312a646abb66d8bae43fa271608661f6c07b6ac88774db78e"
+    },
+    "input_hashes": {
+      "path": "runs/continuation/geo025-native-v114-zero-loss-v1/input-hashes.txt",
+      "sha256": "4d1d6fa43d9ae5ab6ef71a3a7f9dc82d4fb919a4e3eaa9f645069988201ccb8e"
+    }
+  },
+  "injected_gap": {
+    "histories": 2000,
+    "lost_particles": 1351,
+    "lost_fraction": 0.6755,
+    "status": "lost_particles",
+    "replay_status": "REPRODUCED",
+    "verified": 10,
+    "max_abs_final_x_cm": 9.376353223368879e-09,
+    "worker_record": {
+      "path": "runs/continuation/geo025-injected-gap-harness-v1/output/run-1/solver/result.json",
+      "sha256": "69fc6328281371383c548c7e4a931a485f28e563f55b92e5e3af113338989f93"
+    },
+    "receipt": {
+      "path": "runs/continuation/geo025-injected-gap-harness-v1/output/run-1/solver/injected-gap-harness-receipt.json",
+      "sha256": "95b82f3286fe941015b3f34c6f59253dcdb5c4f1e9d8bc3177fad0cabef3ccc1"
+    },
+    "test_seam": {
+      "path": "runs/continuation/geo025-injected-gap-harness-v1/integrations/openmc/fixture-only-seam.patch",
+      "sha256": "c5625e7f238cd2650dd60e916a3a5c415f52e3af2a6e328723b4a5d43d661a3d"
+    },
+    "fixture_injection": {
+      "schema": "faris-geo025-injected-gap/v0.1",
+      "fixture": "archived-csg-parent-gap-x-positive-v1",
+      "source": "geo025-cad-loss-control-20261110-v3 prepared/leak model; DAGMC parent x <= 0",
+      "checked_h5m_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/tiny-cad-dose-control-20261110-v5/import-work/convert/attempt-01/model.h5m",
+      "checked_h5m_sha256_before_fixture_injection": "a14231adce0dad994a42bb9f7ed79c5ff78c19ad8aad01fd79b86bf825361e2a",
+      "injection": "wrap the normal DAGMCUniverse in a CSG parent cell whose region is x <= 0 and inside the existing vacuum sphere",
+      "intentional_unfilled_region": "x > 0 and inside the existing vacuum sphere",
+      "surface_id": 10000001,
+      "parent_cell_id": 10000001,
+      "outer_cell_id": 10000000,
+      "parent_universe_id": 10000002,
+      "diagnostic_source": {
+        "position_cm": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "angle": "isotropic",
+        "energy_ev": 14100000.0
+      }
+    }
+  },
+  "retained_hybrid_restart_replay": {
+    "verified": 10,
+    "result": {
+      "path": "runs/continuation/geo025-cad-loss-control-20261110-v3/diagnostics/product-replay-helper/run-6b20ztrp/product-replay-control.json",
+      "sha256": "fca64127b592025eb7c785f05d92c3b57167c106e35087101c79377ef2e8d387"
+    },
+    "scope": "Replay identity was captured immediately before replay of archived historical restarts."
+  }
+}

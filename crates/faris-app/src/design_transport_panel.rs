@@ -900,6 +900,26 @@ fn show_result(ui: &mut egui::Ui, shown: &Shown) -> bool {
     for notice in &view.notices {
         ui.label(format!("Note: {notice}"));
     }
+    if let Some(replay) = &view.lost_position_replay {
+        ui.add_space(3.0);
+        ui.strong(format!(
+            "Lost-position replay: {} ({} verified)",
+            replay.status.as_str(),
+            replay.verified
+        ));
+        ui.weak(&replay.position_semantics);
+        if let Some(reason) = &replay.reason {
+            ui.label(format!("Diagnostic: {reason}"));
+        }
+        for entry in &replay.positions {
+            ui.label(format!(
+                "Particle {} (batch {}, generation {}): birth ({:.6}, {:.6}, {:.6}) cm; replayed final ({:.6}, {:.6}, {:.6}) cm",
+                entry.particle_id, entry.batch, entry.generation,
+                entry.birth_position_cm[0], entry.birth_position_cm[1], entry.birth_position_cm[2],
+                entry.replayed_final_position_cm[0], entry.replayed_final_position_cm[1], entry.replayed_final_position_cm[2]
+            ));
+        }
+    }
     for item in &view.not_evaluated {
         ui.add_space(2.0);
         ui.horizontal(|ui| {

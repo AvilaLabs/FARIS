@@ -43,16 +43,18 @@ use faris_model::validation::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     ffi::OsString,
     fmt::Write as _,
     path::{Path, PathBuf},
     time::Duration,
 };
 
-pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.5";
+pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.6";
 const REQUEST_SCHEMA: &str = "faris-design-transport-request/v3";
 const RESULT_SCHEMA: &str = "faris-design-transport/v3";
+const MAX_EXTERNAL_IDENTITY_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_CROSS_SECTIONS_XML_BYTES: u64 = 64 * 1024 * 1024;
 pub const DESIGN_HISTORY_RATES_VERSION: &str = "faris-cad-history-driving-rates/v0.1";
 pub const DESIGN_HISTORY_RATES_CAD_VERSION: &str = "faris-cad-history-driving-rates/v0.2";
 pub const DESIGN_HISTORY_RATES_OUTPUTS: &[Output] = &[
@@ -248,6 +250,17 @@ const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 const PREPARATION_RECIPE: &str = "2026-10-14c";
 const VOLUMES_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
+fn sha256_file_bounded(path: &Path, max_bytes: u64) -> Result<String, DesignError> {
+    let metadata = path.metadata().map_err(|e| io_error(path, e))?;
+    if !metadata.is_file() || metadata.len() > max_bytes {
+        return Err(io_error(
+            path,
+            format!("identity input must be a regular file no larger than {max_bytes} bytes"),
+        ));
+    }
+    crate::reactor::hash_file(path).map_err(|error| DesignError::Tool(error.to_string()))
+}
+
 /// Where a run is: a step that prepares it, or sampling with the error reached so far.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TransportProgress {
@@ -354,6 +367,297 @@ struct WorkerPeak {
     pieces_ranked: u64,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum LostPositionReplayStatus {
+    NotNeeded,
+    Reproduced,
+    Partial,
+    Mismatched,
+    Unsupported,
+}
+
+impl LostPositionReplayStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NotNeeded => "NOT_NEEDED",
+            Self::Reproduced => "REPRODUCED",
+            Self::Partial => "PARTIAL",
+            Self::Mismatched => "MISMATCHED",
+            Self::Unsupported => "UNSUPPORTED",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LostPositionReplayEntry {
+    pub particle_id: u64,
+    pub batch: u64,
+    pub generation: u64,
+    pub restart_sha256: String,
+    pub birth_position_cm: [f64; 3],
+    pub replayed_final_position_cm: [f64; 3],
+}
+
+/// Diagnostic restart replay. Its final coordinates are nudged OpenMC states, not exact
+/// geometric escape-surface locations.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LostPositionReplay {
+    pub schema: String,
+    pub status: LostPositionReplayStatus,
+    pub method: String,
+    pub attempted: u64,
+    pub verified: u64,
+    pub position_semantics: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_xml_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_xml_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_h5m_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_h5m_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_h5m_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_h5m_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cross_sections_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cross_sections_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub neutron_data_identity_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openmc_library_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openmc_library_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openmc_executable_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openmc_executable_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restart_set_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worker_source_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub positions_cm: Vec<LostPositionReplayEntry>,
+}
+
+impl LostPositionReplay {
+    pub fn validate_shape(&self) -> Result<(), String> {
+        const SCHEMA: &str = "faris-lost-position-replay/v0.1";
+        const METHOD: &str = "openmc-particle-restart";
+        let valid_hash = |value: &str| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        };
+        if self.schema != SCHEMA || self.method != METHOD {
+            return Err("unknown replay schema or method".into());
+        }
+        if self.attempted > 10
+            || self.verified > self.attempted
+            || self.verified as usize != self.positions_cm.len()
+        {
+            return Err("replay counts exceed bounds or disagree with entries".into());
+        }
+        match self.status {
+            LostPositionReplayStatus::NotNeeded if self.attempted == 0 && self.verified == 0 => {}
+            LostPositionReplayStatus::Reproduced
+                if self.verified > 0 && self.verified == self.attempted => {}
+            LostPositionReplayStatus::Partial
+                if self.verified > 0 && self.verified < self.attempted => {}
+            LostPositionReplayStatus::Mismatched | LostPositionReplayStatus::Unsupported
+                if self.verified == 0 && self.positions_cm.is_empty() => {}
+            _ => return Err("replay status is inconsistent with counts and coordinates".into()),
+        }
+        if matches!(
+            self.status,
+            LostPositionReplayStatus::Mismatched | LostPositionReplayStatus::Unsupported
+        ) && self.reason.as_deref().is_none_or(str::is_empty)
+        {
+            return Err("unsupported or mismatched replay needs a reason".into());
+        }
+        for hash in [
+            self.model_xml_sha256.as_deref(),
+            self.source_h5m_sha256.as_deref(),
+            self.run_h5m_sha256.as_deref(),
+            self.cross_sections_sha256.as_deref(),
+            self.neutron_data_identity_sha256.as_deref(),
+            self.openmc_library_sha256.as_deref(),
+            self.openmc_executable_sha256.as_deref(),
+            self.restart_set_sha256.as_deref(),
+            self.worker_source_sha256.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if !valid_hash(hash) {
+                return Err("replay contains a malformed SHA-256 identity".into());
+            }
+        }
+        if matches!(
+            self.status,
+            LostPositionReplayStatus::Reproduced | LostPositionReplayStatus::Partial
+        ) && [
+            self.model_xml_sha256.as_deref(),
+            self.source_h5m_sha256.as_deref(),
+            self.run_h5m_sha256.as_deref(),
+            self.cross_sections_sha256.as_deref(),
+            self.neutron_data_identity_sha256.as_deref(),
+            self.openmc_library_sha256.as_deref(),
+            self.openmc_executable_sha256.as_deref(),
+            self.restart_set_sha256.as_deref(),
+            self.worker_source_sha256.as_deref(),
+            self.model_xml_path.as_deref(),
+            self.source_h5m_path.as_deref(),
+            self.run_h5m_path.as_deref(),
+            self.cross_sections_path.as_deref(),
+            self.openmc_library_path.as_deref(),
+            self.openmc_executable_path.as_deref(),
+        ]
+        .iter()
+        .any(Option::is_none)
+        {
+            return Err("verified replay is missing an input/runtime identity".into());
+        }
+        for path in [
+            self.model_xml_path.as_deref(),
+            self.source_h5m_path.as_deref(),
+            self.run_h5m_path.as_deref(),
+            self.cross_sections_path.as_deref(),
+            self.openmc_library_path.as_deref(),
+            self.openmc_executable_path.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            // The replay runs on Linux. Its saved provenance must also load on other hosts.
+            if !path.starts_with('/') || path.contains('\0') {
+                return Err("replay runtime identity path is not an absolute Linux path".into());
+            }
+        }
+        let mut restart_ids = BTreeSet::new();
+        for entry in &self.positions_cm {
+            if !restart_ids.insert((entry.batch, entry.generation, entry.particle_id)) {
+                return Err("replay contains duplicate restart identities".into());
+            }
+            if !valid_hash(&entry.restart_sha256)
+                || entry
+                    .birth_position_cm
+                    .iter()
+                    .chain(entry.replayed_final_position_cm.iter())
+                    .any(|value| !value.is_finite())
+            {
+                return Err("replay entry contains invalid coordinates or restart identity".into());
+            }
+        }
+        Ok(())
+    }
+
+    fn validate(&self, worker: &WorkerResult, inputs: &Inputs<'_>) -> Result<(), String> {
+        self.validate_shape()?;
+        if worker.lost_particles == Some(0) && self.status != LostPositionReplayStatus::NotNeeded
+            || worker.lost_particles.is_some_and(|lost| lost > 0)
+                && self.status == LostPositionReplayStatus::NotNeeded
+        {
+            return Err("replay status does not match the run's lost-particle count".into());
+        }
+        // An unsupported/mismatched result carries no coordinates, so preserve its diagnostic
+        // reason even when the very identity mismatch is why verification stopped.
+        if matches!(
+            self.status,
+            LostPositionReplayStatus::NotNeeded
+                | LostPositionReplayStatus::Mismatched
+                | LostPositionReplayStatus::Unsupported
+        ) {
+            return Ok(());
+        }
+        if self.model_xml_path.as_deref() != Some(worker.model_xml_path.as_str()) {
+            return Err("replay model XML path does not match its run".into());
+        }
+        if self.source_h5m_path.as_deref() != Some(inputs.h5m_path.as_str()) {
+            return Err("replay source H5M path does not match the checked input".into());
+        }
+        if self.cross_sections_path.as_deref() != Some(inputs.cross_sections_path.as_str()) {
+            return Err("replay cross_sections.xml path does not match the selected input".into());
+        }
+        let expected_worker_source = sha256_hex(DESIGN_TRANSPORT_WORKER.as_bytes());
+        for (actual, expected, label) in [
+            (
+                self.model_xml_sha256.as_deref(),
+                worker.model_xml_sha256.as_str(),
+                "model XML",
+            ),
+            (
+                self.source_h5m_sha256.as_deref(),
+                inputs.h5m_sha256.as_str(),
+                "source H5M",
+            ),
+            (
+                self.run_h5m_sha256.as_deref(),
+                worker.run_h5m_sha256.as_str(),
+                "run H5M",
+            ),
+            (
+                self.cross_sections_sha256.as_deref(),
+                inputs.cross_sections_sha256.as_str(),
+                "cross_sections.xml",
+            ),
+            (
+                self.openmc_library_sha256.as_deref(),
+                worker.openmc_library_sha256.as_str(),
+                "OpenMC library",
+            ),
+            (
+                self.worker_source_sha256.as_deref(),
+                expected_worker_source.as_str(),
+                "worker source",
+            ),
+        ] {
+            if actual.is_some_and(|actual| !actual.eq_ignore_ascii_case(expected)) {
+                return Err(format!("replay {label} identity does not match its run"));
+            }
+        }
+        if self
+            .openmc_library_path
+            .as_deref()
+            .is_some_and(|path| path != worker.openmc_library_path.as_str())
+        {
+            return Err("replay OpenMC library path does not match its run".into());
+        }
+        for (path, expected, label) in [
+            (
+                Some(worker.model_xml_path.as_str()),
+                self.model_xml_sha256.as_deref(),
+                "model XML",
+            ),
+            (
+                self.openmc_library_path.as_deref(),
+                self.openmc_library_sha256.as_deref(),
+                "OpenMC library",
+            ),
+            (
+                self.openmc_executable_path.as_deref(),
+                self.openmc_executable_sha256.as_deref(),
+                "OpenMC executable",
+            ),
+        ] {
+            if let (Some(path), Some(expected)) = (path, expected)
+                && !sha256_file_bounded(Path::new(path), MAX_EXTERNAL_IDENTITY_BYTES)
+                    .is_ok_and(|actual| actual == expected)
+            {
+                return Err(format!("replay {label} path does not match its SHA-256"));
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 struct WorkerResult {
     schema: String,
@@ -391,6 +695,8 @@ struct WorkerResult {
     lost_particles: Option<u64>,
     #[serde(default)]
     lost_positions_cm: Vec<[f64; 3]>,
+    #[serde(default)]
+    lost_position_replay: Option<serde_json::Value>,
     #[serde(default)]
     history_response: Option<WorkerHistoryResponse>,
 }
@@ -642,6 +948,8 @@ pub struct DesignTransportReport {
     /// where the neutrons left the geometry.
     #[serde(default)]
     pub lost_positions_m: Vec<[f64; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lost_position_replay: Option<LostPositionReplay>,
     pub notices: Vec<String>,
     pub not_evaluated: Vec<NotEvaluated>,
     /// Separate hash-bound all-energy/H3 rates for the existing operating-history engine.
@@ -724,6 +1032,36 @@ pub const DESIGN_TRANSPORT_OUTPUTS: &[Output] = &[
     not_calculated(
         "lost_positions_m",
         "OpenMC-recorded birth positions of the first lost neutrons, not their loss locations",
+    ),
+    not_calculated(
+        "lost_position_replay",
+        "optional diagnostic restart replay, not a transport score",
+    ),
+    not_calculated(
+        "attempted",
+        "number of particle restart files replayed for diagnostics",
+    ),
+    not_calculated("verified", "number of particle restarts confirmed as lost"),
+    not_calculated(
+        "particle_id",
+        "OpenMC particle identity in replay diagnostics",
+    ),
+    not_calculated("batch", "OpenMC restart identity in replay diagnostics"),
+    not_calculated(
+        "generation",
+        "OpenMC restart identity in replay diagnostics",
+    ),
+    not_calculated(
+        "birth_position_cm",
+        "recorded restart birth point, not a loss location",
+    ),
+    not_calculated(
+        "replayed_final_position_cm",
+        "post-loss nudged final state, not exact surface",
+    ),
+    not_calculated(
+        "positions_cm",
+        "diagnostic replay coordinates in centimetres",
     ),
 ];
 
@@ -840,6 +1178,8 @@ pub(crate) fn maintenance_dose_cad_request(
             "checked CAD H5M is missing or differs from the ImportReport",
         ));
     }
+    // Resolve symlinks once so the request and replay provenance share the checked input path.
+    let h5m = h5m.canonicalize().map_err(|e| io_error(&h5m, e))?;
     let expected: std::collections::BTreeSet<String> = design
         .solids
         .iter()
@@ -1562,7 +1902,7 @@ pub fn design_transport(
     let cross_sections = cross_sections
         .canonicalize()
         .map_err(|e| io_error(cross_sections, e))?;
-    let cross_sections_sha256 = sha256_file(&cross_sections)?;
+    let cross_sections_sha256 = sha256_file_bounded(&cross_sections, MAX_CROSS_SECTIONS_XML_BYTES)?;
     let request = serde_json::json!({
         "schema": REQUEST_SCHEMA,
         "h5m": h5m,
@@ -1833,7 +2173,9 @@ pub fn design_transport(
             },
             check_report_sha256: sha256_hex(&report_bytes),
             h5m_sha256: conversion.h5m_sha256.clone(),
+            h5m_path: h5m.display().to_string(),
             cross_sections_sha256,
+            cross_sections_path: cross_sections.display().to_string(),
             audit_cross_sections_sha256: report
                 .material_audit
                 .as_ref()
@@ -1900,7 +2242,9 @@ struct Inputs<'a> {
     design_identity: DesignIdentity,
     check_report_sha256: String,
     h5m_sha256: String,
+    h5m_path: String,
     cross_sections_sha256: String,
+    cross_sections_path: String,
     audit_cross_sections_sha256: Option<String>,
     run_directory: String,
     fusion_power_mw: f64,
@@ -2107,18 +2451,25 @@ fn build_history_rates_artifact(
     if !xml_path.is_absolute()
         || !xml_path.starts_with(run_dir)
         || !xml_path.is_file()
-        || !sha256_file(xml_path)?.eq_ignore_ascii_case(&worker.model_xml_sha256)
+        || !sha256_file_bounded(xml_path, MAX_EXTERNAL_IDENTITY_BYTES)?
+            .eq_ignore_ascii_case(&worker.model_xml_sha256)
         || worker.openmc_library_sha256.len() != 64
         || !worker
             .openmc_library_sha256
             .bytes()
             .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
         || !Path::new(&worker.openmc_library_path).is_absolute()
-        || !sha256_file(Path::new(&worker.openmc_library_path))?
-            .eq_ignore_ascii_case(&worker.openmc_library_sha256)
+        || !sha256_file_bounded(
+            Path::new(&worker.openmc_library_path),
+            MAX_EXTERNAL_IDENTITY_BYTES,
+        )?
+        .eq_ignore_ascii_case(&worker.openmc_library_sha256)
         || !Path::new(&worker.source_kernel_path).is_absolute()
-        || !sha256_file(Path::new(&worker.source_kernel_path))?
-            .eq_ignore_ascii_case(&worker.source_kernel_sha256)
+        || !sha256_file_bounded(
+            Path::new(&worker.source_kernel_path),
+            MAX_EXTERNAL_IDENTITY_BYTES,
+        )?
+        .eq_ignore_ascii_case(&worker.source_kernel_sha256)
     {
         return Err(fail(
             "run model XML or OpenMC library identity is missing or does not match its bytes",
@@ -2874,6 +3225,41 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
     {
         notices.push(notice.into());
     }
+    let lost_position_replay = worker.lost_position_replay.as_ref().and_then(|raw| {
+        match serde_json::from_value::<LostPositionReplay>(raw.clone()) {
+            Ok(replay) => match replay.validate(&worker, &inputs) {
+                Ok(()) => Some(replay),
+                Err(reason) => {
+                    notices.push(format!(
+                        "Lost-particle position replay was ignored: {reason}."
+                    ));
+                    None
+                }
+            },
+            Err(error) => {
+                notices.push(format!(
+                    "Lost-particle position replay was ignored as invalid: {error}."
+                ));
+                None
+            }
+        }
+    });
+    if let Some(replay) = &lost_position_replay {
+        notices.push(match replay.reason.as_deref() {
+            Some(reason) => format!(
+                "Lost-particle position replay: {} ({} verified); {}. {reason}.",
+                replay.status.as_str(),
+                replay.verified,
+                replay.position_semantics
+            ),
+            None => format!(
+                "Lost-particle position replay: {} ({} verified); {}.",
+                replay.status.as_str(),
+                replay.verified,
+                replay.position_semantics
+            ),
+        });
+    }
     let mut fluence_limits = Vec::new();
     let mut not_evaluated = Vec::new();
     if worker.lost_particles.is_none() {
@@ -3009,6 +3395,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             .iter()
             .map(|p| p.map(|v| v / 100.0))
             .collect(),
+        lost_position_replay,
         notices,
         not_evaluated,
         history_rates_artifact: inputs.history_rates_artifact,
@@ -3167,6 +3554,33 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
             "  Lost neutrons: {lost} of {} (a run fails above one in a million).",
             report.histories
         );
+    }
+    if let Some(replay) = &report.lost_position_replay {
+        let _ = writeln!(
+            out,
+            "  Lost-position replay: {} ({} verified); {}.",
+            replay.status.as_str(),
+            replay.verified,
+            replay.position_semantics
+        );
+        if let Some(reason) = &replay.reason {
+            let _ = writeln!(out, "    Replay diagnostic: {reason}");
+        }
+        for entry in &replay.positions_cm {
+            let _ = writeln!(
+                out,
+                "    Particle {} (batch {}, generation {}): birth ({:.6}, {:.6}, {:.6}) cm; replayed final ({:.6}, {:.6}, {:.6}) cm.",
+                entry.particle_id,
+                entry.batch,
+                entry.generation,
+                entry.birth_position_cm[0],
+                entry.birth_position_cm[1],
+                entry.birth_position_cm[2],
+                entry.replayed_final_position_cm[0],
+                entry.replayed_final_position_cm[1],
+                entry.replayed_final_position_cm[2]
+            );
+        }
     }
     let reduction = &report.variance_reduction;
     let _ = writeln!(
@@ -3796,6 +4210,70 @@ mod tests {
         assert!(leading_peak(&[]).is_none());
     }
 
+    fn sample_lost_position_replay() -> LostPositionReplay {
+        LostPositionReplay {
+            schema: "faris-lost-position-replay/v0.1".into(),
+            status: LostPositionReplayStatus::Reproduced,
+            method: "openmc-particle-restart".into(),
+            attempted: 1,
+            verified: 1,
+            position_semantics: "post-loss final state, TINY_BIT-nudged; not exact escape surface"
+                .into(),
+            model_xml_path: Some("/run/model.xml".into()),
+            model_xml_sha256: Some("a".repeat(64)),
+            source_h5m_path: Some("/run/source.h5m".into()),
+            source_h5m_sha256: Some("b".repeat(64)),
+            run_h5m_path: Some("/run/geometry.h5m".into()),
+            run_h5m_sha256: Some("c".repeat(64)),
+            cross_sections_path: Some("/run/cross_sections.xml".into()),
+            cross_sections_sha256: Some("d".repeat(64)),
+            neutron_data_identity_sha256: Some("e".repeat(64)),
+            openmc_library_sha256: Some("f".repeat(64)),
+            openmc_library_path: Some("/run/libopenmc.so".into()),
+            openmc_executable_sha256: Some("1".repeat(64)),
+            openmc_executable_path: Some("/run/openmc".into()),
+            restart_set_sha256: Some("2".repeat(64)),
+            worker_source_sha256: Some("3".repeat(64)),
+            reason: None,
+            positions_cm: vec![LostPositionReplayEntry {
+                particle_id: 1,
+                batch: 1,
+                generation: 1,
+                restart_sha256: "4".repeat(64),
+                birth_position_cm: [1.0, 2.0, 3.0],
+                replayed_final_position_cm: [1.1, 2.0, 3.0],
+            }],
+        }
+    }
+
+    // Verifies: GEO-025
+    #[test]
+    fn replay_schema_rejects_unbounded_counts_nonfinite_coordinates_and_unverified_positions() {
+        let mut replay = sample_lost_position_replay();
+        assert!(replay.validate_shape().is_ok());
+        replay.attempted = 11;
+        assert!(replay.validate_shape().is_err());
+
+        let mut replay = sample_lost_position_replay();
+        replay.positions_cm[0].replayed_final_position_cm[0] = f64::NAN;
+        assert!(replay.validate_shape().is_err());
+
+        let mut replay = sample_lost_position_replay();
+        replay.status = LostPositionReplayStatus::Mismatched;
+        replay.reason = Some("runtime identity changed".into());
+        assert!(replay.validate_shape().is_err());
+    }
+
+    #[test]
+    fn bounded_external_identity_hash_enforces_the_supplied_size_cap() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("external-input");
+        std::fs::write(&input, b"1234").unwrap();
+        assert!(sha256_file_bounded(&input, 4).is_ok());
+        assert!(sha256_file_bounded(&input, 3).is_err());
+        assert!(sha256_file_bounded(directory.path(), 4).is_err());
+    }
+
     fn sample_report() -> DesignTransportReport {
         let history = PowerHistory {
             calendar_seconds: 20.0 * SECONDS_PER_YEAR,
@@ -3866,6 +4344,7 @@ mod tests {
             }],
             lost_particles: Some(0),
             lost_positions_m: vec![],
+            lost_position_replay: None,
             notices: vec![],
             not_evaluated: vec![],
             history_rates_artifact: None,
@@ -3879,15 +4358,25 @@ mod tests {
         let design = design_with_groups(&[("coils", "fast_neutron_fluence", Some(1.0e5))]);
         let chosen = choose_response(&design, None).unwrap();
         let response = [("tf-1", 1.0)];
+        let runtime_dir = tempfile::tempdir().unwrap();
+        let model_xml_path = runtime_dir.path().join("model.xml");
+        let library_path = runtime_dir.path().join("libopenmc.so");
+        let executable_path = runtime_dir.path().join("openmc");
+        std::fs::write(&model_xml_path, b"model fixture").unwrap();
+        std::fs::write(&library_path, b"library fixture").unwrap();
+        std::fs::write(&executable_path, b"executable fixture").unwrap();
+        let model_hash = sha256_file(&model_xml_path).unwrap();
+        let library_hash = sha256_file(&library_path).unwrap();
+        let executable_hash = sha256_file(&executable_path).unwrap();
         let worker = WorkerResult {
             schema: RESULT_SCHEMA.into(),
             openmc: "0.15.3".into(),
             h5m_sha256: "2".repeat(64),
             run_h5m_sha256: "2".repeat(64),
-            model_xml_sha256: "3".repeat(64),
-            model_xml_path: "/run/solver/model.xml".into(),
-            openmc_library_sha256: "4".repeat(64),
-            openmc_library_path: "/run/libopenmc.so".into(),
+            model_xml_sha256: model_hash.clone(),
+            model_xml_path: model_xml_path.to_string_lossy().into_owned(),
+            openmc_library_sha256: library_hash.clone(),
+            openmc_library_path: library_path.to_string_lossy().into_owned(),
             source_kernel_path: "/run/openmc_plasma_source.py".into(),
             source_kernel_sha256: "5".repeat(64),
             seed: 7,
@@ -3926,6 +4415,23 @@ mod tests {
             next_step: Some("repair the geometry".into()),
             lost_particles: Some(1),
             lost_positions_cm: vec![[12.5, -25.0, 50.0]],
+            lost_position_replay: Some(serde_json::json!({
+                "schema": "faris-lost-position-replay/v0.1", "status": "REPRODUCED",
+                "method": "openmc-particle-restart", "attempted": 1, "verified": 1,
+                "position_semantics": "post-loss final state, TINY_BIT-nudged; not exact escape surface",
+                "model_xml_path": model_xml_path.to_string_lossy(),
+                "source_h5m_sha256": "2".repeat(64), "run_h5m_sha256": "2".repeat(64),
+                "source_h5m_path": "/run/source.h5m", "run_h5m_path": "/run/geometry.h5m",
+                "cross_sections_path": "/run/cross_sections.xml",
+                "model_xml_sha256": model_hash, "cross_sections_sha256": "4".repeat(64),
+                "neutron_data_identity_sha256": "6".repeat(64), "openmc_library_sha256": library_hash,
+                "openmc_library_path": library_path.to_string_lossy(), "openmc_executable_sha256": executable_hash,
+                "openmc_executable_path": executable_path.to_string_lossy(), "restart_set_sha256": "8".repeat(64),
+                "worker_source_sha256": sha256_hex(DESIGN_TRANSPORT_WORKER.as_bytes()),
+                "positions_cm": [{"particle_id": 21, "batch": 2, "generation": 1,
+                    "restart_sha256": "9".repeat(64), "birth_position_cm": [12.5, -25.0, 50.0],
+                    "replayed_final_position_cm": [12.5, -24.9, 50.0]}]
+            })),
             history_response: None,
         };
         let report = assemble(
@@ -3938,7 +4444,9 @@ mod tests {
                 },
                 check_report_sha256: "1".repeat(64),
                 h5m_sha256: "2".repeat(64),
+                h5m_path: "/run/source.h5m".into(),
                 cross_sections_sha256: "4".repeat(64),
+                cross_sections_path: "/run/cross_sections.xml".into(),
                 audit_cross_sections_sha256: None,
                 run_directory: "test-run".into(),
                 fusion_power_mw: 500.0,

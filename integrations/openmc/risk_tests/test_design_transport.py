@@ -326,6 +326,154 @@ assert record["why"] == "regression sentinel", record
         self.assertNotIn("weight windows", next_step)
 
 
+class ReplaySafetyTest(unittest.TestCase):
+    def test_primary_snapshot_uses_only_path_stat_and_defers_content_hashes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model, source, run, xs, library, exe = [root / name for name in
+                                                    ("model.xml", "source.h5m", "run.h5m",
+                                                     "cross_sections.xml", "libopenmc.so", "openmc")]
+            for path in (model, source, run, library, exe):
+                path.write_bytes(b"placeholder")
+            data = root / "neutron.h5"
+            data.write_bytes(b"test nuclear table")
+            xs.write_text(f"<cross_sections><library type='neutron' materials='Fe56' path='{data.name}'/></cross_sections>")
+            request = {"materials": [{"nuclide_atom_fractions": {"Fe56": 1.0}}]}
+            openmc = SimpleNamespace(lib=SimpleNamespace(_dll=SimpleNamespace(_name=str(library))))
+            with patch.object(DT, "sha256_file", side_effect=AssertionError("content hash in ordinary run")), \
+                    patch.object(DT, "_model_binding_identity",
+                                 side_effect=AssertionError("model XML parsed in ordinary run")):
+                snapshot = DT._capture_replay_metadata(openmc, model, run, xs, source, request, exe)
+            self.assertEqual(snapshot["paths"]["run_h5m_path"], str(run.resolve()))
+            self.assertEqual(snapshot["files"]["source_h5m_path"]["size"], len(b"placeholder"))
+
+    def test_particle_restart_file_suffixes_sort_numerically(self):
+        paths = [Path("particle_2_10.h5"), Path("particle_1_2.h5"), Path("particle_1_10.h5"),
+                 Path("particle_1_1.h5"), Path("particle_2_2.h5")]
+        self.assertEqual([p.name for p in sorted(paths, key=DT._particle_restart_sort_key)],
+                         ["particle_1_1.h5", "particle_1_2.h5", "particle_1_10.h5",
+                          "particle_2_2.h5", "particle_2_10.h5"])
+
+    def test_replay_cli_must_be_native_linux_elf_not_a_script(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "openmc"
+            exe.write_bytes(b"#!/bin/sh\n" + b"\0" * 32)
+            exe.chmod(0o755)
+            self.assertFalse(DT._is_pinned_linux_elf_cli(exe))
+            if sys.platform.startswith("linux") and DT.platform.machine().lower() in {"x86_64", "aarch64"}:
+                machine = {"x86_64": 62, "aarch64": 183}[DT.platform.machine().lower()]
+                header = bytearray(32)
+                header[:4] = b"\x7fELF"
+                header[4:6] = b"\x02\x01"
+                header[18:20] = machine.to_bytes(2, "little")
+                exe.write_bytes(header)
+                exe.chmod(0o755)
+                self.assertTrue(DT._is_pinned_linux_elf_cli(exe))
+
+    def test_malformed_restart_counts_as_attempt_and_verified_peer_is_partial(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad, good = Path(tmp) / "particle_bad.h5", Path(tmp) / "particle_good.h5"
+            attempted, verified = 0, 0
+            with patch.object(DT, "_read_replay_restart", side_effect=[
+                OSError("malformed HDF5"), (7, 2, 1, [1.0, 2.0, 3.0])
+            ]) as read_restart:
+                for path in (bad, good):
+                    attempted += 1
+                    try:
+                        read_restart(path)
+                        verified += 1
+                    except (OSError, KeyError, ValueError):
+                        continue
+            self.assertEqual((attempted, verified), (2, 1))
+            self.assertEqual(DT._replay_status(attempted, verified, selected=2),
+                             ("PARTIAL", "only a subset of attempted restarts reproduced a matching loss"))
+        self.assertEqual(DT._replay_status(attempted=1, verified=1, selected=2)[0], "REPRODUCED")
+        with self.assertRaises(ValueError):
+            DT._replay_status(attempted=1, verified=2, selected=2)
+
+    def test_model_binding_requires_exact_dagmc_filename_and_xs_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            geom, xs, model = root / "run.h5m", root / "cross_sections.xml", root / "model.xml"
+            geom.write_bytes(b"mesh")
+            xs.write_text("<cross_sections/>")
+            model.write_text("<model><geometry><dagmc_universe filename='run.h5m'/></geometry>"
+                             f"<materials><cross_sections>{xs}</cross_sections></materials></model>")
+            DT._model_binding_identity(model, geom, xs)
+            model.write_text(model.read_text().replace("run.h5m", "other.h5m"))
+            with self.assertRaisesRegex(ValueError, "DAGMC path"):
+                DT._model_binding_identity(model, geom, xs)
+
+    def test_primary_identity_must_match_at_replay_boundaries(self):
+        expected = {"run_h5m_path": "/tmp/run.h5m", "run_h5m_sha256": "a" * 64,
+                    "neutron_data_identity_sha256": "b" * 64}
+        self.assertTrue(DT._replay_identity_unchanged(expected, dict(expected)))
+        for key in expected:
+            changed = dict(expected)
+            changed[key] = "changed"
+            self.assertFalse(DT._replay_identity_unchanged(expected, changed))
+
+    def test_neutron_data_identity_honors_openmc_directory_and_rejects_missing_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / "ace"
+            data.mkdir()
+            table = data / "u235.h5"
+            table.write_bytes(b"small exact test table")
+            xml = root / "cross_sections.xml"
+            xml.write_text("<cross_sections><directory>ace</directory>"
+                           "<library materials='U235' path='u235.h5' type='neutron'/></cross_sections>")
+            request = {"materials": [{"nuclide_atom_fractions": {"U235": 1.0}}]}
+            first = DT._replay_data_identity(xml, request)
+            table.write_bytes(b"changed exact test table")
+            self.assertNotEqual(first, DT._replay_data_identity(xml, request))
+            table.unlink()
+            with self.assertRaises(FileNotFoundError):
+                DT._replay_data_identity(xml, request)
+
+    def test_loader_must_initialize_only_the_expected_openmc_library(self):
+        expected = Path("/runtime/lib/libopenmc.so")
+        needed = f" 42:\tfile={expected} [0];  needed by /runtime/bin/openmc [0]\n"
+        initialized = f" 42:\tcalling init: {expected}\n"
+        self.assertFalse(DT._replay_used_library(needed, expected))
+        self.assertTrue(DT._replay_used_library(needed + initialized, expected))
+        wrong = " 42:\tcalling init: /other/libopenmc.so.1\n"
+        self.assertFalse(DT._replay_used_library(initialized + wrong, expected))
+
+    def test_parser_requires_particle_specific_lost_zero_weight_summary(self):
+        text = ("WARNING: After particle 12 crossed surface 9 it could not be located in any cell\n"
+                "Neutron 12\n r = (1.0, -2.0, 3.5)\n Weight = 0\n")
+        self.assertEqual(DT.parse_lost_restart_replay(text, 12), [1.0, -2.0, 3.5])
+        wrapped = text.replace("in any cell", "in any\n cell")
+        self.assertEqual(DT.parse_lost_restart_replay(wrapped, 12), [1.0, -2.0, 3.5])
+        self.assertIsNone(DT.parse_lost_restart_replay(text, 13))
+        self.assertIsNone(DT.parse_lost_restart_replay(text.replace("Weight = 0", "Weight = 1"), 12))
+        self.assertIsNone(DT.parse_lost_restart_replay(text.replace("1.0, -2.0, 3.5", "nan, -2.0, 3.5"), 12))
+
+    def test_bounded_command_caps_output(self):
+        if os.name != "posix":
+            self.skipTest("the bounded replay runner requires POSIX")
+        result = DT._bounded_command([sys.executable, "-c", "print('ok')"], cwd=Path.cwd(),
+                                    env=os.environ.copy(), timeout=2, output_limit=32)
+        self.assertEqual(result, (0, "ok\n"))
+        too_large = DT._bounded_command([sys.executable, "-c", "print('x' * 1000)"], cwd=Path.cwd(),
+                                        env=os.environ.copy(), timeout=2, output_limit=32)
+        self.assertIsNone(too_large)
+
+    def test_timeout_terminates_and_reaps_the_direct_child(self):
+        if os.name != "posix":
+            self.skipTest("direct process cleanup is POSIX only")
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_path = Path(tmp) / "child.pid"
+            code = "import os,time,pathlib; pathlib.Path(%r).write_text(str(os.getpid())); time.sleep(5)" % str(pid_path)
+            result = DT._bounded_command([sys.executable, "-c", code], cwd=Path(tmp),
+                                         env=os.environ.copy(), timeout=0.1)
+            self.assertIsNone(result)
+            pid = int(pid_path.read_text())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(pid, 0)
+
+
 class LostParticleTest(unittest.TestCase):
     def run_mocked_phase_run(self, root, final_status=DT.final_run_status):
         """Exercise phase_run's real post-batch result assembly against a tiny fake OpenMC API."""

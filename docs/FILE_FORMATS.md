@@ -41,7 +41,7 @@ that every format has a prose description, a schema and a versioned example (DOC
 - Control and comparison output: `faris-control-request/v0.1`, `faris-control-execution/v0.1`,
   `faris-history-comparison/v0.1`, `faris-history-comparison-provenance/v0.1`, `faris-history-sensitivity/v0.1`.
 - Transport and design reports: `faris-design-transport/v3`, `faris-design-transport-request/v3`,
-  `faris-design-transport-report/v0.5`, `faris-design-import-report/v0.2`, `faris-transport-import/v0.1`,
+  `faris-design-transport-report/v0.6`, `faris-design-import-report/v0.2`, `faris-transport-import/v0.1`,
   `faris-transport-spectra/v0.1`, `faris-reactor-run/v0.1`, `faris-exploratory-precision-goals/v0.1`,
   `faris-physics-case/v0.1`, `faris-openmc-geometry-ownership-audit/v0.1`, `faris-source-sites/v1`,
   `faris-material-audit/v1`, `faris-conversion/v1`.

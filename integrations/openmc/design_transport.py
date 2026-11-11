@@ -79,12 +79,14 @@ import argparse
 import hashlib
 import inspect
 import json
-import hashlib
 import math
 import os
+import platform
 import re
+import selectors
 import shutil
 import stat
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -112,6 +114,13 @@ PROGRESS_SECONDS = 5.0
 # A neutron the geometry cannot place is lost. Above this share of the histories the answer is not trusted.
 LOST_FRACTION_LIMIT = 1.0e-6
 LOST_LOCATIONS = 10          # how many lost neutrons have their position recorded
+LOST_REPLAY_TIMEOUT_S = 8
+LOST_REPLAY_TOTAL_TIMEOUT_S = 60
+LOST_REPLAY_OUTPUT_LIMIT = 1024 * 1024
+LOST_REPLAY_DATA_MAX_BYTES = 1024 * 1024 * 1024
+LOST_REPLAY_DATA_MAX_FILES = 256
+LOST_REPLAY_RESTART_MAX_BYTES = 16 * 1024 * 1024
+LOST_REPLAY_RESTART_SET_MAX_BYTES = 128 * 1024 * 1024
 MAX_RECEIPT_FILE_BYTES = 12 * 1024**3
 MAX_HISTORY_XS_FILES = 4096
 MAX_HISTORY_XS_TOTAL_BYTES = 64 * 1024**3
@@ -479,6 +488,439 @@ def lost_positions(directory: Path) -> list[list[float]]:
         except (OSError, KeyError):
             continue
     return out
+
+
+_REPLAY_POSITION = re.compile(
+    r"^\s*r\s*=\s*\(\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*\)\s*$",
+    re.MULTILINE,
+)
+
+
+def parse_lost_restart_replay(output: str, particle_id: int) -> list[float] | None:
+    """Accept only an exact particle's lost warning followed by its final zero-weight state."""
+    marker = f"Neutron {particle_id}\n"
+    if marker not in output or not re.search(
+        r"WARNING:\s+After\s+particle\s+" + str(particle_id)
+        + r"\s+crossed\s+surface\s+\S+\s+it\s+could\s+not\s+be\s+located\s+in\s+any\s+cell",
+        output,
+    ):
+        return None
+    summary = output.rsplit(marker, 1)[1]
+    if not re.search(r"^\s*Weight\s*=\s*0(?:\.0*)?\s*$", summary, re.MULTILINE):
+        return None
+    positions = _REPLAY_POSITION.findall(summary)
+    try:
+        point = [float(v) for v in positions[-1]]
+    except (IndexError, ValueError):
+        return None
+    return point if all(math.isfinite(v) for v in point) else None
+
+
+def _bounded_command(argv: list[str], *, cwd: Path, env: dict[str, str], timeout: float,
+                     output_limit: int = LOST_REPLAY_OUTPUT_LIMIT) -> tuple[int, str] | None:
+    """Run one direct child in the inherited worker group; timeout kills and reaps its PID."""
+    if os.name != "posix":
+        return None
+    # Keep the child in the worker's process group so engine cancellation reaches it too.
+    # The replay command is the OpenMC executable directly, never a shell wrapper.
+    process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    assert process.stdout is not None
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ)
+    output = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
+            events = selector.select(min(remaining, 0.25))
+            if not events and process.poll() is not None:
+                break
+            for key, _ in events:
+                chunk = os.read(key.fd, min(65536, output_limit + 1 - len(output)))
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                output.extend(chunk)
+                if len(output) > output_limit:
+                    return None
+        remaining = max(0.0, deadline - time.monotonic())
+        try:
+            code = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            return None
+        return code, output.decode("utf-8", errors="replace")
+    finally:
+        selector.close()
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+        process.wait()
+        if process.stdout:
+            process.stdout.close()
+
+
+def _model_binding_identity(model_xml: Path, geometry: Path, cross_sections: Path) -> None:
+    info = model_xml.stat()
+    if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_HISTORY_XS_XML_BYTES:
+        raise ValueError("model XML is not a bounded regular file")
+    root = ET.parse(model_xml).getroot()
+    dagmc = [e for e in root.iter() if e.tag.rsplit("}", 1)[-1] == "dagmc_universe"]
+    xs = [e for e in root.iter() if e.tag.rsplit("}", 1)[-1] == "cross_sections"]
+    if len(dagmc) != 1 or not dagmc[0].get("filename") or len(xs) != 1 or not xs[0].text:
+        raise ValueError("model XML must bind exactly one DAGMC file and cross_sections.xml")
+    if (model_xml.parent / dagmc[0].get("filename", "").strip()).resolve() != geometry.resolve():
+        raise ValueError("model XML DAGMC path does not identify the run geometry")
+    if Path(xs[0].text.strip()).resolve() != cross_sections.resolve():
+        raise ValueError("model XML cross_sections path does not identify the checked data XML")
+
+
+def _replay_data_paths(cross_sections: Path, request: dict) -> list[tuple[str, Path]]:
+    """Resolve exactly the neutron libraries selected for this model's material nuclides."""
+    info = cross_sections.stat()
+    if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_HISTORY_XS_XML_BYTES:
+        raise ValueError("cross_sections.xml is not a bounded regular file")
+    root = ET.parse(cross_sections).getroot()
+    required = sorted({name for material in request["materials"]
+                       for name in material["nuclide_atom_fractions"]})
+    selected = {}
+    directory_node = root.find("directory")
+    data_directory = Path(directory_node.text.strip()) if directory_node is not None and directory_node.text else cross_sections.parent
+    if not data_directory.is_absolute():
+        data_directory = cross_sections.parent / data_directory
+    data_directory = data_directory.resolve(strict=True)
+    for entry in root.findall("library"):
+        if entry.get("type") != "neutron":
+            continue
+        filename = entry.get("path")
+        for name in entry.get("materials", "").split():
+            if name in required:
+                if name in selected:
+                    raise ValueError(f"cross_sections.xml maps {name} to multiple neutron tables")
+                if not filename:
+                    raise ValueError(f"cross_sections.xml neutron table for {name} has no path")
+                selected[name] = filename
+    missing = sorted(set(required) - set(selected))
+    if missing:
+        raise ValueError("cross_sections.xml has no neutron table for: " + ", ".join(missing))
+    if len(selected) > LOST_REPLAY_DATA_MAX_FILES:
+        raise ValueError("model neutron nuclides exceed replay identity file-count limit")
+    return sorted((nuclide, (data_directory / filename).resolve(strict=True))
+                  for nuclide, filename in selected.items())
+
+
+def _data_stat(path: Path) -> dict:
+    info = path.stat()
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError(f"referenced neutron table is not a regular file: {path}")
+    return {"path": str(path.resolve()), "device": info.st_dev, "inode": info.st_ino,
+            "size": info.st_size, "mtime_ns": info.st_mtime_ns, "ctime_ns": info.st_ctime_ns}
+
+
+def _replay_data_metadata(cross_sections: Path, request: dict) -> tuple[str, list[dict]]:
+    records = []
+    for nuclide, path in _replay_data_paths(cross_sections, request):
+        row = _data_stat(path)
+        row["nuclide"] = nuclide
+        records.append(row)
+    payload = json.dumps(records, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(payload).hexdigest(), records
+
+
+class _ReplayIdentityMismatch(ValueError):
+    """A primary-run identity changed across a replay boundary."""
+
+
+def _replay_data_identity(cross_sections: Path, request: dict) -> str:
+    """Bounded content identity for selected neutron tables, called only for loss replay."""
+    paths = _replay_data_paths(cross_sections, request)
+    if len(paths) > LOST_REPLAY_DATA_MAX_FILES:
+        raise ValueError("model neutron nuclides exceed replay identity file-count limit")
+    files, by_path, total = [], {}, 0
+    for nuclide, path in paths:
+        row = _data_stat(path)
+        size = row["size"]
+        if size > LOST_REPLAY_DATA_MAX_BYTES:
+            raise ValueError(f"referenced neutron table exceeds replay size limit: {path}")
+        if str(path) not in by_path:
+            digest = hashlib.sha256()
+            count = 0
+            with path.open("rb") as stream:
+                opened = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != row["device"]
+                        or opened.st_ino != row["inode"] or opened.st_size != size):
+                    raise _ReplayIdentityMismatch(f"referenced neutron table changed during identity capture: {path}")
+                for block in iter(lambda: stream.read(1 << 20), b""):
+                    count += len(block)
+                    if count > LOST_REPLAY_DATA_MAX_BYTES:
+                        raise ValueError(f"referenced neutron table exceeded replay size limit: {path}")
+                    digest.update(block)
+            if count != size or _data_stat(path) != {k: row[k] for k in row if k != "nuclide"}:
+                raise _ReplayIdentityMismatch(f"referenced neutron table changed during identity capture: {path}")
+            by_path[str(path)] = {"path": str(path), "size": size, "sha256": digest.hexdigest(), "nuclides": []}
+            total += size
+        if total > LOST_REPLAY_DATA_MAX_BYTES:
+            raise ValueError("referenced neutron data exceed replay aggregate size limit")
+        by_path[str(path)]["nuclides"].append(nuclide)
+    for path in sorted(by_path):
+        files.append(by_path[path])
+    identity = {"cross_sections_xml_sha256": _bounded_file_sha256(cross_sections, MAX_HISTORY_XS_XML_BYTES),
+                "tables": files}
+    payload = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _capture_replay_metadata(openmc, model_xml: Path, geometry: Path, cross_sections: Path,
+                             source_h5m: Path, request: dict, exe: Path) -> dict:
+    """Cheap pre-run path/stat binding; no H5M/model parsing or large-file reads."""
+    lib = Path(openmc.lib._dll._name).resolve(strict=True)
+    worker = Path(__file__).resolve(strict=True)
+    data_metadata_sha256, _ = _replay_data_metadata(cross_sections, request)
+    paths = {"model_xml_path": model_xml.resolve(), "source_h5m_path": source_h5m.resolve(),
+             "run_h5m_path": geometry.resolve(), "cross_sections_path": cross_sections.resolve(),
+             "openmc_library_path": lib, "openmc_executable_path": exe.resolve(),
+             "worker_source_path": worker}
+    return {"paths": {key: str(path) for key, path in paths.items()},
+            "files": {key: _data_stat(path) for key, path in paths.items()},
+            "neutron_data_metadata_sha256": data_metadata_sha256}
+
+
+def _bounded_file_sha256(path: Path, max_bytes: int) -> str:
+    """Hash a regular file only after enforcing its identity budget and stable stat tuple."""
+    before = _data_stat(path)
+    if before["size"] > max_bytes:
+        raise ValueError(f"identity input exceeds {max_bytes} byte limit: {path}")
+    digest, count = hashlib.sha256(), 0
+    with path.open("rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if (opened.st_dev, opened.st_ino, opened.st_size) != (
+            before["device"], before["inode"], before["size"]
+        ):
+            raise _ReplayIdentityMismatch(f"identity input changed before hashing: {path}")
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            count += len(block)
+            if count > max_bytes:
+                raise ValueError(f"identity input exceeded {max_bytes} byte limit: {path}")
+            digest.update(block)
+    if count != before["size"] or _data_stat(path) != before:
+        raise _ReplayIdentityMismatch(f"identity input changed while hashing: {path}")
+    return digest.hexdigest()
+
+
+def _capture_replay_content_identity(openmc, model_xml: Path, geometry: Path,
+                                     cross_sections: Path, source_h5m: Path,
+                                     request: dict, exe: Path,
+                                     expected_metadata: dict) -> dict:
+    """Expensive exact hash and model-reference validation, invoked only after losses occur."""
+    current = _capture_replay_metadata(openmc, model_xml, geometry, cross_sections,
+                                       source_h5m, request, exe)
+    if current != expected_metadata:
+        raise _ReplayIdentityMismatch("primary-run file metadata changed before/after replay")
+    try:
+        _model_binding_identity(model_xml, geometry, cross_sections)
+    except ValueError as error:
+        raise _ReplayIdentityMismatch(f"model XML bindings changed or do not match primary inputs: {error}") from error
+    worker = Path(__file__).resolve(strict=True)
+    identity = {
+        "model_xml_path": str(model_xml.resolve()),
+        "model_xml_sha256": _bounded_file_sha256(model_xml, MAX_HISTORY_XS_XML_BYTES),
+        "source_h5m_path": str(source_h5m.resolve()),
+        "source_h5m_sha256": _bounded_file_sha256(source_h5m, MAX_RECEIPT_FILE_BYTES),
+        "run_h5m_path": str(geometry.resolve()),
+        "run_h5m_sha256": _bounded_file_sha256(geometry, MAX_RECEIPT_FILE_BYTES),
+        "cross_sections_path": str(cross_sections.resolve()),
+        "cross_sections_sha256": _bounded_file_sha256(cross_sections, MAX_HISTORY_XS_XML_BYTES),
+        "neutron_data_identity_sha256": _replay_data_identity(cross_sections, request),
+        "openmc_library_path": str(Path(openmc.lib._dll._name).resolve()),
+        "openmc_library_sha256": _bounded_file_sha256(Path(openmc.lib._dll._name).resolve(), MAX_RECEIPT_FILE_BYTES),
+        "openmc_executable_path": str(exe.resolve()),
+        "openmc_executable_sha256": _bounded_file_sha256(exe, MAX_RECEIPT_FILE_BYTES),
+        "worker_source_sha256": _bounded_file_sha256(worker, 4 * 1024 * 1024),
+    }
+    # Ensure content checks did not span a metadata change.
+    if _capture_replay_metadata(openmc, model_xml, geometry, cross_sections,
+                                source_h5m, request, exe) != expected_metadata:
+        raise _ReplayIdentityMismatch("primary-run file metadata changed while binding replay inputs")
+    return identity
+
+
+def _is_pinned_linux_elf_cli(exe: Path) -> bool:
+    """Require the colocated, native Linux ELF executable; scripts/wrappers are unsupported."""
+    if not sys.platform.startswith("linux") or not exe.is_file() or not os.access(exe, os.X_OK):
+        return False
+    try:
+        with exe.open("rb") as stream:
+            header = stream.read(20)
+    except OSError:
+        return False
+    if len(header) < 20 or header[:4] != b"\x7fELF" or header[4] != 2 or header[5] != 1:
+        return False
+    machine = int.from_bytes(header[18:20], "little")
+    expected = {"x86_64": 62, "aarch64": 183}.get(platform.machine().lower())
+    return expected is not None and machine == expected
+
+
+def _replay_identity_unchanged(expected: dict, observed: dict) -> bool:
+    """Compare the entire primary-run identity record, including file paths and hashes."""
+    return expected == observed
+
+
+def _replay_status(attempted: int, verified: int, selected: int) -> tuple[str, str | None]:
+    if not (0 <= verified <= attempted <= selected):
+        raise ValueError("replay counts must satisfy 0 <= verified <= attempted <= selected")
+    if verified == attempted and verified > 0:
+        reason = ("all attempted restarts reproduced; remaining selected restarts were not attempted before the time bound"
+                  if attempted < selected else None)
+        return "REPRODUCED", reason
+    if verified > 0:
+        return "PARTIAL", "only a subset of attempted restarts reproduced a matching loss"
+    return "UNSUPPORTED", "no restart produced a matching lost-particle summary"
+
+
+def _read_replay_restart(path: Path) -> tuple[int, int, int, list[float]]:
+    """Read one restart identity; malformed files raise while their caller retains the attempt count."""
+    import h5py
+
+    with h5py.File(path, "r") as h5:
+        particle_id = int(h5["id"][()])
+        batch = int(h5["current_batch"][()])
+        generation = int(h5["current_generation"][()])
+        birth = [float(v) for v in h5["xyz"][()]]
+    return particle_id, batch, generation, birth
+
+
+def _replay_used_library(output: str, expected: Path) -> bool:
+    """Confirm the loader initialized the one expected OpenMC runtime."""
+    initialized = re.findall(r"^\s*\d+:\s*calling init: ([^\r\n]+)$", output, re.MULTILINE)
+    libraries = {Path(name.strip()) for name in initialized
+                 if re.fullmatch(r"libopenmc\.so(?:\.[\w.-]+)?", Path(name.strip()).name)}
+    return libraries == {expected}
+
+
+def _particle_restart_sort_key(path: Path) -> tuple[int, int, int | str]:
+    """OpenMC files are particle_<batch>_<particle-id>.h5; sort numeric suffixes before limiting."""
+    match = re.fullmatch(r"particle_(\d+)_(\d+)\.h5", path.name)
+    if match:
+        return 0, int(match.group(1)), int(match.group(2))
+    one_part = re.fullmatch(r"particle_(\d+)\.h5", path.name)
+    return (1, 0, int(one_part.group(1))) if one_part else (2, 0, path.name)
+
+
+def replay_lost_positions(openmc, model_xml: Path, geometry: Path, directory: Path,
+                          cross_sections: Path | None = None, source_h5m: Path | None = None,
+                          request: dict | None = None, primary_identity: dict | None = None,
+                          primary_identity_error: str | None = None) -> dict:
+    """Replay a small bounded restart set; any unverifiable condition stays explicitly unsupported."""
+    base = {"schema": "faris-lost-position-replay/v0.1", "status": "UNSUPPORTED",
+            "method": "openmc-particle-restart", "attempted": 0, "verified": 0,
+            "position_semantics": "post-loss OpenMC state after a tiny forward nudge; diagnostic coordinates in cm",
+            "positions_cm": []}
+    if primary_identity_error:
+        base["reason"] = primary_identity_error
+        return base
+    try:
+        if os.name != "posix" or not sys.platform.startswith("linux"):
+            raise ValueError("direct-child timeout handling and exact library mapping require Linux")
+        exe = (Path(sys.executable).resolve().parent / "openmc").resolve()
+        lib = Path(openmc.lib._dll._name).resolve()
+        if (cross_sections is None or not cross_sections.is_file() or source_h5m is None
+                or request is None or primary_identity is None):
+            raise ValueError("checked source geometry and cross_sections.xml are required")
+        model_xml, geometry, directory = model_xml.resolve(), geometry.resolve(), directory.resolve()
+        cross_sections, source_h5m = cross_sections.resolve(), source_h5m.resolve()
+        if not _is_pinned_linux_elf_cli(exe):
+            raise ValueError("colocated OpenMC CLI is not the pinned native Linux ELF executable")
+        env = os.environ.copy()
+        env["LD_PRELOAD"] = str(lib)
+        env["OPENMC_CROSS_SECTIONS"] = str(cross_sections)
+        env["OMP_NUM_THREADS"] = "1"
+        # Loader diagnostics prove the direct ELF CLI mapped the same preloaded C API library.
+        env["LD_DEBUG"] = "files"
+        identity = dict(primary_identity)
+        if not _replay_identity_unchanged(identity, _capture_replay_metadata(
+            openmc, model_xml, geometry, cross_sections, source_h5m, request, exe
+        )):
+            base["status"] = "MISMATCHED"
+            base["reason"] = "run inputs or runtime differ from their pre-initialization identity"
+            return base
+        try:
+            content_before = _capture_replay_content_identity(
+                openmc, model_xml, geometry, cross_sections, source_h5m, request, exe, identity
+            )
+        except _ReplayIdentityMismatch as identity_error:
+            base.update(status="MISMATCHED", reason=str(identity_error))
+            return base
+        except Exception as identity_error:
+            base.update(status="UNSUPPORTED",
+                        reason=f"replay input content exceeds or fails identity bounds ({type(identity_error).__name__})")
+            return base
+        base.update(content_before)
+        restarts = sorted(directory.glob("particle_*.h5"), key=_particle_restart_sort_key)[:LOST_LOCATIONS]
+        if not restarts:
+            raise ValueError("OpenMC retained no particle restart files")
+        total_bytes = 0
+        restart_hashes = {}
+        for path in restarts:
+            size = path.stat().st_size
+            total_bytes += size
+            if size > LOST_REPLAY_RESTART_MAX_BYTES or total_bytes > LOST_REPLAY_RESTART_SET_MAX_BYTES:
+                raise ValueError("restart files exceed replay identity limits")
+            restart_hashes[path] = _bounded_file_sha256(path, LOST_REPLAY_RESTART_MAX_BYTES)
+        base["restart_set_sha256"] = hashlib.sha256(json.dumps(
+            [(p.name, restart_hashes[p]) for p in restarts], separators=(",", ":")
+        ).encode()).hexdigest()
+        started, entries = time.monotonic(), []
+        for restart in restarts:
+            remaining = LOST_REPLAY_TOTAL_TIMEOUT_S - (time.monotonic() - started)
+            if remaining <= 0:
+                break
+            base["attempted"] += 1
+            try:
+                particle_id, batch, generation, birth = _read_replay_restart(restart)
+            except (OSError, KeyError, ValueError):
+                continue
+            if len(birth) != 3 or not all(math.isfinite(v) for v in birth):
+                continue
+            result = _bounded_command([str(exe), "-r", str(restart)], cwd=directory, env=env,
+                                      timeout=min(LOST_REPLAY_TIMEOUT_S, remaining))
+            if (result is None or result[0] != 0
+                    or not _replay_used_library(result[1], lib)
+                    or _bounded_file_sha256(restart, LOST_REPLAY_RESTART_MAX_BYTES) != restart_hashes[restart]):
+                continue
+            point = parse_lost_restart_replay(result[1], particle_id)
+            if point is not None:
+                entries.append({"particle_id": particle_id, "batch": batch, "generation": generation,
+                                "restart_sha256": restart_hashes[restart], "birth_position_cm": birth,
+                                "replayed_final_position_cm": point})
+        try:
+            after = _capture_replay_content_identity(
+                openmc, model_xml, geometry, cross_sections, source_h5m, request, exe, identity
+            )
+        except _ReplayIdentityMismatch as identity_error:
+            base.update(status="MISMATCHED", reason=str(identity_error))
+            return base
+        except Exception as identity_error:
+            base.update(status="UNSUPPORTED",
+                        reason=f"replay input content could not be rebound ({type(identity_error).__name__})")
+            return base
+        if (not _replay_identity_unchanged(content_before, after) or any(
+            _bounded_file_sha256(p, LOST_REPLAY_RESTART_MAX_BYTES) != h for p, h in restart_hashes.items()
+        )):
+            base.update(status="MISMATCHED", reason="a bound input, runtime, worker or restart changed during replay")
+            return base
+        base["positions_cm"] = entries
+        base["verified"] = len(entries)
+        base["status"], reason = _replay_status(base["attempted"], len(entries), len(restarts))
+        if reason:
+            base["reason"] = reason
+        return base
+    except Exception as error:
+        base["reason"] = f"replay diagnostic unavailable ({type(error).__name__}: {error})"
+        return base
 
 
 # A batch more than this many times the median of the batches before it is recorded with its per-piece scores
@@ -1101,6 +1543,8 @@ def phase_run(request: dict, work: Path) -> dict:
     history_moments = BatchCovarianceMoments(len(history_tallies)) if history_tallies else None
     history_previous = [None for _ in history_tallies]
     history_data_identity = history_nuclear_data_identity(request) if history_tallies else None
+    replay_identity = None
+    replay_identity_error = None
     piece_volumes = piece_ranked = None
     if pieces is not None:
         piece_volumes = pieces["volumes_cm3"].reshape(len(solids), -1)
@@ -1108,6 +1552,17 @@ def phase_run(request: dict, work: Path) -> dict:
     started = time.monotonic()
     reason = None
     try:
+        # Bind this diagnostic to the exact model, checked/run geometries, runtime and selected
+        # neutron tables before the primary C API transport initializes.
+        try:
+            replay_exe = (Path(sys.executable).resolve().parent / "openmc").resolve()
+            replay_identity = _capture_replay_metadata(
+                openmc, model_xml.resolve(), Path(geometry).resolve(),
+                Path(request["cross_sections"]).resolve(strict=True),
+                Path(request["h5m"]).resolve(strict=True), request, replay_exe,
+            )
+        except Exception as identity_error:
+            replay_identity_error = f"pre-initialization identity unavailable ({type(identity_error).__name__})"
         openmc.lib.init(["--threads", str(int(sampling["threads"])), str(model_xml)])
         try:
             openmc.lib.simulation_init()
@@ -1234,6 +1689,17 @@ def phase_run(request: dict, work: Path) -> dict:
         "peak_voxel_cm": response.get("peak_voxel_cm"),
         "lost_particles": lost,
         "lost_positions_cm": lost_positions(out_dir) if lost else [],
+        "lost_position_replay": (replay_lost_positions(
+            openmc, model_xml, Path(geometry), out_dir,
+            Path(request["cross_sections"]) if request.get("cross_sections") else None,
+            Path(request["h5m"]) if request.get("h5m") else None,
+            request, replay_identity, replay_identity_error,
+        ) if lost else {
+            "schema": "faris-lost-position-replay/v0.1", "status": "NOT_NEEDED",
+            "method": "openmc-particle-restart", "attempted": 0, "verified": 0,
+            "position_semantics": "post-loss OpenMC state after a tiny forward nudge; diagnostic coordinates in cm",
+            "positions_cm": [],
+        }),
         "variance_reduction": {
             "mode": mode["mode"], "reason": mode["reason"], "next_step": mode["next_step"],
             "targets": [t["name"] for t in mode.get("targets", [])],

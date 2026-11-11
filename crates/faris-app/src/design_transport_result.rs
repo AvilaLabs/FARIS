@@ -7,11 +7,13 @@
 //! reason it has none; nothing is built before a report exists.
 
 use faris_engine::design::{
-    DesignTransportReport, FluenceLimit, LimitStatus, NotEvaluated, SolidFlux, span_text,
+    DesignTransportReport, FluenceLimit, LimitStatus, LostPositionReplayStatus, NotEvaluated,
+    SolidFlux, span_text,
 };
 
 const REPORT_V04: &str = "faris-design-transport-report/v0.4";
 const REPORT_V05: &str = "faris-design-transport-report/v0.5";
+const REPORT_V06: &str = "faris-design-transport-report/v0.6";
 const MAX_REPORT_BYTES: usize = 16 * 1024 * 1024;
 
 /// Read-only report compatibility. v0.4 predates the optional CAD history-rate reference.
@@ -21,10 +23,26 @@ pub fn parse_report(bytes: &[u8]) -> Result<DesignTransportReport, String> {
     }
     let report: DesignTransportReport =
         serde_json::from_slice(bytes).map_err(|e| format!("design transport report JSON: {e}"))?;
-    if ![REPORT_V04, REPORT_V05].contains(&report.schema_version.as_str()) {
+    if ![REPORT_V04, REPORT_V05, REPORT_V06].contains(&report.schema_version.as_str()) {
         return Err(format!(
-            "report schema_version must be {REPORT_V04} or {REPORT_V05}"
+            "report schema_version must be {REPORT_V04}, {REPORT_V05}, or {REPORT_V06}"
         ));
+    }
+    if let Some(replay) = &report.lost_position_replay {
+        replay
+            .validate_shape()
+            .map_err(|error| format!("design transport replay: {error}"))?;
+        if matches!(
+            replay.status,
+            LostPositionReplayStatus::Reproduced | LostPositionReplayStatus::Partial
+        ) && (replay.source_h5m_sha256.as_deref() != Some(report.h5m_sha256.as_str())
+            || replay.cross_sections_sha256.as_deref()
+                != Some(report.cross_sections_sha256.as_str()))
+        {
+            return Err(
+                "design transport replay source identities do not match this report".into(),
+            );
+        }
     }
     Ok(report)
 }
@@ -77,6 +95,24 @@ pub struct LimitView {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct LostPositionReplayRow {
+    pub particle_id: u64,
+    pub batch: u64,
+    pub generation: u64,
+    pub birth_position_cm: [f64; 3],
+    pub replayed_final_position_cm: [f64; 3],
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LostPositionReplayView {
+    pub status: LostPositionReplayStatus,
+    pub verified: u64,
+    pub position_semantics: String,
+    pub reason: Option<String>,
+    pub positions: Vec<LostPositionReplayRow>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct ResultView {
     pub heading: String,
     pub mean: Row,
@@ -89,6 +125,7 @@ pub struct ResultView {
     pub speed_up: SpeedUpView,
     pub limits: Vec<LimitView>,
     pub notices: Vec<String>,
+    pub lost_position_replay: Option<LostPositionReplayView>,
     /// Set when part of the result came from the cache: what, when it was computed, by which
     /// version and key (AUTO-039). The flux itself is always sampled in the run shown.
     pub reused: Option<String>,
@@ -295,6 +332,25 @@ pub fn result_view(report: &DesignTransportReport) -> ResultView {
         },
         limits: report.fluence_limits.iter().map(limit_view).collect(),
         notices: report.notices.clone(),
+        lost_position_replay: report.lost_position_replay.as_ref().map(|replay| {
+            LostPositionReplayView {
+                status: replay.status,
+                verified: replay.verified,
+                position_semantics: replay.position_semantics.clone(),
+                reason: replay.reason.clone(),
+                positions: replay
+                    .positions_cm
+                    .iter()
+                    .map(|entry| LostPositionReplayRow {
+                        particle_id: entry.particle_id,
+                        batch: entry.batch,
+                        generation: entry.generation,
+                        birth_position_cm: entry.birth_position_cm,
+                        replayed_final_position_cm: entry.replayed_final_position_cm,
+                    })
+                    .collect(),
+            }
+        }),
         reused: report
             .reused_from
             .as_ref()
@@ -335,7 +391,7 @@ pub(crate) mod tests {
             next_step: "Keep the margin in mind.".into(),
         };
         DesignTransportReport {
-            schema_version: "faris-design-transport-report/v0.5".into(),
+            schema_version: REPORT_V06.into(),
             design: DesignIdentity {
                 path: "d.json".into(),
                 sha256: "0".into(),
@@ -354,6 +410,7 @@ pub(crate) mod tests {
             energy_per_reaction_ev: 17.6e6,
             lost_particles: Some(0),
             lost_positions_m: Vec::new(),
+            lost_position_replay: None,
             histories: 3_000_000,
             elapsed_seconds: 640.0,
             seed: 1,
@@ -422,9 +479,14 @@ pub(crate) mod tests {
     fn report_reader_keeps_v04_view_only_and_refuses_unknown_versions() {
         let current = sample_report();
         let parsed_current = parse_report(&serde_json::to_vec(&current).unwrap()).unwrap();
-        assert_eq!(parsed_current.schema_version, REPORT_V05);
+        assert_eq!(parsed_current.schema_version, REPORT_V06);
 
         let mut value = serde_json::to_value(current).unwrap();
+        value["schema_version"] = REPORT_V05.into();
+        let old_v05 = parse_report(&serde_json::to_vec(&value).unwrap()).unwrap();
+        assert_eq!(old_v05.schema_version, REPORT_V05);
+        assert!(old_v05.lost_position_replay.is_none());
+
         value["schema_version"] = REPORT_V04.into();
         value
             .as_object_mut()
@@ -465,6 +527,99 @@ pub(crate) mod tests {
         assert_eq!(
             view.highest_piece_place.unwrap(),
             "r 4.00–4.20 m, z 0.50–0.70 m, 12.0 litres, the highest of 40 pieces"
+        );
+    }
+
+    // Verifies: GEO-025
+    #[test]
+    fn verified_replay_coordinates_reach_the_app_view_with_units_and_provenance() {
+        let mut report = sample_report();
+        report.lost_position_replay = Some(faris_engine::design::LostPositionReplay {
+            schema: "faris-lost-position-replay/v0.1".into(),
+            status: LostPositionReplayStatus::Reproduced,
+            method: "openmc-particle-restart".into(),
+            attempted: 1,
+            verified: 1,
+            position_semantics: "post-loss final state, TINY_BIT-nudged; not exact escape surface"
+                .into(),
+            model_xml_path: None,
+            model_xml_sha256: None,
+            source_h5m_path: None,
+            source_h5m_sha256: None,
+            run_h5m_path: None,
+            run_h5m_sha256: None,
+            cross_sections_path: None,
+            cross_sections_sha256: None,
+            neutron_data_identity_sha256: None,
+            openmc_library_sha256: None,
+            openmc_library_path: None,
+            openmc_executable_sha256: None,
+            openmc_executable_path: None,
+            restart_set_sha256: None,
+            worker_source_sha256: None,
+            reason: None,
+            positions_cm: vec![faris_engine::design::LostPositionReplayEntry {
+                particle_id: 17,
+                batch: 3,
+                generation: 2,
+                restart_sha256: "a".repeat(64),
+                birth_position_cm: [1.0, 2.0, 3.0],
+                replayed_final_position_cm: [4.0, 5.0, 6.0],
+            }],
+        });
+        let view = result_view(&report).lost_position_replay.unwrap();
+        assert_eq!(view.status, LostPositionReplayStatus::Reproduced);
+        assert_eq!(view.positions[0].particle_id, 17);
+        assert_eq!(view.positions[0].birth_position_cm, [1.0, 2.0, 3.0]);
+        assert_eq!(
+            view.positions[0].replayed_final_position_cm,
+            [4.0, 5.0, 6.0]
+        );
+        assert!(view.position_semantics.contains("not exact escape surface"));
+    }
+
+    #[test]
+    fn report_reader_rejects_replay_bound_to_another_source_mesh() {
+        let mut report = sample_report();
+        report.h5m_sha256 = "5".repeat(64);
+        report.cross_sections_sha256 = "4".repeat(64);
+        report.lost_position_replay = Some(faris_engine::design::LostPositionReplay {
+            schema: "faris-lost-position-replay/v0.1".into(),
+            status: LostPositionReplayStatus::Reproduced,
+            method: "openmc-particle-restart".into(),
+            attempted: 1,
+            verified: 1,
+            position_semantics: "post-loss final state".into(),
+            model_xml_path: Some("/run/model.xml".into()),
+            model_xml_sha256: Some("a".repeat(64)),
+            source_h5m_path: Some("/run/source.h5m".into()),
+            source_h5m_sha256: Some("b".repeat(64)),
+            run_h5m_path: Some("/run/geometry.h5m".into()),
+            run_h5m_sha256: Some("c".repeat(64)),
+            cross_sections_path: Some("/run/cross_sections.xml".into()),
+            cross_sections_sha256: Some(report.cross_sections_sha256.clone()),
+            neutron_data_identity_sha256: Some("d".repeat(64)),
+            openmc_library_sha256: Some("e".repeat(64)),
+            openmc_library_path: Some("/run/libopenmc.so".into()),
+            openmc_executable_sha256: Some("f".repeat(64)),
+            openmc_executable_path: Some("/run/openmc".into()),
+            restart_set_sha256: Some("1".repeat(64)),
+            worker_source_sha256: Some("2".repeat(64)),
+            reason: None,
+            positions_cm: vec![faris_engine::design::LostPositionReplayEntry {
+                particle_id: 1,
+                batch: 1,
+                generation: 1,
+                restart_sha256: "3".repeat(64),
+                birth_position_cm: [1.0, 2.0, 3.0],
+                replayed_final_position_cm: [4.0, 5.0, 6.0],
+            }],
+        });
+        let bytes = serde_json::to_vec(&report).unwrap();
+        assert!(
+            parse_report(&bytes)
+                .unwrap_err()
+                .contains("source identities")
         );
     }
 
