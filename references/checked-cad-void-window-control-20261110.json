@@ -1,0 +1,176 @@
+{
+  "schema": "faris-nuc056-checked-cad-void-window-control/v1",
+  "date": "2026-11-10",
+  "requirement": "NUC-056",
+  "status": "PASS",
+  "method": "OpenMC 0.15.3 MAGIC generation, FARIS window fill and paired C API analogue and windowed transport.",
+  "geometry": {
+    "h5m_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/tiny-cad-dose-control-20261110-v5/import-work/convert/attempt-01/model.h5m",
+    "h5m_sha256": "a14231adce0dad994a42bb9f7ed79c5ff78c19ad8aad01fd79b86bf825361e2a",
+    "import_report_sha256": "22a524633a796b329e11df84b3ad06d7b33b187d88c139784508ecf922d484c2",
+    "step_path": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/continuation/tiny-cad-dose-control-20261110-v5/synthetic-tiny-tokamak.step",
+    "step_sha256": "3ed2fef98b1ef1ec2d6e2507f9245df9268936d6e0877e19546a9cdac787dfdd"
+  },
+  "runtime_library_sha256": "6633dcd0d05d0aa6e0193e45241b46e49261d3f79ed35944f31e0b936a5bd4b0",
+  "runtime_inventory": {
+    "dagmc_cell_ids": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "explicit_voids": [
+      {
+        "dagmc_volume_id": 1,
+        "facet_volume_m3": 1.0421814346969596,
+        "original_facet_material_tag": "plasma",
+        "role": "plasma_chamber",
+        "source_inventory_id": "plasma",
+        "step_index": 0
+      }
+    ],
+    "implicit_complement": {
+      "enclosed_cavity_inventory_count": 0,
+      "exterior_response_bounded_by_outer_sphere_id": 10000000,
+      "h5m_marker": "mat:void_comp",
+      "identity": "implicit-complement-exterior",
+      "response_domain": "complement cell inside enclosing FARIS vacuum sphere only",
+      "runtime_cell_id": 5
+    }
+  },
+  "window_coverage": {
+    "1": {
+      "active_energy_group_indexes": [
+        0,
+        1
+      ],
+      "maximum_upper_bound": 2.5,
+      "maximum_upper_lower_ratio": 5.000000000000001,
+      "mesh_bin_count": 1400,
+      "minimum_lower_bound": 0.0864288270600238,
+      "positive_finite_bounds": true
+    },
+    "5": {
+      "active_energy_group_indexes": [
+        0,
+        1
+      ],
+      "maximum_upper_bound": 2.272990884178273,
+      "maximum_upper_lower_ratio": 5.000000000000001,
+      "mesh_bin_count": 10784,
+      "minimum_lower_bound": 8.086753017005116e-10,
+      "positive_finite_bounds": true
+    }
+  },
+  "filled_windows_sha256": "76239921d004025dc282ef25b3e61db6fc22631efeb6099fdf7cc30375f264e1",
+  "sampling": {
+    "analogue": {
+      "batches": 100,
+      "particles": 10000,
+      "seed": 101
+    },
+    "energy_bounds_ev": [
+      0.0,
+      100000.0,
+      20000000.0
+    ],
+    "generation": {
+      "batches": 30,
+      "particles": 2000,
+      "seed": 811500993
+    },
+    "mesh_dimension": [
+      32,
+      32,
+      20
+    ],
+    "mesh_scope": "enclosing vacuum sphere cube; complement response is bounded by the sphere",
+    "method": "OpenMC MAGIC WeightWindowGenerator",
+    "windowed": {
+      "batches": 40,
+      "particles": 5000,
+      "seed": 202
+    }
+  },
+  "comparisons": {
+    "cad-complement-exterior-flux": {
+      "analogue": 80.31099806160897,
+      "analogue_rse": 0.0006139536431664662,
+      "criteria": {
+        "absolute_z_below": 3.0,
+        "rse_each_below": 0.05
+      },
+      "pass": true,
+      "windowed": 80.40258490593537,
+      "windowed_rse": 0.0008666719343760757,
+      "z": 1.0729077675670073
+    },
+    "cad-explicit-void-flux": {
+      "analogue": 80.35732356827042,
+      "analogue_rse": 0.0009114574920102033,
+      "criteria": {
+        "absolute_z_below": 3.0,
+        "rse_each_below": 0.05
+      },
+      "pass": true,
+      "windowed": 80.39546589229977,
+      "windowed_rse": 0.0012656412638192515,
+      "z": 0.30423584065611037
+    }
+  },
+  "lost_events": {
+    "generation": 0,
+    "analogue": 0,
+    "windowed": 0
+  },
+  "statepoints": {
+    "analogue": "a568207293c4a855c6f93a0256942d7bb2d5824cc57faf244d661b92c9a887ca",
+    "windowed": "f66d4ead6e10b30b24ec8edd2787adca7c04e34d5f907e2fc4689e2f1d36f9a6"
+  },
+  "independent_verification": {
+    "method": "Recomputed means and error bounds directly from the two statepoints. For two energy-bin errors s1 and s2, the total error lies between |s1-s2| and s1+s2 regardless of within-run covariance. The combined z assumes independent fresh analogue and windowed runs.",
+    "checks": {
+      "cad-complement-exterior-flux": {
+        "reported_absolute_z": 1.0729077675670073,
+        "absolute_z_upper_within_run_energy_covariance_unknown": 1.7207376986096055,
+        "rse_upper": 0.0011001646680745489,
+        "energy_bin_standard_errors": {
+          "analogue": [
+            0.01591121726643158,
+            0.0466694341106929
+          ],
+          "windowed": [
+            0.022508991048137982,
+            0.06594709208723613
+          ]
+        }
+      },
+      "cad-explicit-void-flux": {
+        "reported_absolute_z": 0.30423584065611037,
+        "absolute_z_upper_within_run_energy_covariance_unknown": 0.5004754350165945,
+        "rse_upper": 0.0016403087008251373,
+        "energy_bin_standard_errors": {
+          "analogue": [
+            0.02041846360824912,
+            0.07033859963007155
+          ],
+          "windowed": [
+            0.03714313094213596,
+            0.09473025126789389
+          ]
+        }
+      }
+    }
+  },
+  "raw_control": {
+    "path": "runs/continuation/nuc056-checked-cad-void-window-control-20261110-v13/control.json",
+    "sha256": "982e893d3f4e2da719520314ed80827f806dd47fe58d14be3f48544bcfaf1f66"
+  },
+  "limitations": [
+    "Mesh-cell intersections use a finite 27-point sampling screen.",
+    "The implicit-complement response is limited to the enclosing FARIS vacuum sphere.",
+    "RNG stream-level non-overlap and weight-window generator uncertainty are not estimated."
+  ],
+  "source_scope": "An unrelated local draft edit overlapped the control launch. The raw receipt records the helper hash captured at startup. The exact solver XML, generated windows and statepoints were retained and independently verified."
+}

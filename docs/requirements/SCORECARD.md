@@ -8,14 +8,14 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 135 | 565 | 685 | 34 | 434 | 31 % | 505 | 150 | 459 | 116 | 430 | 98 |
+| All requirements | 1419 | 136 | 564 | 685 | 34 | 434 | 31 % | 505 | 150 | 459 | 116 | 430 | 98 |
 
 ## By category
 
 | Category | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | 73 | 7 | 38 | 27 | 1 | 31 | 42 % | 29 | 8 | 43 | 4 | 6 | 12 |
-| [Radiation transport and neutron source](02-radiation-transport.md) | 107 | 12 | 45 | 48 | 2 | 36 | 34 % | 40 | 12 | 50 | 18 | 7 | 12 |
+| [Radiation transport and neutron source](02-radiation-transport.md) | 107 | 13 | 44 | 48 | 2 | 36 | 34 % | 40 | 12 | 50 | 18 | 7 | 12 |
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 20 | 40 | 37 | 0 | 52 | 54 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 6 | 18 | 75 | 0 | 9 | 9 % | 46 | 17 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 5 | 7 | 33 | 0 | 5 | 11 % | 17 | 5 | 18 | 5 | 6 | 2 |
@@ -43,7 +43,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | F1 | 445 | 81 | 275 | 72 | 17 | 239 | 54 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 38 | 220 | 224 | 15 | 164 | 33 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F2 | 497 | 39 | 219 | 224 | 15 | 164 | 33 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 3 | 7 | 56 | 0 | 5 | 8 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 8 | 30 | 133 | 2 | 12 | 7 % | 66 | 15 | 62 | 8 | 40 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |
@@ -78,11 +78,11 @@ Outside tools and standards named in each file's Basis and Target columns: known
 - [Documentation and learning](22-documentation-and-learning.md): SCALE; Blender; WCAG
 - [Compliance and privacy](23-compliance-and-privacy.md): OpenMC
 
-## Met without a checker (0)
+## Met without a checker (1)
 
 Marked Met in the Now column, but no test declares `Verifies:` for them.
 
-None.
+- NUC-056 (02-radiation-transport.md)
 
 ## Traced but marked No (0)
 
