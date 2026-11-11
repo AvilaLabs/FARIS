@@ -22,7 +22,8 @@ def load(name, filename):
 
 
 MV = load("maintenance_validation", "maintenance_validation.py")
-REFERENCE = REPO / "references" / "maintenance-coupling-test-a2.json"
+# The four central arrangements and decisions from the immutable Amendment 2 result.
+REFERENCE = HERE / "fixtures" / "maintenance-coupling-amendment-2-central.json"
 ASSUMPTIONS = REPO / "scenarios" / "arc-inspired" / "demountable-magnet-assumptions.json"
 DAY = MV.DAY_S
 NAMES = MV.ARRANGEMENTS
@@ -368,9 +369,8 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(MV.protocol_body_sha256(MV.DEFAULT_PROTOCOL), MV.PROTOCOL_BODY_SHA256)
 
 
-@unittest.skipUnless(REFERENCE.is_file(), "the amended run's record is not present")
 class RealReferenceTests(unittest.TestCase):
-    def test_amended_run_against_itself(self):
+    def test_amended_run_central_arrangements(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "B").mkdir()
             (Path(tmp) / "B" / "result.json").write_bytes(REFERENCE.read_bytes())

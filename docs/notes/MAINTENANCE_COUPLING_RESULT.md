@@ -138,7 +138,11 @@ made.
   after 20 minutes, changed to run 4 ACTINV processes at once and to run `w` = 0.50 first (commit `0555603`, which
   changes speed and order only; a test checks that 1 and 4 workers give the same result), and resumed with the same
   configuration. The result records `"run": {"resumes": 1}`.
-- **Record.** `references/maintenance-coupling-test-a2.json`, local paths replaced by `<run-dir>`, `<actinv>` and
+- **Record.** The [complete Amendment 2 result](https://github.com/AvilaLabs/FARIS/blob/8732406d8f77073322b6749ab3834e28d89a57b5/references/maintenance-coupling-test-a2.json)
+  is pinned to its original Git commit. In a full clone, extract it for `maintenance_validation.py evaluate --reference`
+  with `git show 8732406d8f77073322b6749ab3834e28d89a57b5:references/maintenance-coupling-test-a2.json > runs/maintenance-coupling-test-a2.json`.
+  The current checkout retains a test fixture with the four central arrangements and their decisions.
+  In the full result, local paths are replaced by `<run-dir>`, `<actinv>` and
   `<actinv-data>` (SHA-256 `deee2e67fdce9db02a7e1c4e98617dd78731ce8b168dc6814719ea4b412e2328`; unedited file
   `0502f6582d912ab0fdbae0fe8b6ceb8ce162d26c45a2c5fd220a87ca3a698440`).
 

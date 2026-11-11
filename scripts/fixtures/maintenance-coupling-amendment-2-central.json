@@ -1,0 +1,1515 @@
+{
+  "computed_model": {
+    "bare_lower_bound": {
+      "w": {
+        "0.5": {
+          "cases": {
+            "no-port/breeder": {
+              "durations_s": {
+                "blanket": [
+                  11014385.799388098,
+                  13214988.100029346,
+                  15177270.303710125,
+                  16919936.44949998,
+                  18692932.44736091,
+                  20196949.385715183,
+                  21582146.47410368,
+                  14361905.933637772,
+                  23334252.237604465
+                ],
+                "magnets": [
+                  24926581.96357027
+                ]
+              },
+              "history": {
+                "lifetime_net_electricity_mwh": 30566655.251259945,
+                "replacements": [
+                  {
+                    "component": "blanket",
+                    "end_s": 90873904.0715387,
+                    "k": 1,
+                    "start_s": 79859518.2721506
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 183948410.44371867,
+                    "k": 2,
+                    "start_s": 170733422.34368932
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 278985199.0195794,
+                    "k": 3,
+                    "start_s": 263807928.71586928
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 375764653.74123,
+                    "k": 4,
+                    "start_s": 358844717.29173005
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 474317104.4607416,
+                    "k": 5,
+                    "start_s": 455624172.01338065
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 573420467.6578658,
+                    "k": 6,
+                    "start_s": 553223518.2721506
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 672270132.4041201,
+                    "k": 7,
+                    "start_s": 650687985.9300164
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 767780692.3821806,
+                    "k": 1,
+                    "start_s": 742854110.4186103
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 788826138.5734786,
+                    "k": 8,
+                    "start_s": 774464232.6398408
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 892019909.0832337,
+                    "k": 9,
+                    "start_s": 868685656.8456292
+                  }
+                ],
+                "total_replacement_downtime_s": 179421349.09461975
+              },
+              "status": "EVALUATED"
+            },
+            "no-port/reference": {
+              "durations_s": {
+                "blanket": [
+                  13327784.927948197,
+                  14849064.222366506,
+                  17481751.506049097,
+                  18444035.366536245,
+                  20724335.99640318,
+                  21691676.984052375,
+                  21949465.945320014,
+                  24260641.351138197,
+                  24946639.520151485,
+                  25382708.2553456,
+                  25451093.75082215
+                ]
+              },
+              "history": {
+                "lifetime_net_electricity_mwh": 28851405.018548883,
+                "replacements": [
+                  {
+                    "component": "blanket",
+                    "end_s": 76012833.69559605,
+                    "k": 1,
+                    "start_s": 62685048.767647855
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 153546946.6856104,
+                    "k": 2,
+                    "start_s": 138697882.4632439
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 233713746.95930737,
+                    "k": 3,
+                    "start_s": 216231995.45325828
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 314842831.0934915,
+                    "k": 4,
+                    "start_s": 296398795.72695524
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 398252215.8575425,
+                    "k": 5,
+                    "start_s": 377527879.86113936
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 482628941.60924274,
+                    "k": 6,
+                    "start_s": 460937264.6251904
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 567263456.3222107,
+                    "k": 7,
+                    "start_s": 545313990.3768907
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 654209146.4409968,
+                    "k": 8,
+                    "start_s": 629948505.0898585
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 741840834.7287961,
+                    "k": 9,
+                    "start_s": 716894195.2086446
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 829908591.7517896,
+                    "k": 10,
+                    "start_s": 804525883.496444
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 918044734.2702596,
+                    "k": 11,
+                    "start_s": 892593640.5194374
+                  }
+                ],
+                "total_replacement_downtime_s": 228509197.8261331
+              },
+              "status": "EVALUATED"
+            },
+            "port/breeder": {
+              "durations_s": {
+                "blanket": [
+                  2904293.5975991986,
+                  3563604.779718267,
+                  5352690.060159624,
+                  7559462.303131716,
+                  9454326.014852554,
+                  11141025.407713054
+                ],
+                "magnets": [
+                  10285124.525198704,
+                  11419123.25012847,
+                  12034364.458808552,
+                  12693684.946115289,
+                  13157177.339068756,
+                  13880897.86053798,
+                  14408091.199599912,
+                  14928906.948385743,
+                  15112775.200242877,
+                  15782317.875372011,
+                  13678375.284099529,
+                  14839491.953263383,
+                  16064557.315927917,
+                  17202003.353386797,
+                  17785526.07854013,
+                  18118125.489867963,
+                  16765075.645665258,
+                  18343149.45289569,
+                  19056649.197907306,
+                  19378589.238347102,
+                  17964469.494922288,
+                  19724573.986552335,
+                  20267040.8425041,
+                  20550733.536931597,
+                  19235526.4765877,
+                  21053492.252520405
+                ]
+              },
+              "history": {
+                "lifetime_net_electricity_mwh": 19749781.58939358,
+                "replacements": [
+                  {
+                    "component": "magnets",
+                    "end_s": 30691755.960319594,
+                    "k": 1,
+                    "start_s": 20406631.435120888
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 62517510.64556895,
+                    "k": 2,
+                    "start_s": 51098387.39544048
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 94958506.53949839,
+                    "k": 3,
+                    "start_s": 82924142.08068983
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 127773116.38123618,
+                    "k": 4,
+                    "start_s": 115079431.4351209
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 132553293.24851377,
+                    "k": 1,
+                    "start_s": 129648999.65091458
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 162698502.37178886,
+                    "k": 5,
+                    "start_s": 149541325.0327201
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 194394031.66744772,
+                    "k": 6,
+                    "start_s": 180513133.80690974
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 226616754.30216852,
+                    "k": 7,
+                    "start_s": 212208663.1025686
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 259360292.68567514,
+                    "k": 8,
+                    "start_s": 244431385.7372894
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 264577096.76722258,
+                    "k": 2,
+                    "start_s": 261013491.9875043
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 295851304.1007572,
+                    "k": 9,
+                    "start_s": 280738528.9005143
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 329448253.41125005,
+                    "k": 10,
+                    "start_s": 313665935.53587806
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 363533260.13047045,
+                    "k": 11,
+                    "start_s": 349854884.84637094
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 398779383.51885474,
+                    "k": 12,
+                    "start_s": 383939891.56559134
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 406611872.5317581,
+                    "k": 3,
+                    "start_s": 401259182.4715985
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 440603262.3300632,
+                    "k": 13,
+                    "start_s": 424538705.0141353
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 478211897.1185709,
+                    "k": 14,
+                    "start_s": 461009893.7651841
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 513812054.63223195,
+                    "k": 15,
+                    "start_s": 496026528.5536918
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 549744811.5572208,
+                    "k": 16,
+                    "start_s": 531626686.06735283
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 560610672.4640108,
+                    "k": 4,
+                    "start_s": 553051210.1608791
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 594475980.9411387,
+                    "k": 17,
+                    "start_s": 577710905.2954735
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 633225761.8291553,
+                    "k": 18,
+                    "start_s": 614882612.3762597
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 670615280.6330283,
+                    "k": 19,
+                    "start_s": 651558631.4351209
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 707808501.3064963,
+                    "k": 20,
+                    "start_s": 688429912.0681492
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 721395825.5759217,
+                    "k": 5,
+                    "start_s": 711941499.5610691
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 755633928.2513919,
+                    "k": 21,
+                    "start_s": 737669458.7564696
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 795765133.6730652,
+                    "k": 22,
+                    "start_s": 776040559.6865128
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 833846805.9506903,
+                    "k": 23,
+                    "start_s": 813579765.1081861
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 872212170.9227428,
+                    "k": 24,
+                    "start_s": 851661437.3858112
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 888312794.2359434,
+                    "k": 6,
+                    "start_s": 877171768.8282304
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 920403354.2421645,
+                    "k": 25,
+                    "start_s": 901167827.7655768
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": null,
+                    "k": 26,
+                    "start_s": 938217985.6772854
+                  }
+                ],
+                "total_replacement_downtime_s": 451161767.4367464
+              },
+              "status": "EVALUATED"
+            },
+            "port/reference": {
+              "durations_s": {
+                "blanket": [
+                  5648198.451850455,
+                  10333072.245473795,
+                  11975139.749774268,
+                  15957564.028689457,
+                  18163945.77580971,
+                  7781625.432239898,
+                  13613456.98149701
+                ],
+                "magnets": [
+                  10368000.0,
+                  11508051.334531803,
+                  12152990.840596694,
+                  12291707.196890522,
+                  13455271.726143718,
+                  13994041.030153971,
+                  11672827.540212456,
+                  13671646.242417743,
+                  14581109.32810657,
+                  12675797.55921096,
+                  16284609.549592862,
+                  16758487.281742904,
+                  11167033.761871004,
+                  17078660.726898707,
+                  17868382.422497265,
+                  6888243.134728245,
+                  17150857.855296187,
+                  18336668.382264353,
+                  19118556.24150517,
+                  17140381.69236517,
+                  18922870.631740935,
+                  19899500.33888514,
+                  17925197.904786434,
+                  20319459.29422199,
+                  20988189.45994005
+                ]
+              },
+              "history": {
+                "lifetime_net_electricity_mwh": 19282254.799517136,
+                "replacements": [
+                  {
+                    "component": "magnets",
+                    "end_s": 31025152.21971264,
+                    "k": 1,
+                    "start_s": 20657152.21971264
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 63190355.77395709,
+                    "k": 2,
+                    "start_s": 51682304.43942528
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 95925343.06030934,
+                    "k": 3,
+                    "start_s": 83772352.21971264
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 106220435.63292134,
+                    "k": 1,
+                    "start_s": 100572237.18107088
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 133269857.86845362,
+                    "k": 4,
+                    "start_s": 120978150.6715631
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 164790281.81430998,
+                    "k": 5,
+                    "start_s": 151335010.08816627
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 196849475.0641766,
+                    "k": 6,
+                    "start_s": 182855434.03402263
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 213797421.67179212,
+                    "k": 2,
+                    "start_s": 203464349.42631832
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 239512527.0695755,
+                    "k": 7,
+                    "start_s": 227839699.52936304
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 273841325.53170586,
+                    "k": 8,
+                    "start_s": 260169679.28928813
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 309079587.07952505,
+                    "k": 9,
+                    "start_s": 294498477.7514185
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 333569038.3725119,
+                    "k": 3,
+                    "start_s": 321593898.62273765
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 354387676.6082229,
+                    "k": 10,
+                    "start_s": 341711879.04901195
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 388737438.37752837,
+                    "k": 11,
+                    "start_s": 372452828.8279355
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 423561077.8789839,
+                    "k": 12,
+                    "start_s": 406802590.597241
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 452748390.6319568,
+                    "k": 4,
+                    "start_s": 436790826.6032674
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 468750827.88925695,
+                    "k": 13,
+                    "start_s": 457583794.127386
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 506486640.8358683,
+                    "k": 14,
+                    "start_s": 489407980.10896957
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 543447134.6422099,
+                    "k": 15,
+                    "start_s": 525578752.2197126
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 578148266.323374,
+                    "k": 5,
+                    "start_s": 559984320.5475643
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 586564475.7724606,
+                    "k": 16,
+                    "start_s": 579676232.6377324
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 624372485.8474693,
+                    "k": 17,
+                    "start_s": 607221627.9921732
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 663366306.4494463,
+                    "k": 18,
+                    "start_s": 645029638.067182
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 702485308.4612178,
+                    "k": 19,
+                    "start_s": 683366752.2197126
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 712046404.7601702,
+                    "k": 6,
+                    "start_s": 704264779.3279303
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 748064467.8055354,
+                    "k": 20,
+                    "start_s": 730924086.1131703
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 787644490.656989,
+                    "k": 21,
+                    "start_s": 768721620.025248
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 828201143.2155868,
+                    "k": 22,
+                    "start_s": 808301642.8767016
+                  },
+                  {
+                    "component": "blanket",
+                    "end_s": 846901508.2448673,
+                    "k": 7,
+                    "start_s": 833288051.2633703
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 880396950.321583,
+                    "k": 23,
+                    "start_s": 862471752.4167966
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": 921373561.8355176,
+                    "k": 24,
+                    "start_s": 901054102.5412956
+                  },
+                  {
+                    "component": "magnets",
+                    "end_s": null,
+                    "k": 25,
+                    "start_s": 939438714.0552303
+                  }
+                ],
+                "total_replacement_downtime_s": 451992640.6267652
+              },
+              "status": "EVALUATED"
+            }
+          },
+          "decisions": {
+            "D1": {
+              "changed": true,
+              "computed_ranking": [
+                "no-port/breeder",
+                "no-port/reference",
+                "port/breeder",
+                "port/reference"
+              ],
+              "fixed_ranking": [
+                "no-port/reference",
+                "no-port/breeder",
+                "port/reference",
+                "port/breeder"
+              ],
+              "status": "EVALUATED",
+              "swapped_pairs": [
+                {
+                  "gap_fraction_computed": 0.05611507764299334,
+                  "pair": [
+                    "no-port/breeder",
+                    "no-port/reference"
+                  ]
+                },
+                {
+                  "gap_fraction_computed": 0.023672504314048867,
+                  "pair": [
+                    "port/breeder",
+                    "port/reference"
+                  ]
+                }
+              ],
+              "threshold_fraction": 0.02
+            },
+            "D3": {
+              "band": [
+                0.8,
+                1.25
+              ],
+              "changed": true,
+              "contrasts": [
+                {
+                  "changed": true,
+                  "computed_difference_s": -49087848.73151335,
+                  "considered": true,
+                  "contrast": "breeder-minus-reference, no port",
+                  "fixed_difference_s": -3464658.626464963,
+                  "ratio_computed_over_fixed": 14.168163165211556,
+                  "status": "EVALUATED"
+                },
+                {
+                  "changed": true,
+                  "computed_difference_s": -830873.1900187731,
+                  "considered": true,
+                  "contrast": "breeder-minus-reference, port",
+                  "fixed_difference_s": -9373343.340862036,
+                  "ratio_computed_over_fixed": 0.08864213758144064,
+                  "status": "EVALUATED"
+                },
+                {
+                  "changed": true,
+                  "computed_difference_s": 223483442.8006321,
+                  "considered": true,
+                  "contrast": "port-minus-no-port, reference",
+                  "fixed_difference_s": 285844684.7143971,
+                  "ratio_computed_over_fixed": 0.7818352229425799,
+                  "status": "EVALUATED"
+                },
+                {
+                  "changed": false,
+                  "computed_difference_s": 271740418.34212667,
+                  "considered": true,
+                  "contrast": "port-minus-no-port, breeder",
+                  "fixed_difference_s": 279936000.0,
+                  "ratio_computed_over_fixed": 0.9707233737072998,
+                  "status": "EVALUATED"
+                }
+              ],
+              "min_fixed_difference_s": 2592000.0,
+              "status": "EVALUATED"
+            }
+          },
+          "q_star": {
+            "blanket": {
+              "dose": {
+                "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+                "status": "NOT_EVALUATED"
+              },
+              "event": {
+                "component": "blanket",
+                "start_s": 98974893.84020878
+              },
+              "heat": {
+                "q_star": 4195.524715240712,
+                "status": "EVALUATED",
+                "target_cooldown_s": 2592000.0
+              },
+              "q_star": 4195.524715240712,
+              "status": "EVALUATED"
+            },
+            "magnet": {
+              "dose": {
+                "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+                "status": "NOT_EVALUATED"
+              },
+              "event": {
+                "component": "magnets",
+                "start_s": 20657152.21971264
+              },
+              "heat": {
+                "q_star": 2178.8710963554618,
+                "status": "EVALUATED",
+                "target_cooldown_s": 5184000.0
+              },
+              "q_star": 2178.8710963554618,
+              "status": "EVALUATED"
+            }
+          }
+        }
+      }
+    }
+  },
+  "fixed_model": {
+    "no-port/breeder": {
+      "assumptions": "<run-dir>/out/cases/no-port__breeder/f1.0/fixed/assumptions.json",
+      "history": {
+        "lifetime_net_electricity_mwh": 35272721.86735174,
+        "outcome": "horizon_completed",
+        "replacements": [
+          {
+            "component": "blanket",
+            "end_s": 85043518.2721506,
+            "k": 1,
+            "start_s": 79859518.2721506
+          },
+          {
+            "component": "blanket",
+            "end_s": 170087036.5443012,
+            "k": 2,
+            "start_s": 164903036.5443012
+          },
+          {
+            "component": "blanket",
+            "end_s": 252538554.81645182,
+            "k": 3,
+            "start_s": 247354554.81645182
+          },
+          {
+            "component": "blanket",
+            "end_s": 337504318.2721506,
+            "k": 4,
+            "start_s": 332320318.2721506
+          },
+          {
+            "component": "blanket",
+            "end_s": 422547836.54430115,
+            "k": 5,
+            "start_s": 417363836.54430115
+          },
+          {
+            "component": "blanket",
+            "end_s": 504999354.8164517,
+            "k": 6,
+            "start_s": 499815354.8164517
+          },
+          {
+            "component": "blanket",
+            "end_s": 589965118.2721506,
+            "k": 7,
+            "start_s": 584781118.2721506
+          },
+          {
+            "component": "magnets",
+            "end_s": 670917096.286641,
+            "k": 1,
+            "start_s": 660549096.286641
+          },
+          {
+            "component": "blanket",
+            "end_s": 682784636.5443013,
+            "k": 8,
+            "start_s": 677600636.5443013
+          },
+          {
+            "component": "blanket",
+            "end_s": 767828154.8164519,
+            "k": 9,
+            "start_s": 762644154.8164519
+          },
+          {
+            "component": "blanket",
+            "end_s": 850279673.0886025,
+            "k": 10,
+            "start_s": 845095673.0886025
+          },
+          {
+            "component": "blanket",
+            "end_s": 935323191.3607532,
+            "k": 11,
+            "start_s": 930139191.3607532
+          }
+        ],
+        "total_replacement_downtime_s": 67392000.0
+      },
+      "status": "EVALUATED"
+    },
+    "no-port/reference": {
+      "assumptions": "<run-dir>/out/cases/no-port__reference/f1.0/fixed/assumptions.json",
+      "history": {
+        "lifetime_net_electricity_mwh": 35413033.106436186,
+        "outcome": "horizon_completed",
+        "replacements": [
+          {
+            "component": "blanket",
+            "end_s": 67869048.76764786,
+            "k": 1,
+            "start_s": 62685048.767647855
+          },
+          {
+            "component": "blanket",
+            "end_s": 135738097.53529572,
+            "k": 2,
+            "start_s": 130554097.53529572
+          },
+          {
+            "component": "blanket",
+            "end_s": 203607146.3029436,
+            "k": 3,
+            "start_s": 198423146.3029436
+          },
+          {
+            "component": "blanket",
+            "end_s": 271476195.07059145,
+            "k": 4,
+            "start_s": 266292195.07059145
+          },
+          {
+            "component": "blanket",
+            "end_s": 339345243.8382393,
+            "k": 5,
+            "start_s": 334161243.8382393
+          },
+          {
+            "component": "blanket",
+            "end_s": 407214292.6058872,
+            "k": 6,
+            "start_s": 402030292.6058872
+          },
+          {
+            "component": "blanket",
+            "end_s": 475083341.37353504,
+            "k": 7,
+            "start_s": 469899341.37353504
+          },
+          {
+            "component": "blanket",
+            "end_s": 541233048.7676479,
+            "k": 8,
+            "start_s": 536049048.76764786
+          },
+          {
+            "component": "blanket",
+            "end_s": 609102097.5352957,
+            "k": 9,
+            "start_s": 603918097.5352957
+          },
+          {
+            "component": "blanket",
+            "end_s": 676971146.3029436,
+            "k": 10,
+            "start_s": 671787146.3029436
+          },
+          {
+            "component": "blanket",
+            "end_s": 744840195.0705914,
+            "k": 11,
+            "start_s": 739656195.0705914
+          },
+          {
+            "component": "blanket",
+            "end_s": 812709243.8382393,
+            "k": 12,
+            "start_s": 807525243.8382393
+          },
+          {
+            "component": "blanket",
+            "end_s": 880578292.6058872,
+            "k": 13,
+            "start_s": 875394292.6058872
+          },
+          {
+            "component": "blanket",
+            "end_s": null,
+            "k": 14,
+            "start_s": 943263341.373535
+          }
+        ],
+        "total_replacement_downtime_s": 70856658.62646496
+      },
+      "status": "EVALUATED"
+    },
+    "port/breeder": {
+      "assumptions": "<run-dir>/out/cases/port__breeder/f1.0/fixed/assumptions.json",
+      "history": {
+        "lifetime_net_electricity_mwh": 23233586.20966137,
+        "outcome": "horizon_completed",
+        "replacements": [
+          {
+            "component": "magnets",
+            "end_s": 30774631.435120888,
+            "k": 1,
+            "start_s": 20406631.435120888
+          },
+          {
+            "component": "magnets",
+            "end_s": 61549262.870241776,
+            "k": 2,
+            "start_s": 51181262.870241776
+          },
+          {
+            "component": "magnets",
+            "end_s": 92323894.30536267,
+            "k": 3,
+            "start_s": 81955894.30536267
+          },
+          {
+            "component": "magnets",
+            "end_s": 123098525.74048357,
+            "k": 4,
+            "start_s": 112730525.74048357
+          },
+          {
+            "component": "blanket",
+            "end_s": 129109125.39139815,
+            "k": 1,
+            "start_s": 123925125.39139815
+          },
+          {
+            "component": "magnets",
+            "end_s": 156465157.17560446,
+            "k": 5,
+            "start_s": 146097157.17560446
+          },
+          {
+            "component": "magnets",
+            "end_s": 187239788.61072534,
+            "k": 6,
+            "start_s": 176871788.61072534
+          },
+          {
+            "component": "magnets",
+            "end_s": 218014420.04584622,
+            "k": 7,
+            "start_s": 207646420.04584622
+          },
+          {
+            "component": "magnets",
+            "end_s": 248789051.4809671,
+            "k": 8,
+            "start_s": 238421051.4809671
+          },
+          {
+            "component": "blanket",
+            "end_s": 255626250.7827963,
+            "k": 2,
+            "start_s": 250442250.7827963
+          },
+          {
+            "component": "magnets",
+            "end_s": 282155682.916088,
+            "k": 9,
+            "start_s": 271787682.916088
+          },
+          {
+            "component": "magnets",
+            "end_s": 312930314.35120887,
+            "k": 10,
+            "start_s": 302562314.35120887
+          },
+          {
+            "component": "magnets",
+            "end_s": 343704945.78632975,
+            "k": 11,
+            "start_s": 333336945.78632975
+          },
+          {
+            "component": "magnets",
+            "end_s": 374479577.2214506,
+            "k": 12,
+            "start_s": 364111577.2214506
+          },
+          {
+            "component": "blanket",
+            "end_s": 382143376.1741944,
+            "k": 3,
+            "start_s": 376959376.1741944
+          },
+          {
+            "component": "magnets",
+            "end_s": 407846208.6565715,
+            "k": 13,
+            "start_s": 397478208.6565715
+          },
+          {
+            "component": "magnets",
+            "end_s": 438620840.0916924,
+            "k": 14,
+            "start_s": 428252840.0916924
+          },
+          {
+            "component": "magnets",
+            "end_s": 469395471.52681327,
+            "k": 15,
+            "start_s": 459027471.52681327
+          },
+          {
+            "component": "magnets",
+            "end_s": 500170102.96193415,
+            "k": 16,
+            "start_s": 489802102.96193415
+          },
+          {
+            "component": "blanket",
+            "end_s": 508660501.5655925,
+            "k": 4,
+            "start_s": 503476501.5655925
+          },
+          {
+            "component": "magnets",
+            "end_s": 533536734.3970551,
+            "k": 17,
+            "start_s": 523168734.3970551
+          },
+          {
+            "component": "magnets",
+            "end_s": 564311365.832176,
+            "k": 18,
+            "start_s": 553943365.832176
+          },
+          {
+            "component": "magnets",
+            "end_s": 595085997.2672969,
+            "k": 19,
+            "start_s": 584717997.2672969
+          },
+          {
+            "component": "magnets",
+            "end_s": 625860628.7024179,
+            "k": 20,
+            "start_s": 615492628.7024179
+          },
+          {
+            "component": "blanket",
+            "end_s": 635177626.9569908,
+            "k": 5,
+            "start_s": 629993626.9569908
+          },
+          {
+            "component": "magnets",
+            "end_s": 659227260.1375388,
+            "k": 21,
+            "start_s": 648859260.1375388
+          },
+          {
+            "component": "magnets",
+            "end_s": 690001891.5726597,
+            "k": 22,
+            "start_s": 679633891.5726597
+          },
+          {
+            "component": "magnets",
+            "end_s": 720776523.0077807,
+            "k": 23,
+            "start_s": 710408523.0077807
+          },
+          {
+            "component": "magnets",
+            "end_s": 751551154.4429016,
+            "k": 24,
+            "start_s": 741183154.4429016
+          },
+          {
+            "component": "blanket",
+            "end_s": 761694752.3483891,
+            "k": 6,
+            "start_s": 756510752.3483891
+          },
+          {
+            "component": "magnets",
+            "end_s": 784917785.8780226,
+            "k": 25,
+            "start_s": 774549785.8780226
+          },
+          {
+            "component": "magnets",
+            "end_s": 815692417.3131435,
+            "k": 26,
+            "start_s": 805324417.3131435
+          },
+          {
+            "component": "magnets",
+            "end_s": 846467048.7482644,
+            "k": 27,
+            "start_s": 836099048.7482644
+          },
+          {
+            "component": "magnets",
+            "end_s": 877241680.1833854,
+            "k": 28,
+            "start_s": 866873680.1833854
+          },
+          {
+            "component": "blanket",
+            "end_s": 888211877.7397875,
+            "k": 7,
+            "start_s": 883027877.7397875
+          },
+          {
+            "component": "magnets",
+            "end_s": 910608311.6185062,
+            "k": 29,
+            "start_s": 900240311.6185062
+          },
+          {
+            "component": "magnets",
+            "end_s": 941382943.0536271,
+            "k": 30,
+            "start_s": 931014943.0536271
+          }
+        ],
+        "total_replacement_downtime_s": 347328000.0
+      },
+      "status": "EVALUATED"
+    },
+    "port/reference": {
+      "assumptions": "<run-dir>/out/cases/port__reference/f1.0/fixed/assumptions.json",
+      "history": {
+        "lifetime_net_electricity_mwh": 23401685.759336166,
+        "outcome": "horizon_completed",
+        "replacements": [
+          {
+            "component": "magnets",
+            "end_s": 31025152.21971264,
+            "k": 1,
+            "start_s": 20657152.21971264
+          },
+          {
+            "component": "magnets",
+            "end_s": 62050304.43942528,
+            "k": 2,
+            "start_s": 51682304.43942528
+          },
+          {
+            "component": "magnets",
+            "end_s": 93075456.65913792,
+            "k": 3,
+            "start_s": 82707456.65913792
+          },
+          {
+            "component": "blanket",
+            "end_s": 104158893.84020878,
+            "k": 1,
+            "start_s": 98974893.84020878
+          },
+          {
+            "component": "magnets",
+            "end_s": 129284608.87885056,
+            "k": 4,
+            "start_s": 118916608.87885056
+          },
+          {
+            "component": "magnets",
+            "end_s": 157717761.0985632,
+            "k": 5,
+            "start_s": 147349761.0985632
+          },
+          {
+            "component": "magnets",
+            "end_s": 188742913.31827584,
+            "k": 6,
+            "start_s": 178374913.31827584
+          },
+          {
+            "component": "blanket",
+            "end_s": 203133787.68041757,
+            "k": 2,
+            "start_s": 197949787.68041757
+          },
+          {
+            "component": "magnets",
+            "end_s": 224952065.53798848,
+            "k": 7,
+            "start_s": 214584065.53798848
+          },
+          {
+            "component": "magnets",
+            "end_s": 253385217.75770113,
+            "k": 8,
+            "start_s": 243017217.75770113
+          },
+          {
+            "component": "magnets",
+            "end_s": 283485952.2197126,
+            "k": 9,
+            "start_s": 273117952.2197126
+          },
+          {
+            "component": "blanket",
+            "end_s": 301184263.7629252,
+            "k": 3,
+            "start_s": 296000263.7629252
+          },
+          {
+            "component": "magnets",
+            "end_s": 319695104.43942523,
+            "k": 10,
+            "start_s": 309327104.43942523
+          },
+          {
+            "component": "magnets",
+            "end_s": 348128256.65913785,
+            "k": 11,
+            "start_s": 337760256.65913785
+          },
+          {
+            "component": "magnets",
+            "end_s": 378158752.2197126,
+            "k": 12,
+            "start_s": 367790752.2197126
+          },
+          {
+            "component": "blanket",
+            "end_s": 399164500.9439961,
+            "k": 4,
+            "start_s": 393980500.9439961
+          },
+          {
+            "component": "magnets",
+            "end_s": 414367904.43942523,
+            "k": 13,
+            "start_s": 403999904.43942523
+          },
+          {
+            "component": "magnets",
+            "end_s": 442801056.65913785,
+            "k": 14,
+            "start_s": 432433056.65913785
+          },
+          {
+            "component": "magnets",
+            "end_s": 472831552.2197126,
+            "k": 15,
+            "start_s": 462463552.2197126
+          },
+          {
+            "component": "blanket",
+            "end_s": 497144738.12506694,
+            "k": 5,
+            "start_s": 491960738.12506694
+          },
+          {
+            "component": "magnets",
+            "end_s": 509040704.43942523,
+            "k": 16,
+            "start_s": 498672704.43942523
+          },
+          {
+            "component": "magnets",
+            "end_s": 537473856.6591378,
+            "k": 17,
+            "start_s": 527105856.65913785
+          },
+          {
+            "component": "magnets",
+            "end_s": 567504352.2197126,
+            "k": 18,
+            "start_s": 557136352.2197126
+          },
+          {
+            "component": "magnets",
+            "end_s": 598529504.4394252,
+            "k": 19,
+            "start_s": 588161504.4394252
+          },
+          {
+            "component": "blanket",
+            "end_s": 608084975.3061378,
+            "k": 6,
+            "start_s": 602900975.3061378
+          },
+          {
+            "component": "magnets",
+            "end_s": 634738656.6591378,
+            "k": 20,
+            "start_s": 624370656.6591378
+          },
+          {
+            "component": "magnets",
+            "end_s": 663171808.8788505,
+            "k": 21,
+            "start_s": 652803808.8788505
+          },
+          {
+            "component": "magnets",
+            "end_s": 693734752.2197126,
+            "k": 22,
+            "start_s": 683366752.2197126
+          },
+          {
+            "component": "blanket",
+            "end_s": 706597660.2674961,
+            "k": 7,
+            "start_s": 701413660.2674961
+          },
+          {
+            "component": "magnets",
+            "end_s": 729943904.4394253,
+            "k": 23,
+            "start_s": 719575904.4394253
+          },
+          {
+            "component": "magnets",
+            "end_s": 758377056.659138,
+            "k": 24,
+            "start_s": 748009056.659138
+          },
+          {
+            "component": "magnets",
+            "end_s": 788407552.2197126,
+            "k": 25,
+            "start_s": 778039552.2197126
+          },
+          {
+            "component": "blanket",
+            "end_s": 804577897.4485669,
+            "k": 8,
+            "start_s": 799393897.4485669
+          },
+          {
+            "component": "magnets",
+            "end_s": 824616704.4394252,
+            "k": 26,
+            "start_s": 814248704.4394252
+          },
+          {
+            "component": "magnets",
+            "end_s": 853049856.6591378,
+            "k": 27,
+            "start_s": 842681856.6591378
+          },
+          {
+            "component": "magnets",
+            "end_s": 883080352.2197126,
+            "k": 28,
+            "start_s": 872712352.2197126
+          },
+          {
+            "component": "blanket",
+            "end_s": 902558134.6296378,
+            "k": 9,
+            "start_s": 897374134.6296378
+          },
+          {
+            "component": "magnets",
+            "end_s": 919289504.4394253,
+            "k": 29,
+            "start_s": 908921504.4394253
+          },
+          {
+            "component": "magnets",
+            "end_s": null,
+            "k": 30,
+            "start_s": 937354656.659138
+          }
+        ],
+        "total_replacement_downtime_s": 356701343.34086204
+      },
+      "status": "EVALUATED"
+    }
+  },
+  "inputs_sha256": {
+    "assumptions": "e5e4fdaae34bdadceb7332ede39634994ecb6b637040099b5b822cbca16d85a4",
+    "cases": {
+      "arrangement:no-port/breeder": {
+        "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+        "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+        "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+      },
+      "arrangement:no-port/reference": {
+        "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+        "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+        "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+      },
+      "arrangement:port/breeder": {
+        "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+        "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+        "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+      },
+      "arrangement:port/reference": {
+        "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+        "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+        "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+      },
+      "sweep:030cm": {
+        "history_run": "ab678c993f42e7015e16327675555caf681ad6f5221873ac22f953a579ee750b",
+        "physics": "64e16340ad2bba96c4643d882d57252a2a63fb5b1e45f758119c8a72a287b9d9",
+        "scenario": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+        "spectrum_run": "245423f1541e9d1fa864bedd0d2651b921acdab015c20b829d56213757e86917"
+      },
+      "sweep:035cm": {
+        "history_run": "dbfd6a6e02a3cf0bdff9bc6612457c70dca426082519d7efd0af5e42297a5833",
+        "physics": "1758c2e9542a3479c7212c7d2ba184cdb1701dbbae77c63408f7392b5f7dc476",
+        "scenario": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+        "spectrum_run": "b174845869fdc90dff757cef8df195c5b399fa6059e53487607f3cb22544b1f9"
+      },
+      "sweep:040cm": {
+        "history_run": "95228875f12838f98dc763f1891c9626e7f4488f584c24f68d77ea54ff92540d",
+        "physics": "9a70082f3012598bdd59dec947bb20422573ab8647521a2087919c0b2bfcbf1f",
+        "scenario": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+        "spectrum_run": "660e48aa83a46fe9374934825693a5b340351269f1d89aeede8af75f7691c66c"
+      },
+      "sweep:045cm": {
+        "history_run": "3998064919a275ecedd416a1b5de68337870747c8e0942085264d13327584cb9",
+        "physics": "1a1c2a52cae887decf4db9af3fee434e01e52a723e8271501dfed41608501df9",
+        "scenario": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+        "spectrum_run": "34813f39e2d32aa587b8d67b38fa6c2a350a67694ca7c0520766d4f51213d9be"
+      },
+      "sweep:050cm": {
+        "history_run": "0cdb556cbbe5b777eb441668e280f0f19116d4970813c4c38a409ef941a9f49d",
+        "physics": "7a732e7b8c931be83aea62962878278b8496728c2b1390787ff20e9b9e0bcd6e",
+        "scenario": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+        "spectrum_run": "78df1706f3520cc1c57fa58aa12a79ede1df5028282c341cef54ba28807a80d7"
+      },
+      "sweep:055cm": {
+        "history_run": "0c917393fb2ab44652753620419295ae88d7100ae201b6bd7b8c2ebbf1459c6f",
+        "physics": "5af9501079a45bcd36394c935f72a4ba724b72d2a61ae09ff1df9f26589b5266",
+        "scenario": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+        "spectrum_run": "90500fc00e1415bfc205496e98337e6beff282606445899f0af0b4f55aa5cdc5"
+      },
+      "sweep:060cm": {
+        "history_run": "3988f8fae4e1df36b9efc808829311429108850b3912628e497ea3a1cc1dd096",
+        "physics": "55ae9c5dbe30d5a85dc026c44dd6cb5780f23505059153d6d7e757a85fa2b11e",
+        "scenario": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+        "spectrum_run": "319a0be55859b85180fba783b34529702a557dc846f94cb64c94d298513d0294"
+      }
+    },
+    "config": "1ee5a61192e41e0207933527125cc5b558417d756236fb459d8efc666fa6249c",
+    "impurities": null
+  },
+  "source_sha256": "deee2e67fdce9db02a7e1c4e98617dd78731ce8b168dc6814719ea4b412e2328"
+}

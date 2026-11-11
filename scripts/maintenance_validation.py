@@ -11,7 +11,7 @@
             scripts/maintenance_coupling_test.py; this script never runs it, ACTINV or any transport.
   evaluate  read DIR/<variant>/result.json for every variant that exists and apply the protocol's claim rules
             (C1-C4) and verdict labels (ROBUST, FRAGILE, INCOMPLETE):
-              maintenance_validation.py evaluate --dir DIR --reference references/maintenance-coupling-test-a2.json
+              maintenance_validation.py evaluate --dir DIR --reference runs/maintenance-coupling-test-a2.json
                                                  --out references/maintenance-coupling-validation.json
             Refuses unless the protocol's body SHA-256 (the text before its amendments heading) is the recorded one.
             If the baseline variant B does not reproduce the amended run exactly, no other variant is evaluated.
