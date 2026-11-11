@@ -60,6 +60,9 @@ DIGEST_COMPARE_OK = {
 AMBIENT_TIME_OK = {
     ("crates/faris-engine/src/result_cache.rs", "SystemTime::now()"): "cache bookkeeping only (when an entry was made and last used, for eviction); "
     "the key never includes a time, which result_cache's tests check",
+    ("crates/faris-engine/src/atomic_file.rs", "let timestamp = std::time::SystemTime::now()"): (
+        "disambiguates recovery filenames across process restarts; never enters the saved bytes or calculation inputs"
+    ),
 }
 # (file, whole line) -> why a std call that panics in the browser is safe there.
 BROWSER_PANIC_OK = {
