@@ -1,0 +1,84 @@
+{
+  "schema": "faris-reactor-production-stop-control/v1",
+  "date_utc": "2026-11-11",
+  "scope": "Real one-port reactor Production exhaustion and readback of the bound record. Companion two-target iron sphere checks the worker's positive stop using flux proxy responses. Scientific qualification remains NOT_EVALUATED.",
+  "cli": {
+    "path": "runs/continuation/nuc043-cli-trigger-controls-v111/faris-v111",
+    "sha256": "1ab41d2280bcadd5d10fefcdb233f10bb6ec19becfce4705f6ebf9d406fdb4f5"
+  },
+  "production": {
+    "targets": {
+      "magnets-fast-flux": 0.05,
+      "total-tritium-production": 0.01
+    },
+    "outcome": {
+      "mode": "target_error",
+      "batches_realized": 30,
+      "histories_realized": 27000,
+      "batch_budget": 30,
+      "target_response_id": "magnets-fast-flux",
+      "watched_responses": [
+        "magnets-fast-flux",
+        "total-tritium-production"
+      ],
+      "watched_targets": {
+        "magnets-fast-flux": 0.05,
+        "total-tritium-production": 0.01
+      },
+      "target_relative_error": 0.05,
+      "limiting_target_relative_error": 0.05,
+      "achieved_relative_error": 1.0,
+      "achieved_relative_errors": {
+        "magnets-fast-flux": 1.0,
+        "total-tritium-production": 0.00655601446070357
+      },
+      "variance_of_variance": 0.9011494252873562,
+      "variance_of_variance_limit": 0.1,
+      "restarts": [],
+      "stop_reason": "budget_exhausted",
+      "stop_reason_text": "batch budget used up before the target error was met"
+    },
+    "loss_events": 0,
+    "run_record": {
+      "path": "runs/continuation/nuc043-cli-trigger-controls-v111/cli-exhausted/run.json",
+      "sha256": "15521c8a3b299a64aba71d59f7158a911bc36c3f04c26ed7ba54642be5e2e948"
+    },
+    "worker_record": {
+      "path": "runs/continuation/nuc043-cli-trigger-controls-v111/cli-exhausted/solver/worker-result.json",
+      "sha256": "8b430962e8c5ecf056aa1883da42d309dad393778670066b1d06ca255765fe0e"
+    },
+    "inspect": {
+      "path": "runs/continuation/nuc043-cli-trigger-controls-v111/cli-exhausted-inspect.json",
+      "sha256": "7a019b269cfe8292452daeb77a1831ea2e166ddb3b6185c92751e2160f4890d1"
+    },
+    "input_hashes": {
+      "path": "runs/continuation/nuc043-cli-trigger-controls-v111/exhausted-inputs.sha256",
+      "sha256": "bc051720e0e42be41229f414b2639aa992c954a091e071e919301f740fc8c042"
+    }
+  },
+  "legacy_fixed_replay": {
+    "histories": 90000,
+    "inspect": {
+      "path": "runs/continuation/nuc043-cli-trigger-controls-v111/legacy-v107-inspect.json",
+      "sha256": "92fb1ff40f5e664a4f3c491ef237c07335e2d7509445298cd06f2b2d41699abb"
+    }
+  },
+  "positive_worker": {
+    "status": "PASS",
+    "test": {
+      "path": "runs/continuation/nuc043-cli-trigger-controls-v111/test_two_response_positive_openmc.py",
+      "sha256": "57b98a3c7536127beb82cdc3d8fc7c09969cf786fc1a8396e51b5f346eb7a760"
+    },
+    "log": {
+      "path": "runs/continuation/nuc043-cli-trigger-controls-v111/worker-positive-v2.log",
+      "sha256": "821d11881f6803e8b6feb390091bef05f4f32e6cbc1b7bd9681263e3ee0e5144"
+    },
+    "solver": "OpenMC 0.15.3",
+    "responses": "total sphere flux and fast sphere flux",
+    "targets": {
+      "sphere-total-flux": 0.45,
+      "sphere-fast-flux": 0.5
+    }
+  },
+  "check_note": "The outer launch script initially checked for the transient sampling outcome in run.json. This receipt verifies the worker receipt hash in run.json and the outcome rebuilt by the native inspect command."
+}

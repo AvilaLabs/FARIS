@@ -2,7 +2,7 @@
   "schema": "faris-native-cancellation-controls/v1",
   "date_utc": "2026-11-11",
   "platform": "Linux x86_64 Ubuntu 26.04",
-  "scope": "Native CLI and selected OpenMC C API worker groups for one fixed reactor and one checked CAD transport. Signal only to the CLI. Linux /proc PID and PGID sampling at 50 ms polling intervals. No complete all-adapter audit.",
+  "scope": "Native CLI and captured subprocess groups for fixed reactor transport, checked CAD transport, and a CAD STEP tessellation. SIGINT went to the CLI only. Linux /proc PID and PGID sampling at 50 ms polling intervals. The audit across every adapter remains open.",
   "binary": {
     "path": "runs/continuation/nuc043-tiny-cad-recipe-v110/faris-v110",
     "sha256": "78c22d2b32598ffc7d084a37ab7eb31fc853d8cae0e8a555d91ee20b3a26f05d"
@@ -63,6 +63,33 @@
         "command.txt": {
           "path": "runs/continuation/perf024-v110-cancellation-v4/live/design-transport/command.txt",
           "sha256": "456f8fb3f56b9f80ade5afe9ef99b6651a939afa0b1869617fac055ff9dee9d2"
+        }
+      }
+    },
+    {
+      "path": "design-check",
+      "readiness": "The bound faris_cad.py tessellate child is live.",
+      "exit_code": 2,
+      "cli_exit_ms": 60,
+      "all_captured_descendant_groups_gone_ms": 134,
+      "remaining_captured_descendants": 0,
+      "captured_descendant_count": 1,
+      "evidence": {
+        "result.txt": {
+          "path": "runs/continuation/perf024-v110-cancellation-v6/live/design-check/result.txt",
+          "sha256": "85c532b9e548d158974635da206003db719b32631515e63a07c7702fb149db27"
+        },
+        "cli.log": {
+          "path": "runs/continuation/perf024-v110-cancellation-v6/live/design-check/cli.log",
+          "sha256": "faa8185ca4aeb0aaf8fb04c1ecaaf5ada49a27675fffa865cbea548f376262f0"
+        },
+        "descendants-at-signal.tsv": {
+          "path": "runs/continuation/perf024-v110-cancellation-v6/live/design-check/descendants-at-signal.tsv",
+          "sha256": "628df7fbaac67da04b7c52d05b2d3b18a9c7f81fe07394a1fc26d26f96334f01"
+        },
+        "command.txt": {
+          "path": "runs/continuation/perf024-v110-cancellation-v6/live/design-check/command.txt",
+          "sha256": "56d62be00cab4b3e3bfdae14934b43f6f8df2600f1004f2ee8d9f5d0ad6014bf"
         }
       }
     }
