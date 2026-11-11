@@ -299,6 +299,9 @@ pub struct DesignTransportOptions {
     /// A new directory for the run.
     pub out_dir: PathBuf,
     pub target_relative_error: f64,
+    /// Optional independent target for the whole-model and blanket H3/TBR rows.
+    /// `None` preserves legacy behavior by sharing `target_relative_error`.
+    pub h3_target_relative_error: Option<f64>,
     pub particles_per_batch: u64,
     pub max_histories: u64,
     pub max_seconds: u64,
@@ -402,6 +405,9 @@ struct WorkerHistoryResponse {
     covariance_method: String,
     batches: u32,
     target_relative_error: f64,
+    /// Optional H3-specific threshold; absent in pre-split worker results.
+    #[serde(default)]
+    h3_target_relative_error: Option<f64>,
     response_ids: Vec<String>,
     responses: Vec<WorkerHistoryRate>,
     covariance_raw_per_source: Vec<f64>,
@@ -502,6 +508,9 @@ pub struct DesignHistoryRatesArtifact {
     pub histories: u64,
     pub batches: u32,
     pub target_relative_error: f64,
+    /// H3-specific target; absent in artifacts written before split response targets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub h3_target_relative_error: Option<f64>,
     pub covariance_method: String,
     pub covariance_scope: String,
     pub normalized_transport: NormalizedTransportResult,
@@ -1399,6 +1408,15 @@ pub fn design_transport(
     if !(options.target_relative_error > 0.0 && options.target_relative_error < 1.0) {
         return Err(tool("the target relative error must lie between 0 and 1"));
     }
+    if options.history_components.is_some()
+        && options
+            .h3_target_relative_error
+            .is_some_and(|target| !(target > 0.0 && target < 1.0))
+    {
+        return Err(tool(
+            "the history response target relative error must be between 0 and 1",
+        ));
+    }
     if options.particles_per_batch == 0
         || options.max_histories < MIN_BATCHES * options.particles_per_batch
     {
@@ -1575,6 +1593,7 @@ pub fn design_transport(
         }),
         "sampling": {
             "target_relative_error": options.target_relative_error,
+            "h3_target_relative_error": options.h3_target_relative_error.unwrap_or(options.target_relative_error),
             "particles_per_batch": options.particles_per_batch,
             "min_batches": MIN_BATCHES,
             "max_batches": options.max_histories / options.particles_per_batch,
@@ -1734,55 +1753,68 @@ pub fn design_transport(
     let worker: WorkerResult = serde_json::from_slice(&worker_bytes)
         .map_err(|e| tool(format!("{}: {e}", result_path.display())))?;
     let history_rates_artifact = if let Some(setup) = &history_setup {
-        let components = options
-            .history_components
-            .as_ref()
-            .expect("paired history configuration");
-        let h3_component_id = options
-            .h3_component_id
-            .as_deref()
-            .expect("paired history configuration");
-        let artifact = build_history_rates_artifact(
-            &worker,
-            &worker_bytes,
-            &request,
-            &request_bytes,
-            components,
-            h3_component_id,
-            &setup.source,
-            &design,
-            &design_path
-                .canonicalize()
-                .map_err(|e| io_error(design_path, e))?,
-            &options
-                .check_report
-                .canonicalize()
-                .map_err(|e| io_error(&options.check_report, e))?,
-            &h5m,
-            &cross_sections,
-            &dir,
-            fusion_power_mw,
-        )?;
-        let mut bytes = serde_json::to_vec_pretty(&artifact).map_err(|e| tool(e.to_string()))?;
-        bytes.push(b'\n');
-        if bytes.len() > MAX_JSON_BYTES as usize {
-            return Err(tool(format!(
-                "CAD history-rate artifact exceeds the {} MiB JSON budget; reduce the number of mapped components",
-                MAX_JSON_BYTES / (1024 * 1024)
-            )));
+        // A bounded or untrusted run is still useful as a diagnostic report, but its rates must
+        // never drive an operating-history calculation. Keep the strict artifact validation
+        // below for runs that claim successful, trusted convergence.
+        if !history_artifact_outcome_eligible(
+            &worker.stop_reason,
+            worker.target_reached,
+            worker.lost_particles,
+            worker.histories,
+        ) {
+            None
+        } else {
+            let components = options
+                .history_components
+                .as_ref()
+                .expect("paired history configuration");
+            let h3_component_id = options
+                .h3_component_id
+                .as_deref()
+                .expect("paired history configuration");
+            let artifact = build_history_rates_artifact(
+                &worker,
+                &worker_bytes,
+                &request,
+                &request_bytes,
+                components,
+                h3_component_id,
+                &setup.source,
+                &design,
+                &design_path
+                    .canonicalize()
+                    .map_err(|e| io_error(design_path, e))?,
+                &options
+                    .check_report
+                    .canonicalize()
+                    .map_err(|e| io_error(&options.check_report, e))?,
+                &h5m,
+                &cross_sections,
+                &dir,
+                fusion_power_mw,
+            )?;
+            let mut bytes =
+                serde_json::to_vec_pretty(&artifact).map_err(|e| tool(e.to_string()))?;
+            bytes.push(b'\n');
+            if bytes.len() > MAX_JSON_BYTES as usize {
+                return Err(tool(format!(
+                    "CAD history-rate artifact exceeds the {} MiB JSON budget; reduce the number of mapped components",
+                    MAX_JSON_BYTES / (1024 * 1024)
+                )));
+            }
+            let path = dir.join("history-driving-rates.json");
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .map_err(|e| io_error(&path, e))?;
+            use std::io::Write as _;
+            file.write_all(&bytes).map_err(|e| io_error(&path, e))?;
+            Some(HistoryRatesArtifactRef {
+                path: path.display().to_string(),
+                sha256: sha256_hex(&bytes),
+            })
         }
-        let path = dir.join("history-driving-rates.json");
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-            .map_err(|e| io_error(&path, e))?;
-        use std::io::Write as _;
-        file.write_all(&bytes).map_err(|e| io_error(&path, e))?;
-        Some(HistoryRatesArtifactRef {
-            path: path.display().to_string(),
-            sha256: sha256_hex(&bytes),
-        })
     } else {
         if worker.history_response.is_some() {
             return Err(tool(
@@ -1819,6 +1851,49 @@ pub fn design_transport(
             chosen: &chosen,
         },
     )
+}
+
+fn history_artifact_outcome_eligible(
+    stop_reason: &str,
+    flux_target_reached: bool,
+    lost_particles: Option<u64>,
+    histories: u64,
+) -> bool {
+    stop_reason == "target_reached"
+        && flux_target_reached
+        && histories > 0
+        && lost_particles.is_some_and(|lost| lost as f64 / histories as f64 <= 1.0e-6)
+}
+
+fn h3_target_from_sampling(sampling: &serde_json::Value) -> Option<f64> {
+    sampling
+        .get("h3_target_relative_error")
+        .and_then(serde_json::Value::as_f64)
+        .or_else(|| {
+            sampling
+                .get("target_relative_error")
+                .and_then(serde_json::Value::as_f64)
+        })
+}
+
+fn history_response_targets_met(
+    responses: &[WorkerHistoryRate],
+    aggregate_target: f64,
+    h3_target: f64,
+) -> bool {
+    responses.len() >= 2
+        && responses.iter().enumerate().all(|(index, response)| {
+            response.mean_raw_per_source.is_finite()
+                && response.mean_raw_per_source > 0.0
+                && response.standard_error_raw_per_source.is_finite()
+                && response.standard_error_raw_per_source >= 0.0
+                && response.standard_error_raw_per_source / response.mean_raw_per_source
+                    <= if index < 2 {
+                        h3_target
+                    } else {
+                        aggregate_target
+                    }
+        })
 }
 
 struct Inputs<'a> {
@@ -1876,6 +1951,12 @@ fn build_history_rates_artifact(
     if request.get("schema").and_then(serde_json::Value::as_str) != Some(REQUEST_SCHEMA)
         || request["sampling"]["target_relative_error"].as_f64()
             != Some(history.target_relative_error)
+        || h3_target_from_sampling(&request["sampling"])
+            != Some(
+                history
+                    .h3_target_relative_error
+                    .unwrap_or(history.target_relative_error),
+            )
         || history.schema != "faris-cad-history-response/v0.1"
         || history.flux_energy_min_ev != 0.0
         || history.h3_score != "H3-production"
@@ -1983,6 +2064,17 @@ fn build_history_rates_artifact(
                 return Err(fail("batch covariance is asymmetric"));
             }
         }
+    }
+    if !history_response_targets_met(
+        &history.responses,
+        history.target_relative_error,
+        history
+            .h3_target_relative_error
+            .unwrap_or(history.target_relative_error),
+    ) {
+        return Err(fail(
+            "worker marked H3/component response targets reached, but the reported batch-covariance errors exceed them",
+        ));
     }
     let total_h3 = &history.responses[0];
     let breeder_h3 = &history.responses[1];
@@ -2246,6 +2338,7 @@ fn build_history_rates_artifact(
         histories: worker.histories,
         batches: history.batches,
         target_relative_error: history.target_relative_error,
+        h3_target_relative_error: history.h3_target_relative_error,
         covariance_method: history.covariance_method.clone(),
         covariance_scope: history.covariance_scope.clone(),
         normalized_transport: normalized,
@@ -2631,6 +2724,12 @@ fn load_design_history_rates_from_source(
         || transport_request.get("materials") != Some(&serde_json::Value::Array(expected_materials))
         || transport_request["sampling"]["target_relative_error"].as_f64()
             != Some(artifact.target_relative_error)
+        || h3_target_from_sampling(&transport_request["sampling"])
+            != Some(
+                artifact
+                    .h3_target_relative_error
+                    .unwrap_or(artifact.target_relative_error),
+            )
         || transport_request["response"]["energy_min_ev"]
             .as_f64()
             .is_none_or(|threshold| !threshold.is_finite())
@@ -3152,6 +3251,82 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_target_request_uses_explicit_split_and_legacy_fallback() {
+        let old = serde_json::json!({"target_relative_error": 0.05});
+        let split =
+            serde_json::json!({"target_relative_error": 0.05, "h3_target_relative_error": 0.01});
+        assert_eq!(h3_target_from_sampling(&old), Some(0.05));
+        assert_eq!(h3_target_from_sampling(&split), Some(0.01));
+    }
+
+    #[test]
+    fn successful_worker_h3_and_flux_targets_are_recomputed_from_reported_errors() {
+        let response = |mean, relative_error| WorkerHistoryRate {
+            response_id: String::new(),
+            solid_ids: Vec::new(),
+            volume_m3: None,
+            mean_raw_per_source: mean,
+            standard_error_raw_per_source: mean * relative_error,
+        };
+        let responses = vec![
+            response(1.0, 0.009),
+            response(1.0, 0.009),
+            response(1.0, 0.049),
+        ];
+        assert!(history_response_targets_met(&responses, 0.05, 0.01));
+        assert!(!history_response_targets_met(
+            &[
+                response(1.0, 0.011),
+                response(1.0, 0.009),
+                response(1.0, 0.04)
+            ],
+            0.05,
+            0.01,
+        ));
+        assert!(!history_response_targets_met(
+            &[
+                response(1.0, 0.009),
+                response(1.0, 0.009),
+                response(1.0, 0.051)
+            ],
+            0.05,
+            0.01,
+        ));
+        // Old worker results shared one threshold and deserialize with no H3-specific value.
+        assert!(history_response_targets_met(&responses, 0.05, 0.05));
+    }
+
+    #[test]
+    fn bounded_or_untrusted_history_run_keeps_diagnostics_without_driving_artifact() {
+        // The observed 50k-history control produced history_limit, false target flags, finite
+        // achieved errors, and zero lost particles. It must still yield a report, not an artifact.
+        assert!(!history_artifact_outcome_eligible(
+            "history_limit",
+            false,
+            Some(0),
+            50_000,
+        ));
+        assert!(!history_artifact_outcome_eligible(
+            "lost_particles",
+            false,
+            Some(1),
+            50_000,
+        ));
+        assert!(!history_artifact_outcome_eligible(
+            "target_reached",
+            true,
+            None,
+            50_000,
+        ));
+        assert!(history_artifact_outcome_eligible(
+            "target_reached",
+            true,
+            Some(0),
+            210_000,
+        ));
+    }
 
     #[test]
     fn history_tool_identities_pass_the_driving_rate_sha256_validation_boundary() {

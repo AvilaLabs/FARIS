@@ -57,6 +57,38 @@ class RunningSumTest(unittest.TestCase):
 
 
 class StopRuleTest(unittest.TestCase):
+    def test_tbr_target_is_split_but_mapped_flux_keeps_aggregate_target(self):
+        import numpy as np
+
+        class Moments:
+            count = 30
+            relative_errors = np.array([0.009, 0.009, 0.04, 0.049])
+
+        split = {**SAMPLING, "h3_target_relative_error": 0.01}
+        self.assertTrue(DT.history_targets_reached(Moments(), split))
+        Moments.relative_errors = np.array([0.011, 0.009, 0.01, 0.01])
+        self.assertFalse(DT.history_targets_reached(Moments(), split))
+        Moments.relative_errors = np.array([0.009, 0.009, 0.051, 0.01])
+        self.assertFalse(DT.history_targets_reached(Moments(), split))
+        # Old requests apply their one shared target to H3 and component flux alike.
+        legacy = {**SAMPLING, "target_relative_error": 0.05}
+        Moments.relative_errors = np.array([0.04, 0.04, 0.04, 0.04])
+        self.assertTrue(DT.history_targets_reached(Moments(), legacy))
+
+    def test_h3_shortfall_does_not_mask_history_or_time_budget(self):
+        settled = stats_of([1.0] * SAMPLING["min_batches"])
+        self.assertIsNone(DT.stop_reason(settled, SAMPLING, 1.0, history_target_met=False))
+        history_bounded = {**SAMPLING, "max_batches": SAMPLING["min_batches"]}
+        self.assertEqual(
+            DT.stop_reason(settled, history_bounded, 1.0, history_target_met=False),
+            "history_limit",
+        )
+        self.assertEqual(
+            DT.stop_reason(settled, SAMPLING, SAMPLING["max_seconds"] + 1,
+                           history_target_met=False),
+            "time_limit",
+        )
+
     def test_target_is_not_accepted_before_the_minimum_batches(self):
         stats = stats_of([1.0] * 5)
         self.assertEqual(stats.relative_error, 0.0)
@@ -145,6 +177,7 @@ class RetagTest(unittest.TestCase):
         names = DT.retag_map(REQUEST["solids"], random_ray=False)
         self.assertEqual(names, {b"mat:plasma": b"mat:void", b"mat:coil-a": b"mat:tf-coil", b"mat:coil-b": b"mat:tf-coil"})
 
+    # Verifies: NUC-056
     def test_random_ray_fills_empty_space_and_the_outside(self):
         names = DT.retag_map(REQUEST["solids"], random_ray=True)
         self.assertEqual(names[b"mat:plasma"], f"mat:{DT.FILLER}".encode())

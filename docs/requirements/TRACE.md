@@ -6,12 +6,12 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 434 of 1419 requirements.
+Traced: 435 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 31 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 107 | 36 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 107 | 37 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 52 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 9 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 5 |
@@ -94,6 +94,7 @@ Traced: 434 of 1419 requirements.
 | NUC-051 | F2 | `crates/faris-engine/src/reactor.rs::a_merged_result_takes_each_response_from_the_pass_valid_for_it`<br>`crates/faris-engine/src/reactor.rs::public_replay_loader_validates_mixed_windowed_passes_and_propagates_child_reason`<br>`integrations/openmc/risk_tests/test_windows_file.py::test_a_run_from_the_file_equals_a_run_with_the_windows_inline`<br>`integrations/openmc/risk_tests/test_windows_file.py::test_the_model_file_holds_no_bounds_and_the_run_file_carries_the_ids`<br>`integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma`<br>`integrations/openmc/test_windows_csg_openmc.py::test_windows_from_openmc_magic_agree_with_analog`<br>`integrations/openmc/test_windows_csg_openmc.py::test_windows_from_the_studys_generator_agree_with_analog` |
 | NUC-053 | F2 | `crates/faris-engine/src/reactor.rs::a_run_may_not_use_the_seeds_of_the_window_steps`<br>`integrations/openmc/risk_tests/test_design_transport.py::test_generation_and_reported_run_seeds_are_disjoint`<br>`integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma` |
 | NUC-055 | F2 | `integrations/openmc/risk_tests/test_windows_file.py::test_cap_model_with_a_real_visibility_run_agrees_between_the_two_paths`<br>`integrations/openmc/risk_tests/test_windows_file.py::test_capped_windows_in_the_file_are_the_bounds_the_xml_path_wrote` |
+| NUC-056 | F2 | `integrations/openmc/risk_tests/test_design_transport.py::test_random_ray_fills_empty_space_and_the_outside` |
 | NUC-057 | F2 | `crates/faris-engine/src/reactor/windows.rs::changing_any_geometry_material_or_source_value_changes_the_cache_key` |
 | NUC-061 | F2 | `crates/faris-engine/src/reactor.rs::the_bound_inventory_names_both_libraries_it_mixes` |
 | NUC-062 | F2 | `crates/faris-engine/src/reactor.rs::a_missing_photon_element_refuses_the_run_and_names_the_element` |

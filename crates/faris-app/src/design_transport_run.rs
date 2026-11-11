@@ -115,6 +115,8 @@ pub struct RunInputs {
     pub openmc_package: String,
     /// Relative standard error of the mean flux at which the run stops, in per cent.
     pub target_percent: f64,
+    /// Relative standard error target for mapped history responses, in per cent.
+    pub h3_target_percent: f64,
     pub max_histories: u64,
     pub max_seconds: u64,
     /// Keep weight windows and the channel search beside the design file between runs.
@@ -135,6 +137,7 @@ impl Default for RunInputs {
             window_python: String::new(),
             openmc_package: String::new(),
             target_percent: 5.0,
+            h3_target_percent: 1.0,
             max_histories: 50_000_000,
             max_seconds: 3600,
             keep_cache: true,
@@ -281,6 +284,14 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
             "enter a target such as 5 %.",
         ));
     }
+    let history_target = inputs.h3_target_percent / 100.0;
+    if history_configured && !(history_target > 0.0 && history_target < 1.0) {
+        problems.push(Problem::new(
+            None,
+            "The history response target error must lie between 0 and 100 %.",
+            "enter a target such as 1 %.",
+        ));
+    }
     if inputs.max_histories < MIN_HISTORIES {
         problems.push(Problem::new(
             None,
@@ -341,6 +352,7 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
         check_report: trimmed(&inputs.check_report).expect("checked above"),
         out_dir: out_dir.expect("checked above"),
         target_relative_error: target,
+        h3_target_relative_error: history_configured.then_some(history_target),
         particles_per_batch: PARTICLES_PER_BATCH,
         max_histories: inputs.max_histories,
         max_seconds: inputs.max_seconds,
@@ -779,6 +791,7 @@ mod tests {
     fn defaults_are_the_command_lines() {
         let inputs = RunInputs::default();
         assert_eq!(inputs.target_percent, 5.0);
+        assert_eq!(inputs.h3_target_percent, 1.0);
         assert_eq!(inputs.max_histories, 50_000_000);
         assert_eq!(inputs.max_seconds, 3600);
         assert!(inputs.keep_cache);
@@ -876,7 +889,10 @@ mod tests {
 
     #[test]
     fn a_valid_request_builds_the_command_lines_options() {
-        let (dir, inputs) = tree();
+        let (dir, mut inputs) = tree();
+        let package = dir.path().join("openmc-package");
+        std::fs::create_dir(&package).unwrap();
+        inputs.openmc_package = package.display().to_string();
         let plan = validate(&inputs).unwrap();
         let o = &plan.options;
         assert_eq!(o.target_relative_error, 0.05);
@@ -886,6 +902,7 @@ mod tests {
         assert_eq!(o.threads, 4);
         assert_eq!(o.cache_dir, Some(dir.path().join("faris-transport-cache")));
         assert_eq!(o.out_dir, dir.path().join("faris-transport-run"));
+        assert_eq!(o.openmc_package_path.as_deref(), Some(package.as_path()));
         assert!(plan.tools.cad_python.is_none());
         assert!(plan.tools.openmc_python.is_some());
         // An existing run folder is never reused.

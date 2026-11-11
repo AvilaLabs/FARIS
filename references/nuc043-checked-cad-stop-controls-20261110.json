@@ -1,0 +1,100 @@
+{
+  "schema": "faris-nuc043-checked-cad-split-target-controls/v1",
+  "date": "2026-11-10",
+  "requirement": "NUC-043",
+  "status": "CAD_DEFAULT_AND_EXHAUSTED_DIAGNOSTICS_PASS",
+  "scope": "Checked synthetic CAD normal CLI route with mapped H3 and flux responses. Reactor-study default TBR trigger coverage remains open.",
+  "cli": {
+    "path": "runs/continuation/nuc043-tiny-cad-recipe-v110/faris-v110",
+    "sha256": "78c22d2b32598ffc7d084a37ab7eb31fc853d8cae0e8a555d91ee20b3a26f05d"
+  },
+  "import_report": {
+    "path": "runs/continuation/tiny-cad-dose-control-20261110-v5/import-report.json",
+    "sha256": "22a524633a796b329e11df84b3ad06d7b33b187d88c139784508ecf922d484c2"
+  },
+  "cases": {
+    "target": {
+      "histories": 42000,
+      "cli_exit_code": 0,
+      "stop_reason": "target_reached",
+      "seed": 81104301,
+      "aggregate_rse": 0.005423906761032481,
+      "peak_rse": 0.040610589141600026,
+      "mapped_response_rse": {
+        "whole-model-tritium": 0.009919256866003137,
+        "blanket-tritium": 0.009919294651053389,
+        "history-flux:blanket": 0.005167065119156475,
+        "history-flux:first-wall": 0.006170077624254922,
+        "history-flux:tf-coil": 0.005131561784846707
+      },
+      "sampling": {
+        "h3_target_relative_error": 0.01,
+        "max_batches": 100,
+        "max_seconds": 120,
+        "min_batches": 30,
+        "particles_per_batch": 1000,
+        "seed": 81104301,
+        "target_relative_error": 0.05,
+        "threads": 1
+      },
+      "lost_events": 0,
+      "reason": null,
+      "report": {
+        "path": "runs/continuation/nuc043-tiny-cad-split-controls-v110-20261110-v1/target/report.json",
+        "sha256": "e2c4ea5e5d4c050af0b3774ec5a7f47d2a44916e19e95377e767bbd11d14fee5"
+      },
+      "worker_result": {
+        "path": "runs/continuation/nuc043-tiny-cad-split-controls-v110-20261110-v1/target/run/solver/result.json",
+        "sha256": "57714003a43db3d2f148749043ba9c997bf54ff65292725dbdd7bb53639eb096"
+      },
+      "worker_request": {
+        "path": "runs/continuation/nuc043-tiny-cad-split-controls-v110-20261110-v1/target/run/request.json",
+        "sha256": "d2697b911a22321f638bb236b734f38a7d6374103850b0b89526364deec40406"
+      },
+      "history_driving_artifact": {
+        "path": "runs/continuation/nuc043-tiny-cad-split-controls-v110-20261110-v1/target/run/history-driving-rates.json",
+        "sha256": "1f6299b19234721a1d7fd79c241f90c9aabd5b8fc2959c69f4d220a858bdfa03"
+      }
+    },
+    "exhausted": {
+      "histories": 50000,
+      "cli_exit_code": 1,
+      "stop_reason": "history_limit",
+      "seed": 81104302,
+      "aggregate_rse": 0.004841498225731084,
+      "peak_rse": 0.046690668390502336,
+      "mapped_response_rse": {
+        "whole-model-tritium": 0.008475043891403921,
+        "blanket-tritium": 0.008475078606639024,
+        "history-flux:blanket": 0.0039392093959299814,
+        "history-flux:first-wall": 0.005887038773049107,
+        "history-flux:tf-coil": 0.005064268052900675
+      },
+      "sampling": {
+        "h3_target_relative_error": 1e-06,
+        "max_batches": 50,
+        "max_seconds": 120,
+        "min_batches": 30,
+        "particles_per_batch": 1000,
+        "seed": 81104302,
+        "target_relative_error": 0.05,
+        "threads": 1
+      },
+      "lost_events": 0,
+      "reason": "The run stopped at its history limit; the error reached 0.5 % on the mean and 4.7 % on the highest piece (held to 10 %) against a target of 5 %. Achieved maximum H3 error was 0.848% against 0.0001%; mapped component-flux error was 0.589% against 5%.",
+      "report": {
+        "path": "runs/continuation/nuc043-tiny-cad-split-controls-v110-20261110-v1/exhausted/report.json",
+        "sha256": "3ee026a59a2b67a884526143b91f05f7449e35037a37636424b08022c53c24fb"
+      },
+      "worker_result": {
+        "path": "runs/continuation/nuc043-tiny-cad-split-controls-v110-20261110-v1/exhausted/run/solver/result.json",
+        "sha256": "21954aa29b0249cfaa0dbd20f374a3dbf0c734664bada9c056485f8503f81b71"
+      },
+      "worker_request": {
+        "path": "runs/continuation/nuc043-tiny-cad-split-controls-v110-20261110-v1/exhausted/run/request.json",
+        "sha256": "2556c498e2e5dd8e22fd80e9193f6a29028b2028a199a2aaee85455e9a161688"
+      },
+      "history_driving_artifact": null
+    }
+  }
+}

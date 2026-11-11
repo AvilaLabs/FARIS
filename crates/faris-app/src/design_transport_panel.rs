@@ -696,6 +696,17 @@ impl DesignTransportPanel {
                     .speed(0.1)
                     .suffix(" %"),
             );
+            if !self.inputs.history_components_json.trim().is_empty() {
+                ui.label("TBR target").on_hover_text(
+                    "Relative standard error for whole-model and blanket H3 production. Default: 1 %; mapped component flux keeps the aggregate target.",
+                );
+                ui.add(
+                    egui::DragValue::new(&mut self.inputs.h3_target_percent)
+                        .range(0.1..=50.0)
+                        .speed(0.1)
+                        .suffix(" %"),
+                );
+            }
             ui.label("History limit").on_hover_text(
                 "Stop after this many histories even when the target is not reached. Command line default: 50 000 000.",
             );
@@ -862,6 +873,23 @@ fn show_result(ui: &mut egui::Ui, shown: &Shown) -> bool {
     ui.add_space(4.0);
     ui.strong("Speed-up");
     ui.label(&view.speed_up.text);
+    if !view.speed_up.streaming_targets.is_empty() {
+        ui.strong(format!(
+            "Streaming target faces found ({})",
+            view.speed_up.streaming_targets.len()
+        ));
+        for target in &view.speed_up.streaming_targets {
+            ui.label(format!("• {target}"));
+        }
+    }
+    if let Some(hash) = &view.speed_up.windows_sha256 {
+        ui.weak(format!("Weight-window file SHA-256: {hash}"));
+    }
+    if view.speed_up.mode == "aimed" {
+        ui.weak(
+            "Streaming enhancement factor: not measured by this run; it needs a paired analogue comparison.",
+        );
+    }
     if let Some(next) = &view.speed_up.next_step {
         ui.label(format!("Next: {next}"));
     }

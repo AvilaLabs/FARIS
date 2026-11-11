@@ -173,6 +173,7 @@ fn options(report: &Path, out_dir: &Path) -> DesignTransportOptions {
         check_report: report.to_path_buf(),
         out_dir: out_dir.to_path_buf(),
         target_relative_error: 0.05,
+        h3_target_relative_error: None,
         particles_per_batch: 1000,
         max_histories: 100_000,
         max_seconds: 60,

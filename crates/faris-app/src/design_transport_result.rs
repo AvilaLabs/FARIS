@@ -51,6 +51,10 @@ pub struct TargetView {
 pub struct SpeedUpView {
     pub mode: String,
     pub text: String,
+    /// Target faces found by the streaming search and used to prepare an aimed run.
+    pub streaming_targets: Vec<String>,
+    /// Hash of the weight-window file used for this transport, if one was recorded.
+    pub windows_sha256: Option<String>,
     /// What to do to speed up the next run; `None` for an aimed run.
     pub next_step: Option<String>,
 }
@@ -285,6 +289,8 @@ pub fn result_view(report: &DesignTransportReport) -> ResultView {
                 },
                 reduction.reason
             ),
+            streaming_targets: reduction.targets.clone(),
+            windows_sha256: reduction.windows_sha256.clone(),
             next_step: (reduction.mode != "aimed").then(|| reduction.next_step.clone()),
         },
         limits: report.fluence_limits.iter().map(limit_view).collect(),
@@ -583,7 +589,19 @@ pub(crate) mod tests {
         assert_eq!(view.not_evaluated[0].item, "Gamma heating");
         let mut aimed = sample_report();
         aimed.variance_reduction.mode = "aimed".into();
+        aimed.variance_reduction.targets = vec!["duct-exit".into(), "duct-inlet".into()];
+        aimed.variance_reduction.windows_sha256 = Some("a".repeat(64));
         assert!(result_view(&aimed).speed_up.next_step.is_none());
+        let aimed_view = result_view(&aimed);
+        assert_eq!(
+            aimed_view.speed_up.streaming_targets,
+            ["duct-exit", "duct-inlet"]
+        );
+        let expected_windows_hash = "a".repeat(64);
+        assert_eq!(
+            aimed_view.speed_up.windows_sha256.as_deref(),
+            Some(expected_windows_hash.as_str())
+        );
     }
 
     // Verifies: AUTO-039

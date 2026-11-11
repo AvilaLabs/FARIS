@@ -24,8 +24,8 @@ that passed `faris design check`:
                         with peak_voxel_cm [dr, dz] also the highest flux inside each solid
     history_response    optional exact partition of active CAD solids to history components,
                         with a complete Li6-bearing breeder domain for H3-production
-    sampling            {target_relative_error, particles_per_batch, min_batches, max_batches,
-                         max_seconds, seed, threads}
+    sampling            {target_relative_error, optional h3_target_relative_error,
+                         particles_per_batch, min_batches, max_batches, max_seconds, seed, threads}
     variance_reduction  "none" or "windows"
 
 `run` scores the track-length flux above the threshold in each response solid and stops at the
@@ -173,6 +173,10 @@ def validate_request(request: dict) -> None:
     need(request.get("variance_reduction") in ("none", "windows"), "variance_reduction must be none or windows")
     sampling = request["sampling"]
     need(0.0 < sampling["target_relative_error"] < 1.0, "target_relative_error must lie between 0 and 1")
+    history_target = sampling.get("h3_target_relative_error", sampling["target_relative_error"])
+    need(isinstance(history_target, (int, float)) and math.isfinite(history_target)
+         and 0.0 < history_target < 1.0,
+         "h3_target_relative_error must be finite and between 0 and 1")
     need(sampling["particles_per_batch"] >= 1, "particles_per_batch must be at least 1")
     need(2 <= sampling["min_batches"] <= sampling["max_batches"], "need 2 <= min_batches <= max_batches")
     need(sampling["max_seconds"] > 0.0, "max_seconds must be positive")
@@ -483,7 +487,8 @@ HEAVY_BATCH_FACTOR = 10.0
 HEAVY_BATCH_AFTER = 5
 
 
-def stop_reason(stats: RunningSum, sampling: dict, elapsed: float, peak: tuple | None = None) -> str | None:
+def stop_reason(stats: RunningSum, sampling: dict, elapsed: float, peak: tuple | None = None,
+                history_target_met: bool = True) -> str | None:
     """Why the run stops after this batch, or None to continue. The target is checked first.
 
     `peak` is None when no peak is asked for, else a one-item tuple holding the relative error of the highest
@@ -493,13 +498,30 @@ def stop_reason(stats: RunningSum, sampling: dict, elapsed: float, peak: tuple |
     peak_met = peak is None or (peak[0] is not None and peak[0] <= PEAK_TARGET_FACTOR * target)
     vov = stats.variance_of_variance
     settled = vov is None or vov <= VOV_LIMIT
-    if stats.n >= sampling["min_batches"] and rel is not None and rel <= target and peak_met and settled:
+    if (stats.n >= sampling["min_batches"] and rel is not None and rel <= target and peak_met and settled
+            and history_target_met):
         return "target_reached"
     if stats.n >= sampling["max_batches"]:
         return "history_limit"
     if elapsed >= sampling["max_seconds"]:
         return "time_limit"
     return None
+
+
+def tbr_response_target(sampling: dict) -> float:
+    """Separate mapped-response target, falling back for old requests and replay files."""
+    return sampling.get("h3_target_relative_error", sampling["target_relative_error"])
+
+
+def history_targets_reached(history_moments, sampling: dict) -> bool:
+    """Tighten only whole-model and blanket H3 rows; component flux retains the aggregate target."""
+    import numpy as np
+
+    errors = history_moments.relative_errors
+    if history_moments.count < sampling["min_batches"] or len(errors) < 2 or not np.isfinite(errors).all():
+        return False
+    return bool(np.all(errors[:2] <= tbr_response_target(sampling))
+                and np.all(errors[2:] <= sampling["target_relative_error"]))
 
 
 def explain(reason: str, stats: RunningSum, sampling: dict, windows: bool = False,
@@ -1134,11 +1156,9 @@ def phase_run(request: dict, work: Path) -> dict:
                                             pieces=scored[:, :, 0] - previous_pieces, solids=np.array(solids))
                     previous_pieces = scored[:, :, 0].copy()
                     leading = (leading_piece(scored, piece_volumes, piece_ranked, stats.n),)
-                reason = stop_reason(stats, sampling, elapsed, leading)
-                if (reason == "target_reached" and history_moments is not None
-                        and not history_moments.target_reached(sampling["target_relative_error"],
-                                                               sampling["min_batches"])):
-                    reason = None
+                history_target_met = (history_moments is None
+                                      or history_targets_reached(history_moments, sampling))
+                reason = stop_reason(stats, sampling, elapsed, leading, history_target_met)
                 lost = lost_count(openmc.lib._dll)
                 if lost_too_many(lost, stats.n * int(sampling["particles_per_batch"])):
                     reason = "lost_particles"
@@ -1244,10 +1264,10 @@ def phase_run(request: dict, work: Path) -> dict:
             "covariance_method": "batch-means-sample-covariance/v1",
             "batches": history_moments.count,
             "target_relative_error": float(sampling["target_relative_error"]),
+            "h3_target_relative_error": float(tbr_response_target(sampling)),
             "relative_errors": [float(value) if math.isfinite(float(value)) else None
                                 for value in history_moments.relative_errors],
-            "target_reached": history_moments.target_reached(sampling["target_relative_error"],
-                                                               sampling["min_batches"]),
+            "target_reached": history_targets_reached(history_moments, sampling),
             "response_ids": [row["response_id"] for row in history_rows],
             "responses": history_rows,
             "covariance_raw_per_source": covariance.reshape(-1).tolist(),
@@ -1263,6 +1283,17 @@ def phase_run(request: dict, work: Path) -> dict:
             raise RuntimeError(f"{error}; no history rates were written") from error
     if reason not in ("lost_particles", "target_reached"):
         result["why"], result["next_step"] = explain(reason, stats, sampling, mode["mode"] != "analog", leading)
+    history_result = result.get("history_response")
+    if reason != "target_reached" and history_result is not None and not history_result["target_reached"]:
+        errors = history_result["relative_errors"]
+        h3_error = max((value for value in errors[:2] if value is not None), default=None)
+        component_error = max((value for value in errors[2:] if value is not None), default=None)
+        h3_seen = "unknown" if h3_error is None else f"{100.0 * h3_error:.3g}%"
+        component_seen = "unknown" if component_error is None else f"{100.0 * component_error:.3g}%"
+        detail = (f"Achieved maximum H3 error was {h3_seen} against "
+                  f"{100.0 * tbr_response_target(sampling):g}%; mapped component-flux error was "
+                  f"{component_seen} against {100.0 * sampling['target_relative_error']:g}%.")
+        result["why"] = f"{result.get('why') or 'The run did not reach all response targets.'} {detail}"
     target = out_dir / "result.json"
     with target.open("x", encoding="utf-8") as stream:
         json.dump(result, stream, indent=1)

@@ -148,9 +148,14 @@ pub enum DesignCommand {
         /// Also write the result as JSON to this new file.
         #[arg(long)]
         report: Option<PathBuf>,
-        /// Relative standard error of the mean flux at which the run stops.
-        #[arg(long, default_value_t = 0.05)]
-        target_error: f64,
+        /// Relative standard error of the mean aggregate flux at which the run stops (5% default).
+        /// When supplied, this legacy option also sets the history-response target unless that
+        /// target is explicitly set with --tbr-target-error.
+        #[arg(long)]
+        target_error: Option<f64>,
+        /// Relative standard error target for the whole-model and blanket TBR responses (1% default).
+        #[arg(long)]
+        tbr_target_error: Option<f64>,
         /// Stop after this many histories even when the target is not reached.
         #[arg(long, default_value_t = 50_000_000)]
         max_histories: u64,
@@ -380,6 +385,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             out,
             report,
             target_error,
+            tbr_target_error,
             max_histories,
             max_seconds,
             particles,
@@ -402,10 +408,21 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             let cancellation = interrupts.clone();
             let history_components = parse_history_components(&history_component)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+            if tbr_target_error.is_some() && history_components.is_empty() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "--tbr-target-error requires at least one --history-component mapping",
+                )
+                .into());
+            }
+            let (flux_target, history_target) =
+                resolve_transport_targets(target_error, tbr_target_error);
             let options = DesignTransportOptions {
                 check_report,
                 out_dir: out,
-                target_relative_error: target_error,
+                target_relative_error: flux_target,
+                h3_target_relative_error: (!history_components.is_empty())
+                    .then_some(history_target),
                 particles_per_batch: particles,
                 max_histories,
                 max_seconds,
@@ -665,6 +682,10 @@ fn transport_progress_printer() -> faris_engine::design::TransportProgressFn {
     std::sync::Arc::new(|update| eprintln!("  {}", faris_engine::design::progress_line(&update)))
 }
 
+fn resolve_transport_targets(legacy: Option<f64>, history: Option<f64>) -> (f64, f64) {
+    (legacy.unwrap_or(0.05), history.or(legacy).unwrap_or(0.01))
+}
+
 fn write_report(path: &Path, report: &ImportReport) -> Result<(), Box<dyn std::error::Error>> {
     write_json(path, report)
 }
@@ -687,6 +708,17 @@ fn write_json<T: serde::Serialize>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transport_target_defaults_and_legacy_override_are_unambiguous() {
+        assert_eq!(resolve_transport_targets(None, None), (0.05, 0.01));
+        assert_eq!(resolve_transport_targets(Some(0.08), None), (0.08, 0.08));
+        assert_eq!(
+            resolve_transport_targets(Some(0.08), Some(0.02)),
+            (0.08, 0.02)
+        );
+        assert_eq!(resolve_transport_targets(None, Some(0.02)), (0.05, 0.02));
+    }
 
     #[test]
     fn source_power_report_binds_the_pure_closure_to_design_and_step_identity() {
