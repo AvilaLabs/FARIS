@@ -1038,16 +1038,40 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
     };
     ui.heading(name);
     ui.horizontal_wrapped(|ui| {
-        ui.label(format!(
-            "Fixed downtime: {:.3} days",
-            design.fixed.total_replacement_downtime_s / DAY_S
-        ));
+        calculated_output(
+            ui,
+            format!(
+                "Fixed downtime: {:.3} days",
+                design.fixed.total_replacement_downtime_s / DAY_S
+            ),
+            Quantity::Availability,
+        );
         ui.label(format!("Computed status: {:?}", design.computed.status));
         if let Some(summary) = &design.computed.summary {
-            ui.label(format!(
-                "Computed: {:.3} days",
-                summary.total_replacement_downtime_s / DAY_S
-            ));
+            calculated_output(
+                ui,
+                format!(
+                    "Computed downtime: {:.3} days",
+                    summary.total_replacement_downtime_s / DAY_S
+                ),
+                Quantity::Availability,
+            );
+            calculated_output(
+                ui,
+                format!(
+                    "Availability fixed: {:.2}%",
+                    100.0 * design.fixed.availability
+                ),
+                Quantity::Availability,
+            );
+            calculated_output(
+                ui,
+                format!(
+                    "Availability computed: {:.2}%",
+                    100.0 * summary.availability
+                ),
+                Quantity::Availability,
+            );
         }
         ui.label(format!(
             "Curve comparison: {:?}",
@@ -1071,6 +1095,7 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
         Quantity::Availability,
         "Fixed/computed downtime and availability",
     );
+    maintenance_uncertainty_notice(ui);
     if design
         .computed
         .summary
@@ -1269,6 +1294,62 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rendered_dose_lifecycle_availability_carries_validation_and_uncertainty_evidence() {
+        fn texts(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        texts(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut result = parse_result(include_bytes!(
+            "../../../fuzz/entries/tests/fixtures/dose-maintenance-result-v02.json"
+        ))
+        .unwrap();
+        let design = result.designs.get_mut("synthetic-format-seed").unwrap();
+        design.computed.status = faris_engine::maintenance::Status::Evaluated;
+        let mut computed = design.fixed.clone();
+        computed.total_replacement_downtime_s = 10.0 * DAY_S;
+        computed.availability =
+            1.0 - computed.total_replacement_downtime_s / computed.history_end_s;
+        design.computed.summary = Some(computed);
+        let ctx = egui::Context::default();
+        let mut selected = None;
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            show_result(ui, &result, &mut selected);
+        });
+        let mut rendered = Vec::new();
+        for clipped in &output.shapes {
+            texts(&clipped.shape, &mut rendered);
+        }
+        output.textures_delta.clear();
+        let rendered = rendered.join("\n");
+        let availability = Quantity::Availability;
+        let note = note(availability);
+        assert!(rendered.contains("Availability fixed:"), "{rendered}");
+        assert!(rendered.contains("Availability computed:"), "{rendered}");
+        assert!(rendered.contains("no interval"), "{rendered}");
+        assert!(
+            rendered
+                .contains(&faris_model::validation::ValidationMark::current(availability).tag())
+        );
+        assert!(rendered.contains("Fixed/computed downtime and availability validation:"));
+        assert!(rendered.contains(note.why.as_str()));
+        assert!(rendered.contains(note.next_step.as_str()));
+        assert!(rendered.contains("Maintenance uncertainty:"));
+        assert!(rendered.contains("the typed maintenance result stores point estimates only"));
+        assert!(
+            rendered
+                .contains("propagate transport, activation, and operating-schedule uncertainty")
+        );
+    }
 
     #[test]
     fn completed_worker_result_is_tied_to_its_input_snapshot() {

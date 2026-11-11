@@ -571,10 +571,63 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
 }
 
 /// A generated sentence and the calculated quantities whose numbers it contains.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TakeawayOutput {
     pub text: String,
     pub quantities: Vec<Quantity>,
+    /// Exact rendered value spans paired with their catalog quantity and stored uncertainty.
+    pub numbers: Vec<TakeawayNumber>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TakeawayNumber {
+    /// UTF-8 byte span of the formatted value and its unit/noun in `TakeawayOutput::text`.
+    pub start: usize,
+    pub end: usize,
+    pub quantity: Quantity,
+    pub uncertainty: OutputUncertainty,
+}
+
+fn append_takeaway_number(
+    text: &mut String,
+    value: &str,
+    unit: &str,
+    quantity: Quantity,
+    uncertainty: OutputUncertainty,
+) -> TakeawayNumber {
+    let start = text.len();
+    text.push_str(value);
+    text.push_str(unit);
+    TakeawayNumber {
+        start,
+        end: text.len(),
+        quantity,
+        uncertainty,
+    }
+}
+
+fn paired_delta_uncertainty() -> OutputUncertainty {
+    OutputUncertainty::none(
+        "the joint transport sampling error of this paired difference is not propagated",
+        "run the history ensemble for both arrangements",
+    )
+}
+
+fn band_uncertainty(verdict: Option<BandVerdict>) -> OutputUncertainty {
+    match verdict {
+        Some(BandVerdict::Separated) => OutputUncertainty::none(
+            "the displayed contrast is a point difference; the two 2 sigma bands separate but are not propagated into a difference interval",
+            "run the history ensemble for both arrangements to obtain a paired difference interval",
+        ),
+        Some(BandVerdict::Overlapping) => OutputUncertainty::none(
+            "the two 2 sigma bands overlap, so the contrast is not resolved",
+            "run the history ensemble for both arrangements to obtain a paired difference interval",
+        ),
+        Some(BandVerdict::NoBand) | None => OutputUncertainty::none(
+            "at least one arrangement has no transport error band for this contrast",
+            "run transport with tally uncertainty recorded, then run the history ensemble for both arrangements",
+        ),
+    }
 }
 
 pub fn allocation_takeaway_output(
@@ -583,62 +636,84 @@ pub fn allocation_takeaway_output(
     horizon_years: f64,
 ) -> Option<TakeawayOutput> {
     let (breeding, resolved) = c.breeding_pct?;
-    let breeding_clause = if resolved {
-        let verb = if breeding >= 0.0 { "raises" } else { "lowers" };
-        format!("{verb} breeding by {:.1} %", breeding.abs())
-    } else {
-        format!("changes breeding by {breeding:+.1} % (within 2σ sampling noise)")
-    };
-    let mut tail = Vec::new();
+    let first_swap = c.first_swap_y.filter(|years| years.abs() >= 0.05);
     let mut quantities = vec![Quantity::Tbr];
-    let mut worse_first = false;
-    if let Some(d) = c.first_swap_y
-        && d.abs() >= 0.05
-    {
+    if first_swap.is_some() || c.swaps.is_some() {
         quantities.push(Quantity::Fluence);
-        worse_first = d < 0.0;
-        tail.push(format!(
-            "{} the first magnet swap {:.1} years {}{}",
-            if d < 0.0 { "brings" } else { "pushes" },
-            d.abs(),
-            if d < 0.0 { "earlier" } else { "later" },
-            c.first_swap_band.map_or("", BandVerdict::note)
+    }
+    let mut sentence = format!("Shifting {shift_cm:.0} cm from shield to blanket ");
+    if resolved {
+        sentence.push_str(if breeding >= 0.0 {
+            "raises breeding by "
+        } else {
+            "lowers breeding by "
+        });
+    } else {
+        sentence.push_str("changes breeding by ");
+    }
+    let breeding_value = if resolved {
+        format!("{:.1}", breeding.abs())
+    } else {
+        format!("{breeding:+.1}")
+    };
+    let mut numbers = vec![append_takeaway_number(
+        &mut sentence,
+        &breeding_value,
+        " %",
+        Quantity::Tbr,
+        paired_delta_uncertainty(),
+    )];
+    if !resolved {
+        sentence.push_str(" (within 2σ sampling noise)");
+    }
+    if let Some(d) = first_swap {
+        sentence.push_str(if d < 0.0 && breeding > 0.0 && resolved {
+            " but "
+        } else {
+            " and "
+        });
+        sentence.push_str(if d < 0.0 {
+            "brings the first magnet swap "
+        } else {
+            "pushes the first magnet swap "
+        });
+        let value = format!("{:.1}", d.abs());
+        numbers.push(append_takeaway_number(
+            &mut sentence,
+            &value,
+            " years",
+            Quantity::Fluence,
+            band_uncertainty(c.first_swap_band),
         ));
+        sentence.push_str(if d < 0.0 { " earlier" } else { " later" });
+        sentence.push_str(c.first_swap_band.map_or("", BandVerdict::note));
     }
     if let Some(d) = c.swaps {
-        if !quantities.contains(&Quantity::Fluence) {
-            quantities.push(Quantity::Fluence);
+        sentence.push_str(" and ");
+        match d {
+            0 => sentence.push_str(&format!(
+                "leaves the swap count over {horizon_years:.0} years unchanged"
+            )),
+            d => {
+                sentence.push_str(if d > 0 { "adds " } else { "removes " });
+                let value = plural(d.unsigned_abs(), "swap");
+                numbers.push(append_takeaway_number(
+                    &mut sentence,
+                    &value,
+                    "",
+                    Quantity::Fluence,
+                    band_uncertainty(c.swaps_band),
+                ));
+                sentence.push_str(&format!(" over {horizon_years:.0} years"));
+            }
         }
-        let band = c.swaps_band.map_or("", BandVerdict::note);
-        tail.push(match d {
-            0 => format!("leaves the swap count over {horizon_years:.0} years unchanged{band}"),
-            d if d > 0 => format!(
-                "adds {} over {horizon_years:.0} years{band}",
-                plural(d.unsigned_abs(), "swap")
-            ),
-            d => format!(
-                "removes {} over {horizon_years:.0} years{band}",
-                plural(d.unsigned_abs(), "swap")
-            ),
-        });
-    }
-    let joiner = if worse_first && breeding > 0.0 && resolved {
-        "but"
-    } else {
-        "and"
-    };
-    let mut sentence =
-        format!("Shifting {shift_cm:.0} cm from shield to blanket {breeding_clause}");
-    if let Some((first, rest)) = tail.split_first() {
-        sentence.push_str(&format!(" {joiner} {first}"));
-        if let Some(last) = rest.first() {
-            sentence.push_str(&format!(" and {last}"));
-        }
+        sentence.push_str(c.swaps_band.map_or("", BandVerdict::note));
     }
     sentence.push('.');
     Some(TakeawayOutput {
         text: sentence,
         quantities,
+        numbers,
     })
 }
 
@@ -652,24 +727,43 @@ pub fn port_takeaway_output(c: &Contrast, horizon_years: f64) -> Option<Takeaway
     let swaps = c.swaps?;
     let net = c.net_twh?;
     let band = c.swaps_band.map_or("", BandVerdict::note);
-    let swap_clause = match swaps {
-        0 => format!("leaves the magnet swap count over {horizon_years:.0} years unchanged{band}"),
-        d if d > 0 => format!(
-            "adds {} over {horizon_years:.0} years{band}",
-            plural(d.unsigned_abs(), "magnet swap")
-        ),
-        d => format!(
-            "removes {} over {horizon_years:.0} years{band}",
-            plural(d.unsigned_abs(), "magnet swap")
-        ),
-    };
+    let mut sentence = String::from("Adding the outboard port, an open duct with no shield plug, ");
+    let mut numbers = Vec::new();
+    if swaps == 0 {
+        sentence.push_str(&format!(
+            "leaves the magnet swap count over {horizon_years:.0} years unchanged"
+        ));
+    } else {
+        sentence.push_str(if swaps > 0 { "adds " } else { "removes " });
+        let value = plural(swaps.unsigned_abs(), "magnet swap");
+        numbers.push(append_takeaway_number(
+            &mut sentence,
+            &value,
+            "",
+            Quantity::Fluence,
+            band_uncertainty(c.swaps_band),
+        ));
+        sentence.push_str(&format!(" over {horizon_years:.0} years"));
+    }
+    sentence.push_str(band);
+    sentence.push_str(if net < 0.0 {
+        " and costs "
+    } else {
+        " and adds "
+    });
+    let value = format!("{:.2}", net.abs());
+    numbers.push(append_takeaway_number(
+        &mut sentence,
+        &value,
+        " TWh",
+        Quantity::NetElectricPower,
+        paired_delta_uncertainty(),
+    ));
+    sentence.push_str(" of lifetime net electricity (reference allocation).");
     Some(TakeawayOutput {
-        text: format!(
-            "Adding the outboard port, an open duct with no shield plug, {swap_clause} and {} {:.2} TWh of lifetime net electricity (reference allocation).",
-            if net < 0.0 { "costs" } else { "adds" },
-            net.abs()
-        ),
+        text: sentence,
         quantities: vec![Quantity::Fluence, Quantity::NetElectricPower],
+        numbers,
     })
 }
 
@@ -690,6 +784,8 @@ pub struct StudyComparison {
     pub takeaways: Vec<String>,
     /// Calculated quantities represented in each corresponding generated sentence.
     pub takeaway_quantities: Vec<Vec<Quantity>>,
+    /// Typed state for each printed calculated value in the corresponding sentence.
+    pub takeaway_numbers: Vec<Vec<TakeawayNumber>>,
 }
 
 pub fn compare_study(cells: &[[ArrangementSummary; 2]; 2]) -> StudyComparison {
@@ -710,9 +806,14 @@ pub fn compare_study(cells: &[[ArrangementSummary; 2]; 2]) -> StudyComparison {
         .map(|takeaway| takeaway.text.clone())
         .collect();
     let takeaway_quantities = generated_takeaways
-        .into_iter()
+        .iter()
         .flatten()
-        .map(|takeaway| takeaway.quantities)
+        .map(|takeaway| takeaway.quantities.clone())
+        .collect();
+    let takeaway_numbers = generated_takeaways
+        .iter()
+        .flatten()
+        .map(|takeaway| takeaway.numbers.clone())
         .collect();
     StudyComparison {
         allocation_with_port,
@@ -722,6 +823,7 @@ pub fn compare_study(cells: &[[ArrangementSummary; 2]; 2]) -> StudyComparison {
         horizon_years,
         takeaways,
         takeaway_quantities,
+        takeaway_numbers,
     }
 }
 
@@ -1372,6 +1474,25 @@ mod tests {
         assert_eq!(
             allocation_takeaway(&c, 10.0, 30.0).unwrap(),
             "Shifting 10 cm from shield to blanket raises breeding by 1.3 % but brings the first magnet swap 1.6 years earlier and adds one swap over 30 years."
+        );
+        let typed = allocation_takeaway_output(&c, 10.0, 30.0).unwrap();
+        assert_eq!(
+            typed
+                .numbers
+                .iter()
+                .map(|number| (&typed.text[number.start..number.end], number.quantity))
+                .collect::<Vec<_>>(),
+            vec![
+                ("1.3 %", Quantity::Tbr),
+                ("1.6 years", Quantity::Fluence),
+                ("one swap", Quantity::Fluence),
+            ]
+        );
+        assert!(
+            typed
+                .numbers
+                .iter()
+                .all(|number| !number.uncertainty.text(1).is_empty())
         );
         let flat = Contrast {
             breeding_pct: Some((0.4, false)),

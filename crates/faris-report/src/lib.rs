@@ -558,6 +558,7 @@ fn pdf_content<'a>(
         question: question(order, has_control && has_port),
         takeaways: &p.study.takeaways,
         takeaway_quantities: &p.study.takeaway_quantities,
+        takeaway_numbers: &p.study.takeaway_numbers,
         arrangements: order,
         study: &p.study,
         timeline,

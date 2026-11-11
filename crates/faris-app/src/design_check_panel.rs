@@ -573,6 +573,9 @@ fn check_running_ui(ui: &mut egui::Ui, view: &CheckRunning) {
         }
     });
     ui.label(format!("Now: {}", view.progress.line));
+    if let Some(elapsed) = &view.progress.stage_elapsed {
+        ui.weak(elapsed);
+    }
     if let Some(fraction) = view.progress.fraction {
         ui.add(
             egui::ProgressBar::new(fraction)

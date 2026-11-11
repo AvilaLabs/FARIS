@@ -524,6 +524,9 @@ pub struct ProgressView {
     pub line: String,
     /// How far the stage in progress is, when it has a count.
     pub fraction: Option<f32>,
+    /// Measured time in the current stage. This is especially useful for CAD/OpenMC
+    /// operations that report activity but do not expose a stable work counter.
+    pub stage_elapsed: Option<String>,
     pub stages_seen: String,
     /// An estimate of the time left in the stage in progress, as a sentence that says it is an
     /// estimate; `None` until a fifth of the stage is done, or when it has no count (PERF-022).
@@ -565,6 +568,7 @@ pub fn progress_view_at(snapshot: &Snapshot, now: crate::time::Instant) -> Progr
         None => ProgressView {
             line: "Starting: the design file and the STEP file are read first, and that reports no count.".into(),
             fraction: None,
+            stage_elapsed: None,
             stages_seen: "No stage has reported yet.".into(),
             stage_remaining: None,
         },
@@ -575,6 +579,12 @@ pub fn progress_view_at(snapshot: &Snapshot, now: crate::time::Instant) -> Progr
                 format!("{stage}: {done} of {total}")
             },
             fraction: (*total > 0).then(|| (*done as f32 / *total as f32).clamp(0.0, 1.0)),
+            stage_elapsed: snapshot.stage_started.map(|started| {
+                format!(
+                    "This stage has been running for {}.",
+                    crate::maintenance_run::elapsed_text(now.saturating_duration_since(started))
+                )
+            }),
             stages_seen: format!("{} distinct stage(s) have reported so far.", snapshot.stages_seen),
             stage_remaining: snapshot
                 .stage_started
@@ -982,6 +992,7 @@ pub(crate) mod tests {
         let view = progress_view(&snapshot);
         assert_eq!(view.line, "sampling points: 500 of 1000");
         assert_eq!(view.fraction, Some(0.5));
+        assert!(view.stage_elapsed.is_some());
         assert!(view.stages_seen.starts_with("1 distinct stage"));
         snapshot.busy("random chords");
         let view = progress_view(&snapshot);
@@ -990,8 +1001,36 @@ pub(crate) mod tests {
             "random chords: in progress; no count is available"
         );
         assert_eq!(view.fraction, None, "no count, no bar");
+        assert!(
+            view.stage_elapsed.is_some(),
+            "busy stages still show measured time"
+        );
         assert!(view.stages_seen.starts_with("2 distinct stage"));
         assert!(NO_ESTIMATE.contains("No whole-check time estimate"));
+    }
+
+    #[test]
+    fn cad_and_audit_busy_stages_show_elapsed_time_without_an_eta() {
+        for stage in [
+            "reading STEP and tessellating solids",
+            "converting geometry to DAGMC",
+            "auditing DAGMC volumes with OpenMC",
+        ] {
+            let mut snapshot = Snapshot::default();
+            snapshot.busy(stage);
+            let start = snapshot.stage_started.unwrap();
+            let view = progress_view_at(&snapshot, start + crate::time::Duration::from_secs(73));
+            assert_eq!(
+                view.line,
+                format!("{stage}: in progress; no count is available")
+            );
+            assert_eq!(view.fraction, None);
+            assert_eq!(
+                view.stage_elapsed.as_deref(),
+                Some("This stage has been running for 1:13.")
+            );
+            assert_eq!(view.stage_remaining, None, "no measured total means no ETA");
+        }
     }
 
     fn wait(job: &mut CheckJob) -> Option<CheckDone> {

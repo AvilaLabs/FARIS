@@ -13,7 +13,7 @@ use crate::{
 use faris_engine::{
     brief::{
         AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, BandVerdict, Caveat, Contrast,
-        REFERENCE_BLANKET_M, StatusKind, StudyComparison,
+        REFERENCE_BLANKET_M, StatusKind, StudyComparison, TakeawayNumber,
     },
     history_ensemble::output_quantity,
     history_uncertainty::{SCOPE_DETAIL, SCOPE_LINE},
@@ -52,6 +52,7 @@ pub struct PdfContent<'a> {
     pub question: String,
     pub takeaways: &'a [String],
     pub takeaway_quantities: &'a [Vec<Quantity>],
+    pub takeaway_numbers: &'a [Vec<TakeawayNumber>],
     pub arrangements: &'a [&'a ArrangementData],
     pub study: &'a StudyComparison,
     /// The timeline chart drawn at a given height, so page one can fill
@@ -338,6 +339,22 @@ fn markers(quantities: &[Quantity]) -> String {
         .map(|q| marker(*q))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn annotate_takeaway(sentence: &str, numbers: &[TakeawayNumber]) -> String {
+    let mut rendered = sentence.to_owned();
+    let mut ordered = numbers.iter().collect::<Vec<_>>();
+    ordered.sort_by_key(|number| std::cmp::Reverse(number.start));
+    for number in ordered {
+        let tag = format!(
+            "{} [U: {}]",
+            marker(number.quantity),
+            number.uncertainty.text(2)
+        );
+        debug_assert!(number.start <= number.end && number.end <= sentence.len());
+        rendered.insert_str(number.end, &format!(" {tag}"));
+    }
+    rendered
 }
 
 /// The marker of an ensemble output by its engine name; none for a value that is not calculated.
@@ -644,16 +661,24 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
             .iter()
             .enumerate()
             .map(|(index, sentence)| match c.takeaway_quantities.get(index) {
-                Some(quantities) if !quantities.is_empty() => {
-                    format!("{sentence} {}", markers(quantities))
-                }
+                Some(quantities) if !quantities.is_empty() => c
+                    .takeaway_numbers
+                    .get(index)
+                    .filter(|numbers| !numbers.is_empty())
+                    .map_or_else(
+                        || format!("{sentence} {}", markers(quantities)),
+                        |numbers| annotate_takeaway(sentence, numbers),
+                    ),
                 _ => sentence.clone(),
             })
             .collect::<Vec<_>>()
             .join(" ");
         let inner = text_w - 16.0;
         let lines = wrap_lines(&text, inner, 8.6);
-        let h = lines.len() as f32 * 11.4 + 22.0;
+        // Leave enough leading for the longer per-number validation and
+        // uncertainty tags while keeping the takeaway block compact.
+        let takeaway_leading = 11.0;
+        let h = lines.len() as f32 * takeaway_leading + 22.0;
         cv.rect(
             MARGIN,
             y,
@@ -675,7 +700,7 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
         let mut ty = y + 15.0;
         for line in &lines {
             cv.body(MARGIN + 8.0, ty + 8.6, line, 8.6, INK);
-            ty += 11.4;
+            ty += takeaway_leading;
         }
         y += h + 8.0;
     } else {
@@ -1715,6 +1740,24 @@ pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn takeaway_markers_follow_the_value_and_its_unit() {
+        let sentence = "Shifting 10 cm raises breeding by 1.3 % and adds one swap.";
+        let start = sentence.find("1.3 %").unwrap();
+        let rendered = annotate_takeaway(
+            sentence,
+            &[TakeawayNumber {
+                start,
+                end: start + "1.3 %".len(),
+                quantity: Quantity::Tbr,
+                uncertainty: OutputUncertainty::none("test reason", "test next step"),
+            }],
+        );
+        assert!(rendered.contains(
+            "1.3 % [NV: TBR] [U: no interval, because test reason (next step: test next step)]"
+        ));
+    }
 
     // Verifies: MAG-004
     #[test]

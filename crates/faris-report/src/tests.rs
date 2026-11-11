@@ -1737,18 +1737,19 @@ fn the_pdf_marks_calculated_numbers_and_prints_the_legend() {
         flat.contains("next step: run the history ensemble"),
         "{flat}"
     );
-    let start = flat.find("Shifting ").expect("allocation takeaway");
-    let allocation_markers = flat[start..]
-        .find(". [NV: TBR] [NV: fluence]")
-        .expect("allocation sentence ends with its typed quantity markers");
-    assert!(allocation_markers > 0);
-    let start = flat
-        .find("Adding the outboard port")
-        .expect("port takeaway");
-    let port_markers = flat[start..]
-        .find(". [NV: fluence] [NV: net power]")
-        .expect("port sentence ends with its typed quantity markers");
-    assert!(port_markers > 0);
+    assert!(
+        flat.contains("breeding by ") && flat.contains("[NV: TBR] [U: no interval, because"),
+        "{flat}"
+    );
+    assert!(
+        flat.contains("first magnet swap ") && flat.contains("[NV: fluence] [U:"),
+        "{flat}"
+    );
+    assert!(
+        flat.contains("TWh [NV: net power] [U: no interval, because")
+            && flat.contains("of lifetime net electricity"),
+        "{flat}"
+    );
 }
 
 // Verifies: LEG-040
