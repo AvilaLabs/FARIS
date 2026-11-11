@@ -1,0 +1,142 @@
+{
+  "schema": "faris-rm-s-heating-guard-control/v1",
+  "date_utc": "2026-11-11",
+  "status": "PASS_FOR_DECLARED_CONTROL",
+  "scope": "One-port RM-S coupled continuous-energy collision-heating control, x86-64 Linux, one thread and one MPI rank. Unsupported-input and C API controls initialize storage without advancing transport batches. Scientific qualification remains NOT_EVALUATED.",
+  "requirement_status": "NUC-013 remains Partial for wider runtime and output audit.",
+  "openmc_source_commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+  "patch": {
+    "path": "integrations/openmc/patches/faris-openmc-0.15.3-compensated-heating.patch",
+    "sha256": "cb1537776fefd4bf733dd33cc8b9b265a4e8a5d07af82362126de783fdc55cec"
+  },
+  "upstream_license": {
+    "path": "integrations/openmc/patches/LICENSE-OpenMC-MIT",
+    "sha256": "d1bec36976ea5a5bf1b0bf56c5c52e64b96fa4a4a7da816100222afd6e858a41"
+  },
+  "control_script": {
+    "path": "controls/nuc013_tally_guard.py",
+    "sha256": "2a8888b513e54b48bfbd872d56efc27185b270c7c09261056cbdb8725473840f"
+  },
+  "loaded_library_sha256": "fa63a7d628ee36a193490d1a0b29cebc3ae6238d6cc26f89da9a5a112c147760",
+  "build": {
+    "method": "Recompiled the sole changed translation unit, src/tallies/tally.cpp, with the cached Release compile command and relinked unchanged objects. Original v4 source, objects and runtime were retained. Clean upstream patch application and unchanged header/source identities were checked.",
+    "reused_link_inputs": 118,
+    "receipt": {
+      "path": "runs/continuation/nuc013-guard-validation-v1/build-receipt.json",
+      "sha256": "a8e61ea5fe8214d1b04a7be8a5175483ea3e23a0758bf82b6643a25d7b4c7305"
+    }
+  },
+  "unsupported_controls": [
+    {
+      "case": "xml-tracklength",
+      "passed": true,
+      "rejection_origin": "nuc013-accumulator-guard",
+      "process_returncode": 255,
+      "transport_started": false
+    },
+    {
+      "case": "mg",
+      "passed": true,
+      "rejection_origin": "openmc-multigroup-score-validation",
+      "process_returncode": 255,
+      "transport_started": false
+    },
+    {
+      "case": "late-setter",
+      "passed": true,
+      "setter_code": -5,
+      "before_estimator_enum": 2,
+      "after_estimator_enum": 2,
+      "transport_started": false,
+      "message": "NUC-013 compensated heating supports only analog or collision estimators"
+    },
+    {
+      "case": "non-target",
+      "passed": true,
+      "setter_code": 0,
+      "before_estimator_enum": 2,
+      "after_estimator_enum": 1,
+      "transport_started": false,
+      "message": ""
+    }
+  ],
+  "multigroup_scope": "OpenMC already rejects heating in multigroup mode during score validation. The control reaches that explicit rejection using a generated one-group library. The new defensive run_CE check in accumulator initialization is not reached by this XML input.",
+  "sampling": {
+    "seed": 20261111,
+    "particles_per_batch": 900,
+    "total_batches": 100,
+    "threads": 1,
+    "mpi_ranks": 1
+  },
+  "histories": {
+    "continuous": 90000,
+    "split_first": 45000,
+    "split_resume": 45000,
+    "split_total": 90000
+  },
+  "lost_particle_events": 0,
+  "checkpoint_result": {
+    "continuous_batches": 100,
+    "split_batches": [
+      50,
+      50
+    ],
+    "bitwise_equal_boundaries": [
+      50,
+      100
+    ],
+    "compared": "Five heating tallies, raw SUM/SUM_SQ and all eight compensation-state doubles per tally.",
+    "unversioned_target_checkpoint": "Rejected."
+  },
+  "strict_heating_closure": {
+    "mean_eV_per_source": 1.1175870895385742e-10,
+    "sample_se_eV_per_source": 8.120369011112443e-09,
+    "three_se_eV_per_source": 2.436110703333733e-08,
+    "residual_to_three_se_ratio": 0.004587587452447029,
+    "strict_gate": "abs(mean residual) <= 3*SE; no additive floor",
+    "gate_pass": true
+  },
+  "independent_decimal_closure": {
+    "n": 100,
+    "mean_eV_per_source": "-1.92085281014442443847656250000E-11",
+    "sample_se_eV_per_source": "8.12168431341705640473703666844851639829258582570707298806570006384711849167398657871878665E-9",
+    "three_se_eV_per_source": "2.43650529402511692142111100053455491948777574771212189641971001915413554750219597361563600E-8",
+    "min_eV_per_source": "-2.5579356588423252105712890625E-7",
+    "max_eV_per_source": "2.897577360272407531738281250E-7",
+    "positive_count": 55,
+    "negative_count": 45,
+    "zero_count": 0,
+    "abs_mean_over_total_mean_ulp": "0.01031250000",
+    "residual_to_three_se_ratio": "0.000788363897609747267969226780318536430379706933191754110847767994698789434609928909456835202",
+    "strict_gate": "abs(mean residual) <= 3*SE; no additive floor",
+    "gate_pass": true
+  },
+  "fixed_inputs_sha256": {
+    "geometry.xml": "36faeb4df6366ffa94873ac3c1d995c3af7767389ff37cc988cf3a75c1c2d632",
+    "materials.xml": "75b5fe367bf748c87b96b8feffae965b11c177f380973459df1798a4fb6ed2ae",
+    "tallies.xml": "b4f02419caeab0f0e951f8b26be11fbf7e491fb6eae82830d8db71ebb5527f10"
+  },
+  "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+  "evidence": {
+    "checkpoint": {
+      "path": "runs/continuation/nuc013-guard-validation-v1/checkpoint-result/verification.json",
+      "sha256": "ea5d8237d0db689a63366216853db76b4b458a9da21f16a2401cfc891105ab55"
+    },
+    "arithmetic_audit": {
+      "path": "runs/continuation/nuc013-guard-validation-v1/decimal-audit/decimal-audit.json",
+      "sha256": "0fe5eb97cf39c5f38cfa2799d8c331777ee1af360822351b070b748b819b68da"
+    },
+    "guard_controls": {
+      "path": "runs/continuation/nuc013-guard-validation-v1/negative-result-v2/negative-control.json",
+      "sha256": "6bd01aa7aca85790478bbd0cec615390acfd296be3b7f1ddb3b69c3dd4eb3d91"
+    },
+    "checkpoint_harness": {
+      "path": "runs/continuation/nuc013-compensated-v4-restart-verification/verify_checkpoint_v3.py",
+      "sha256": "a55afc9d0f36ae9f5b56007e9ed182f2cb738e6a4290839cbd1dbce1ed1b6dee"
+    }
+  },
+  "execution_notes": [
+    "The initial build preflight assumed a Git checkout in the copied candidate and then a different Ninja post-link command. Both checks stopped before compilation and were corrected.",
+    "The first guard-control run required the new NUC-013 message for multigroup input. Its observed upstream score-validation rejection was retained, and the control was corrected to identify that rejection explicitly."
+  ]
+}

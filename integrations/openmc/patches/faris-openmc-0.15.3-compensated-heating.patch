@@ -1,0 +1,353 @@
+diff --git a/include/openmc/tallies/tally.h b/include/openmc/tallies/tally.h
+index 374daff..94b95eb 100644
+--- a/include/openmc/tallies/tally.h
++++ b/include/openmc/tallies/tally.h
+@@ -3,6 +3,7 @@
+ 
+ #include "openmc/constants.h"
+ #include "openmc/memory.h" // for unique_ptr
++#include "openmc/openmp_interface.h"
+ #include "openmc/span.h"
+ #include "openmc/tallies/filter.h"
+ #include "openmc/tallies/trigger.h"
+@@ -14,6 +15,9 @@
+ 
+ #include <string>
+ #include <unordered_map>
++#include <vector>
++#include <cmath>
++#include <limits>
+ 
+ namespace openmc {
+ 
+@@ -23,6 +27,22 @@ namespace openmc {
+ 
+ class Tally {
+ public:
++  static_assert(std::numeric_limits<long double>::digits == 64,
++    "NUC-013 checkpoint encoding requires x87 64-bit long double precision");
++  struct Nuc013Compensator {
++    long double sum {0.0L};
++    long double correction {0.0L};
++    void add(long double x)
++    {
++      long double t = sum + x;
++      correction += (std::fabs(sum) >= std::fabs(x))
++                      ? (sum - t) + x
++                      : (x - t) + sum;
++      sum = t;
++    }
++    long double value() const { return sum + correction; }
++    void clear() { sum = correction = 0.0L; }
++  };
+   //----------------------------------------------------------------------------
+   // Constructors, destructors, factory functions
+   explicit Tally(int32_t id);
+@@ -119,6 +139,15 @@ public:
+ 
+   void reset();
+ 
++  //! Experimental NUC-013 path; valid only for five named scalar tallies.
++  bool nuc013_compensation_ {false};
++  std::vector<Nuc013Compensator> nuc013_event_by_thread_;
++  Nuc013Compensator nuc013_sum_;
++  Nuc013Compensator nuc013_sum_sq_;
++  void nuc013_add_value(double value);
++  vector<double> nuc013_checkpoint_state() const;
++  bool nuc013_restore_state(const vector<double>& state);
++
+   void accumulate();
+ 
+   //! return the index of a score specified by name
+diff --git a/src/state_point.cpp b/src/state_point.cpp
+index 47296da..05a16d8 100644
+--- a/src/state_point.cpp
++++ b/src/state_point.cpp
+@@ -278,6 +278,22 @@ extern "C" int openmc_statepoint_write(const char* filename, bool* write_source)
+           auto& results = tally->results_;
+           write_tally_results(tally_group, results.shape()[0],
+             results.shape()[1], results.shape()[2], results.data());
++          if (tally->nuc013_compensation_) {
++            if (static_cast<double>(tally->nuc013_sum_.value()) !=
++                  results(0, 0, TallyResult::SUM) ||
++                static_cast<double>(tally->nuc013_sum_sq_.value()) !=
++                  results(0, 0, TallyResult::SUM_SQ)) {
++              fatal_error("NUC-013 checkpoint high/low state disagrees with public tally sums");
++            }
++            write_dataset(tally_group, "faris_nuc013_compensation_schema",
++              "faris-openmc-nuc013-compensated-state/v1");
++            write_dataset(tally_group, "faris_nuc013_compensation_version", 1);
++            write_dataset(tally_group, "faris_nuc013_tally_name",
++              tally->name_);
++            auto compensation_state = tally->nuc013_checkpoint_state();
++            write_dataset(tally_group, "faris_nuc013_compensation_state",
++              compensation_state);
++          }
+           close_group(tally_group);
+         }
+       } else {
+@@ -500,6 +516,13 @@ extern "C" int openmc_statepoint_load(const char* filename)
+     read_attribute(file_id, "tallies_present", present);
+ 
+     // Read in sum and sum squared
++    if (!present) {
++      for (const auto& tally : model::tallies) {
++        if (tally->nuc013_compensation_) {
++          fatal_error("NUC-013 restart has no tally state; refusing to discard compensated history");
++        }
++      }
++    }
+     if (present) {
+       hid_t tallies_group = open_group(file_id, "tallies");
+ 
+@@ -512,6 +535,9 @@ extern "C" int openmc_statepoint_load(const char* filename)
+         if (attribute_exists(tally_group, "internal")) {
+           read_attribute(tally_group, "internal", internal);
+         }
++        if (tally->nuc013_compensation_ && internal) {
++          fatal_error("NUC-013 restart tally is marked internal and lacks a restorable compensation state");
++        }
+         if (internal) {
+           tally->writable_ = false;
+         } else {
+@@ -520,6 +546,43 @@ extern "C" int openmc_statepoint_load(const char* filename)
+             results.shape()[1], results.shape()[2], results.data());
+ 
+           read_dataset(tally_group, "n_realizations", tally->n_realizations_);
++          if (tally->nuc013_compensation_) {
++            constexpr const char* version_name =
++              "faris_nuc013_compensation_version";
++            constexpr const char* schema_name =
++              "faris_nuc013_compensation_schema";
++            constexpr const char* tally_name = "faris_nuc013_tally_name";
++            constexpr const char* state_name =
++              "faris_nuc013_compensation_state";
++            if (!object_exists(tally_group, version_name) ||
++                !object_exists(tally_group, schema_name) ||
++                !object_exists(tally_group, tally_name) ||
++                !object_exists(tally_group, state_name)) {
++              fatal_error("NUC-013 restart state is missing; refusing stock or unversioned restart");
++            }
++            std::string schema;
++            std::string stored_tally_name;
++            read_dataset(tally_group, schema_name, schema);
++            read_dataset(tally_group, tally_name, stored_tally_name);
++            if (schema != "faris-openmc-nuc013-compensated-state/v1" ||
++                stored_tally_name != tally->name_) {
++              fatal_error("NUC-013 restart compensation identity does not match tally or schema");
++            }
++            int version = 0;
++            read_dataset(tally_group, version_name, version);
++            if (version != 1) {
++              fatal_error("NUC-013 restart state uses an unsupported compensation schema version");
++            }
++            vector<double> compensation_state;
++            read_dataset(tally_group, state_name, compensation_state);
++            if (!tally->nuc013_restore_state(compensation_state) ||
++                static_cast<double>(tally->nuc013_sum_.value()) !=
++                  results(0, 0, TallyResult::SUM) ||
++                static_cast<double>(tally->nuc013_sum_sq_.value()) !=
++                  results(0, 0, TallyResult::SUM_SQ)) {
++              fatal_error("NUC-013 restart compensation state is malformed or inconsistent with standard tally results");
++            }
++          }
+           close_group(tally_group);
+         }
+       }
+diff --git a/src/tallies/tally.cpp b/src/tallies/tally.cpp
+index 9daeb1d..13d3f10 100644
+--- a/src/tallies/tally.cpp
++++ b/src/tallies/tally.cpp
+@@ -808,16 +808,107 @@ void Tally::init_results()
+   } else {
+     results_ = xt::empty<double>({n_filter_bins_, n_scores, 3});
+   }
++
++  nuc013_compensation_ =
++    name_ == "response-heating-total-whole-model" ||
++    name_ == "response-heating-neutron-whole-model" ||
++    name_ == "response-heating-photon-whole-model" ||
++    name_ == "response-heating-electron-whole-model" ||
++    name_ == "response-heating-positron-whole-model";
++  if (nuc013_compensation_) {
++    if (!settings::run_CE) {
++      fatal_error("NUC-013 compensated heating requires continuous-energy tallies");
++    }
++    if (estimator_ != TallyEstimator::ANALOG &&
++        estimator_ != TallyEstimator::COLLISION) {
++      fatal_error("NUC-013 compensated heating supports only analog or collision estimators");
++    }
++    if (nuclides_.size() != 1 || nuclides_[0] != -1) {
++      fatal_error("NUC-013 compensated heating requires the total-material nuclide bin");
++    }
++    if (results_.shape()[0] != 1 || results_.shape()[1] != 1 ||
++        results_.shape()[2] != 3) {
++      fatal_error("NUC-013 compensated heating requires one scalar bin and standard tally moments");
++    }
++    if (mpi::n_procs != 1 || !settings::reduce_tallies || !writable_ ||
++        scores_.size() != 1 || score_name(0) != "heating") {
++      fatal_error("NUC-013 prototype requires writable scalar heating tallies, tally reduction, and one MPI rank");
++    }
++    nuc013_event_by_thread_.assign(num_threads(), Nuc013Compensator {});
++    nuc013_sum_.clear();
++    nuc013_sum_sq_.clear();
++  }
+ }
+ 
+ void Tally::reset()
+ {
+   n_realizations_ = 0;
++  if (nuc013_compensation_) {
++    if (nuc013_event_by_thread_.size() !=
++        static_cast<std::size_t>(num_threads())) {
++      fatal_error("NUC-013 OpenMP thread count changed after tally initialization");
++    }
++    for (auto& lane : nuc013_event_by_thread_)
++      lane.clear();
++    nuc013_sum_.clear();
++    nuc013_sum_sq_.clear();
++  }
+   if (results_.size() != 0) {
+     xt::view(results_, xt::all()) = 0.0;
+   }
+ }
+ 
++void Tally::nuc013_add_value(double value)
++{
++  const int lane = thread_num();
++  if (lane < 0 || static_cast<std::size_t>(lane) >=
++                    nuc013_event_by_thread_.size()) {
++    fatal_error("NUC-013 OpenMP tally lane index is out of bounds");
++  }
++  nuc013_event_by_thread_[lane].add(static_cast<long double>(value));
++}
++
++vector<double> Tally::nuc013_checkpoint_state() const
++{
++  auto append = [](vector<double>& state, long double value) {
++    const double high = static_cast<double>(value);
++    const double low = static_cast<double>(value - static_cast<long double>(high));
++    state.push_back(high);
++    state.push_back(low);
++  };
++  vector<double> state;
++  state.reserve(8);
++  append(state, nuc013_sum_.sum);
++  append(state, nuc013_sum_.correction);
++  append(state, nuc013_sum_sq_.sum);
++  append(state, nuc013_sum_sq_.correction);
++  return state;
++}
++
++bool Tally::nuc013_restore_state(const vector<double>& state)
++{
++  if (!nuc013_compensation_ || state.size() != 8 ||
++      nuc013_event_by_thread_.size() !=
++        static_cast<std::size_t>(num_threads())) {
++    return false;
++  }
++  for (double value : state) {
++    if (!std::isfinite(value))
++      return false;
++  }
++  auto join = [&state](std::size_t i) {
++    return static_cast<long double>(state[i]) +
++           static_cast<long double>(state[i + 1]);
++  };
++  nuc013_sum_.sum = join(0);
++  nuc013_sum_.correction = join(2);
++  nuc013_sum_sq_.sum = join(4);
++  nuc013_sum_sq_.correction = join(6);
++  for (auto& lane : nuc013_event_by_thread_)
++    lane.clear();
++  return true;
++}
++
+ void Tally::accumulate()
+ {
+   // Increment number of realizations
+@@ -845,6 +936,31 @@ void Tally::accumulate()
+       norm = 1.0;
+     }
+ 
++    if (nuc013_compensation_) {
++      if (nuc013_event_by_thread_.size() !=
++          static_cast<std::size_t>(num_threads())) {
++        fatal_error("NUC-013 OpenMP thread count changed before tally reduction");
++      }
++      Nuc013Compensator batch;
++      // Merge both hi/lo parts in stable thread order. Do not round each lane
++      // to a single double before the cross-lane reduction.
++      for (const auto& lane : nuc013_event_by_thread_) {
++        batch.add(lane.sum);
++        batch.add(lane.correction);
++      }
++      long double val = batch.value() * static_cast<long double>(norm);
++      results_(0, 0, TallyResult::VALUE) = 0.0;
++      for (auto& lane : nuc013_event_by_thread_)
++        lane.clear();
++      nuc013_sum_.add(val);
++      nuc013_sum_sq_.add(val * val);
++      results_(0, 0, TallyResult::SUM) =
++        static_cast<double>(nuc013_sum_.value());
++      results_(0, 0, TallyResult::SUM_SQ) =
++        static_cast<double>(nuc013_sum_sq_.value());
++      return;
++    }
++
+     // Accumulate each result
+     if (higher_moments_) {
+ #pragma omp parallel for
+diff --git a/src/tallies/tally_scoring.cpp b/src/tallies/tally_scoring.cpp
+index 67e8516..6cb14c8 100644
+--- a/src/tallies/tally_scoring.cpp
++++ b/src/tallies/tally_scoring.cpp
+@@ -1100,10 +1100,15 @@ void score_general_ce_nonanalog(Particle& p, int i_tally, int start_index,
+       apply_derivative_to_score(
+         p, i_tally, i_nuclide, atom_density, score_bin, score);
+ 
+-// Update tally results
++// Update tally results. The NUC-013 experiment has one scalar result bin, so
++// thread-local compensated updates avoid a shared floating-point reduction.
++    if (tally.nuc013_compensation_) {
++      tally.nuc013_add_value(score * filter_weight);
++    } else {
+ #pragma omp atomic
+-    tally.results_(filter_index, score_index, TallyResult::VALUE) +=
+-      score * filter_weight;
++      tally.results_(filter_index, score_index, TallyResult::VALUE) +=
++        score * filter_weight;
++    }
+   }
+ }
+ 
+@@ -1608,9 +1613,13 @@ void score_general_ce_analog(Particle& p, int i_tally, int start_index,
+         p, i_tally, i_nuclide, atom_density, score_bin, score);
+ 
+ // Update tally results
++    if (tally.nuc013_compensation_) {
++      tally.nuc013_add_value(score * filter_weight);
++    } else {
+ #pragma omp atomic
+-    tally.results_(filter_index, score_index, TallyResult::VALUE) +=
+-      score * filter_weight;
++      tally.results_(filter_index, score_index, TallyResult::VALUE) +=
++        score * filter_weight;
++    }
+   }
+ }
+ 
+--- a/src/tallies/tally.cpp
++++ b/src/tallies/tally.cpp
+@@ -1395,6 +1395,11 @@
+   } else if (est == "collision") {
+     t->estimator_ = TallyEstimator::COLLISION;
+   } else if (est == "tracklength") {
++    if (t->nuc013_compensation_) {
++      set_errmsg(
++        "NUC-013 compensated heating supports only analog or collision estimators");
++      return OPENMC_E_INVALID_ARGUMENT;
++    }
+     t->estimator_ = TallyEstimator::TRACKLENGTH;
+   } else {
+     set_errmsg("Unknown tally estimator: " + est);
