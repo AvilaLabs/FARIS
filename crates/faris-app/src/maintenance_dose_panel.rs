@@ -87,6 +87,10 @@ enum DoseField {
     CadDesignFile,
 }
 
+fn cancellation_acknowledgement(action: &str, requested: bool) -> Option<String> {
+    requested.then(|| format!("Cancelling: {action}…"))
+}
+
 impl Default for MaintenanceDosePanel {
     fn default() -> Self {
         Self {
@@ -535,6 +539,12 @@ impl MaintenanceDosePanel {
                         if let Some(prepare) = &self.prepare {
                             if ui.button("Cancel preparation").clicked() { prepare.cancel.cancel(); }
                             ui.spinner();
+                            if let Some(message) = cancellation_acknowledgement(
+                                "preparing CAD dose physics",
+                                prepare.cancel.is_cancelled(),
+                            ) {
+                                ui.weak(message);
+                            }
                         }
                     });
                     if let Some(message) = &self.prepare_message { ui.label(message); }
@@ -608,7 +618,18 @@ impl MaintenanceDosePanel {
                                 Err(error) => self.state = LoadState::Failed(error),
                             }
                         }
-                        if let Some(run) = &self.run { if ui.button("Cancel").clicked() { run.cancel.cancel(); } ui.spinner(); ui.label(run.progress.lock().ok().and_then(|p| p.clone()).unwrap_or_else(|| "Starting dose coupling".into())); }
+                        if let Some(run) = &self.run {
+                            if ui.button("Cancel").clicked() { run.cancel.cancel(); }
+                            ui.spinner();
+                            if let Some(message) = cancellation_acknowledgement(
+                                "dose-governed maintenance",
+                                run.cancel.is_cancelled(),
+                            ) {
+                                ui.weak(message);
+                            } else {
+                                ui.label(run.progress.lock().ok().and_then(|p| p.clone()).unwrap_or_else(|| "Starting dose coupling".into()));
+                            }
+                        }
                     });
                 });
                 ui.separator();
@@ -1330,6 +1351,30 @@ fn event_gap_detail(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Verifies: PERF-024. Preparation and dose-run controls surface the synchronously set
+    // cancellation token while their workers are still cleaning up.
+    #[test]
+    fn dose_operations_acknowledge_requested_cancellation() {
+        let preparation = Cancellation::default();
+        assert_eq!(
+            cancellation_acknowledgement("preparing CAD dose physics", preparation.is_cancelled()),
+            None
+        );
+        preparation.cancel();
+        assert_eq!(
+            cancellation_acknowledgement("preparing CAD dose physics", preparation.is_cancelled())
+                .as_deref(),
+            Some("Cancelling: preparing CAD dose physics…")
+        );
+        let run = Cancellation::default();
+        run.cancel();
+        assert_eq!(
+            cancellation_acknowledgement("dose-governed maintenance", run.is_cancelled())
+                .as_deref(),
+            Some("Cancelling: dose-governed maintenance…")
+        );
+    }
 
     #[test]
     fn rendered_dose_lifecycle_availability_carries_validation_and_uncertainty_evidence() {

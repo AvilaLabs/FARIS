@@ -314,6 +314,8 @@ pub const HISTORY_ENERGY_RATES_OUTPUTS: &[Output] = &[
     not_calculated("batches", "independent transport batch count"),
 ];
 
+const PARTICLE_SCOPE_NOTICE: &str = "Neutron, photon, electron, and positron scores are partial contributions used only for the particle-sum closure check; the all-particle total alone supplies reported heating and downstream history-energy response.";
+
 pub const DESIGN_HEATING_OUTPUTS: &[Output] = &[
     calculated("energy_ev_per_source", Quantity::Heating),
     calculated("sampling_se_ev_per_source", Quantity::Heating),
@@ -862,7 +864,10 @@ fn design_heating_impl(
         history_energy_worker_receipt: None,
         why: None,
         next_step: None,
-        notices: vec!["Target stopping uses aggregate per-batch heating error, the resolved peak in each authored solid, and batch variance-of-variance. Geometry volume uncertainty is separate.".into()],
+        notices: vec![
+            "Target stopping uses aggregate per-batch heating error, the resolved peak in each authored solid, and batch variance-of-variance. Geometry volume uncertainty is separate.".into(),
+            PARTICLE_SCOPE_NOTICE.into(),
+        ],
         validation: ValidationMarks::default(),
     };
     let record_not_evaluated = |mut report: DesignHeatingReport,
@@ -2763,9 +2768,14 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
             );
             for name in ["neutron", "photon", "electron", "positron", "total"] {
                 if let Some(score) = peak.component_scores.get(name) {
+                    let label = if name == "photon" {
+                        "photon-only peak score [PARTIAL contribution for closure]".to_owned()
+                    } else {
+                        format!("{name} peak score")
+                    };
                     let _ = writeln!(
                         text,
-                        "    {name} peak score: {:.6e} ± {:.6e} eV/source neutron",
+                        "    {label}: {:.6e} ± {:.6e} eV/source neutron",
                         score.mean_ev_per_source, score.standard_error_ev_per_source
                     );
                 }
@@ -3609,6 +3619,7 @@ mod tests {
             }
         };
         let mut paired_report = report.clone();
+        paired_report.notices.push(PARTICLE_SCOPE_NOTICE.into());
         paired_report.solids = [10_000.0, 20_000.0]
             .into_iter()
             .map(|volume| worker_solid_to_heating(worker_solid(volume), 1.0e18).unwrap())
@@ -3637,6 +3648,8 @@ mod tests {
         assert!(paired_text.contains("8.010883e0 kW/m³"));
         assert!(paired_text.contains("sampled voxel volume: 1.000000e-2 m³"));
         assert!(paired_text.contains("sampled voxel volume: 2.000000e-2 m³"));
+        assert!(paired_text.contains("photon-only peak score [PARTIAL contribution for closure]"));
+        assert!(paired_text.contains(PARTICLE_SCOPE_NOTICE));
 
         let rendered = render_design_heating_text(&report);
         assert!(rendered.contains("Design: case"));

@@ -13,8 +13,8 @@ use crate::{
     design_tools::{SharedTools, ToolsModel, Window},
     design_transport_result::{LimitView, ResultView, Row, parse_report, result_view},
     design_transport_run::{
-        Field, Job, MIN_HISTORIES, Problem, RunInputs, RunningView, failure_text, tool_rows,
-        validate,
+        Field, Job, MIN_HISTORIES, Problem, RunInputs, RunTier, RunningView, failure_text,
+        tool_rows, validate, validate_for_tier,
     },
     maintenance_run::elapsed_text,
     settings::Tool,
@@ -61,6 +61,7 @@ pub struct DesignTransportPanel {
     /// Inputs the idle-state problems were last computed for, and those problems.
     preview: Option<(RunInputs, Vec<Problem>)>,
     result: Option<Shown>,
+    selected_tier: Option<RunTier>,
     history_handoff: Option<CadHistoryContext>,
     running_history_context: Option<CadHistoryContext>,
     running_inputs: Option<RunInputs>,
@@ -112,6 +113,7 @@ impl DesignTransportPanel {
             problems: Vec::new(),
             preview: None,
             result: None,
+            selected_tier: None,
             history_handoff: None,
             running_history_context: None,
             running_inputs: None,
@@ -185,6 +187,7 @@ impl DesignTransportPanel {
             "saved_report_view_only": shown.is_some_and(|result| result.opened_from.is_some()),
             "result_target_reached": shown.map(|result| result.report.target_reached),
             "result_stop_reason": shown.map(|result| result.report.stop_reason.as_str()),
+            "result_tier": shown.and_then(|_| self.selected_tier.map(RunTier::label)),
             "history_rates_path": shown.and_then(|result| result.report.history_rates_artifact.as_ref().map(|reference| reference.path.as_str())),
             "history_context": context.map(|value| serde_json::json!({
                 "design": value.design,
@@ -272,6 +275,7 @@ impl DesignTransportPanel {
         if let Some(receiver) = &self.report_loading {
             match receiver.try_recv() {
                 Ok(Ok((path, report))) => {
+                    self.selected_tier = None;
                     self.result = Some(Shown {
                         view: result_view(&report),
                         report,
@@ -421,6 +425,7 @@ impl DesignTransportPanel {
         if self.inputs != tools_before {
             self.problems.clear();
             self.result = None;
+            self.selected_tier = None;
             self.history_handoff = None;
         }
         // Show what is missing before the first click, too; checked again only when an input
@@ -457,6 +462,7 @@ impl DesignTransportPanel {
             // Never offer a previously completed CAD result as belonging to newly edited
             // design/source or component-mapping inputs.
             self.result = None;
+            self.selected_tier = None;
             self.history_handoff = None;
         }
         if let Some(field) = pick {
@@ -473,6 +479,9 @@ impl DesignTransportPanel {
         }
         if let Some(shown) = &self.result {
             ui.separator();
+            if let Some(tier) = self.selected_tier {
+                ui.small(tier.label());
+            }
             if show_result(ui, shown)
                 && let Some(context) = &shown.history_context
             {
@@ -486,7 +495,10 @@ impl DesignTransportPanel {
         if self.job.is_running() {
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label("CAD transport is running.");
+                ui.label(format!(
+                    "CAD {} transport is running.",
+                    self.selected_tier.map_or("", RunTier::label)
+                ));
                 if ui
                     .button("Cancel")
                     .on_hover_text(
@@ -497,38 +509,27 @@ impl DesignTransportPanel {
                     self.job.cancel();
                 }
             });
-        } else if ui
-            .button("Run")
-            .on_hover_text(
-                "Runs OpenMC on the design's geometry until the error on the mean flux is within the target or a limit is reached. With a peak limit it also needs the highest piece within twice the target. This can take many minutes.",
-            )
-            .clicked()
-        {
-            match validate(&self.inputs) {
-                Ok(plan) => {
-                    self.problems.clear();
-                    self.result = None;
-                    self.stale_run_message = None;
-                    self.running_history_context = plan
-                        .options
-                        .history_components
-                        .as_ref()
-                        .map(|history_components| CadHistoryContext {
-                            design: plan.design.clone(),
-                            check_report: plan.options.check_report.clone(),
-                            history_rates: PathBuf::new(),
-                            cross_sections: PathBuf::from(self.inputs.cross_sections.trim()),
-                            cross_sections_sha256: String::new(),
-                            history_components: history_components.clone(),
-                            design_id: "CAD design".into(),
-                            design_sha256: String::new(),
-                            fusion_power_mw: 0.0,
-                        });
-                    self.running_inputs = Some(self.inputs.clone());
-                    self.job.start(plan, &ctx);
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                if ui
+                    .button("Preview")
+                    .on_hover_text(
+                        "Samples without weight windows for up to 30 batches of 1,000 histories. The 45-second sampling budget is checked between batches. Setup time is additional.",
+                    )
+                    .clicked()
+                {
+                    self.start_tier(RunTier::Preview, &ctx);
                 }
-                Err(problems) => self.problems = problems,
-            }
+                if ui
+                    .button("Production")
+                    .on_hover_text(
+                        "Uses the authored error targets, history and time limits, component map, cache preference and configured optional tools. Sampling runs until a target or budget is reached.",
+                    )
+                    .clicked()
+                {
+                    self.start_tier(RunTier::Production, &ctx);
+                }
+            });
         }
         let preview = self
             .preview
@@ -554,6 +555,35 @@ impl DesignTransportPanel {
                     missing_count_text(shown.len())
                 ),
             );
+        }
+    }
+
+    fn start_tier(&mut self, tier: RunTier, ctx: &egui::Context) {
+        match validate_for_tier(&self.inputs, tier) {
+            Ok(plan) => {
+                self.problems.clear();
+                self.result = None;
+                self.selected_tier = Some(tier);
+                self.stale_run_message = None;
+                self.running_history_context =
+                    plan.options
+                        .history_components
+                        .as_ref()
+                        .map(|history_components| CadHistoryContext {
+                            design: plan.design.clone(),
+                            check_report: plan.options.check_report.clone(),
+                            history_rates: PathBuf::new(),
+                            cross_sections: PathBuf::from(self.inputs.cross_sections.trim()),
+                            cross_sections_sha256: String::new(),
+                            history_components: history_components.clone(),
+                            design_id: "CAD design".into(),
+                            design_sha256: String::new(),
+                            fusion_power_mw: 0.0,
+                        });
+                self.running_inputs = Some(self.inputs.clone());
+                self.job.start(plan, ctx);
+            }
+            Err(problems) => self.problems = problems,
         }
     }
 
@@ -750,7 +780,7 @@ impl DesignTransportPanel {
             ui.colored_label(
                 Kind::NotEvaluated.color(),
                 format!(
-                    "Cancelled. No result was written. Next step: press Run to start again; the stopped run's folder, {}, is left as it is and the next run uses a new one.",
+                    "Cancelled. Start another Preview or Production run to try again. The stopped run is in {}.",
                     folder.display()
                 ),
             );
@@ -1212,8 +1242,10 @@ mod tests {
                 },
                 |ui| panel.window(ui.ctx()),
             );
-            run_is_visible = output.shapes.iter().any(|clipped| {
-                contains_visible_text(&clipped.shape, clipped.clip_rect, screen, "Run")
+            run_is_visible = ["Preview", "Production"].iter().all(|label| {
+                output.shapes.iter().any(|clipped| {
+                    contains_visible_text(&clipped.shape, clipped.clip_rect, screen, label)
+                })
             });
             output.drop_without_applying_deltas();
             if run_is_visible {
@@ -1222,7 +1254,7 @@ mod tests {
         }
         assert!(
             run_is_visible,
-            "Run must remain visible with the CAD map expanded"
+            "Preview and Production must remain visible with the CAD map expanded"
         );
     }
 

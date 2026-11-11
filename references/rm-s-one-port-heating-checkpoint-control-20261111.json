@@ -1,0 +1,96 @@
+{
+  "schema": "faris-rm-s-heating-checkpoint-control/v1",
+  "date_utc": "2026-11-11",
+  "status": "PASS_FOR_DECLARED_CONTROL",
+  "requirement_status": "NUC-013 remains Partial",
+  "scope": "Exact frozen one-port RM-S coupled continuous-energy collision-heating control, OpenMC 0.15.3 with isolated v4 numerical patch, x86-64 Linux, one thread, one MPI rank. Scientific qualification remains NOT_EVALUATED.",
+  "sampling": {
+    "seed": 20261111,
+    "particles_per_batch": 900,
+    "total_batches": 100,
+    "threads": 1,
+    "mpi_ranks": 1
+  },
+  "histories": {
+    "continuous": 90000,
+    "split_first": 45000,
+    "split_resume": 45000,
+    "split_total": 90000
+  },
+  "lost_particle_events": 0,
+  "checkpoint_result": {
+    "continuous_batches": 100,
+    "split_batches": [
+      50,
+      50
+    ],
+    "bitwise_equal_boundaries": [
+      50,
+      100
+    ],
+    "compared": "All five named target tallies, public SUM/SUM_SQ and eight high/low compensation payload doubles per tally.",
+    "unversioned_target_checkpoint": "Rejected before a successful pass receipt."
+  },
+  "strict_heating_closure": {
+    "mean_eV_per_source": 1.1175870895385742e-10,
+    "sample_se_eV_per_source": 8.120369011112443e-09,
+    "three_se_eV_per_source": 2.436110703333733e-08,
+    "residual_to_three_se_ratio": 0.004587587452447029,
+    "strict_gate": "abs(mean residual) <= 3*SE; no additive floor",
+    "gate_pass": true
+  },
+  "openmc_source_commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+  "loaded_library_sha256": "c16958d014b2f7ae3bb1c31c9dd0a7e103c063c197793ee5d54f0f0b534174a9",
+  "fixed_inputs_sha256": {
+    "geometry.xml": "36faeb4df6366ffa94873ac3c1d995c3af7767389ff37cc988cf3a75c1c2d632",
+    "materials.xml": "75b5fe367bf748c87b96b8feffae965b11c177f380973459df1798a4fb6ed2ae",
+    "tallies.xml": "b4f02419caeab0f0e951f8b26be11fbf7e491fb6eae82830d8db71ebb5527f10"
+  },
+  "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+  "evidence": {
+    "checkpoint_verification": {
+      "path": "runs/continuation/nuc013-compensated-v4-restart-verification/result-v2/verification.json",
+      "sha256": "bc2df3fa77ed41720f88c43c6aff272684f273f4c878982e11a3a2040b3b244a"
+    },
+    "independent_decimal_audit": {
+      "path": "runs/continuation/nuc013-compensated-v4-restart-verification/result-v2-decimal-audit-final/decimal-audit.json",
+      "sha256": "8818269c59789843b4108f76d21b32f76844b17116cd6f914eb5276c2628e9c8"
+    },
+    "v4_patch": {
+      "path": "runs/continuation/nuc013-openmc-compensated-restart-build-v4/openmc-heating-compensation.patch",
+      "sha256": "1b9fdc7c40afafbd0ae87679339caef1280cbd41be793e599cd20b98b58272db"
+    },
+    "executed_harness": {
+      "path": "runs/continuation/nuc013-compensated-v4-restart-verification/verify_checkpoint.py",
+      "sha256": "04f0537dc01701f86007a9c67866ded3d0fd2c37bbc0871b768885e296e6f5b5"
+    },
+    "corrected_unrun_reusable_harness": {
+      "path": "runs/continuation/nuc013-compensated-v4-restart-verification/verify_checkpoint_v3.py",
+      "sha256": "a55afc9d0f36ae9f5b56007e9ed182f2cb738e6a4290839cbd1dbce1ed1b6dee"
+    }
+  },
+  "execution_notes": [
+    "Initial harness attempt stopped before transport because its worker path omitted the parent directory. The corrected attempt completed.",
+    "Continuous statepoints were saved at every batch. A statepoint.50.h5 symlink to the actual statepoint.050.h5 supported the original boundary lookup. The reusable, unrun v3 harness resolves batch metadata directly."
+  ],
+  "open_items": [
+    "The v4 patch can select its special accumulator for unsupported matching-name multigroup or tracklength tallies. Those paths need explicit rejection before runtime distribution. The exact control used the supported continuous-energy collision path.",
+    "Runtime packaging must include the upstream MIT license and modification attribution.",
+    "Multithread, MPI, other estimators and cross-platform checkpoint compatibility have no passing control here."
+  ],
+  "independent_decimal_closure": {
+    "n": 100,
+    "mean_eV_per_source": "-1.92085281014442443847656250000E-11",
+    "sample_se_eV_per_source": "8.12168431341705640473703666844851639829258582570707298806570006384711849167398657871878665E-9",
+    "three_se_eV_per_source": "2.43650529402511692142111100053455491948777574771212189641971001915413554750219597361563600E-8",
+    "min_eV_per_source": "-2.5579356588423252105712890625E-7",
+    "max_eV_per_source": "2.897577360272407531738281250E-7",
+    "positive_count": 55,
+    "negative_count": 45,
+    "zero_count": 0,
+    "abs_mean_over_total_mean_ulp": "0.01031250000",
+    "residual_to_three_se_ratio": "0.000788363897609747267969226780318536430379706933191754110847767994698789434609928909456835202",
+    "strict_gate": "abs(mean residual) <= 3*SE; no additive floor",
+    "gate_pass": true
+  }
+}

@@ -420,8 +420,12 @@ impl DesignHeatingPanel {
             match result {
                 Ok(report) => {
                     ui.separator();
-                    ui.monospace(render_design_heating_text(report));
-                    ui.label(heating_validation_summary(&report.validation));
+                    let validation = heating_validation_summary(&report.validation);
+                    // Keep the quantity's state and its explanation attached to the numerical
+                    // report: every heating value in this text block then has a hover target.
+                    ui.monospace(render_design_heating_text(report))
+                        .on_hover_text(validation.clone());
+                    ui.label(validation);
                     if let Some(message) = &self.cad_history_message {
                         ui.colored_label(ui.visuals().warn_fg_color, message);
                     }

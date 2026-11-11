@@ -146,6 +146,14 @@ struct Pending {
     output: PathBuf,
 }
 
+fn transport_run_status(cancellation_requested: bool) -> &'static str {
+    if cancellation_requested {
+        "Cancelling transport run…"
+    } else {
+        "Transport running"
+    }
+}
+
 pub struct TransportPanel {
     scenario: LoadedScenario,
     cases: BTreeMap<String, PhysicsCase>,
@@ -554,7 +562,7 @@ impl TransportPanel {
             if let Some(pending) = &self.pending {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("Transport running");
+                    ui.label(transport_run_status(pending.cancellation.is_cancelled()));
                     if ui.button("Cancel").clicked() {
                         pending.cancellation.cancel();
                     }
@@ -1711,6 +1719,22 @@ mod colormap_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Verifies: PERF-024. The running transport row acknowledges the cancellation token
+    // synchronously, before the worker reports its final execution status.
+    #[test]
+    fn transport_run_status_acknowledges_a_requested_cancel_immediately() {
+        let cancellation = Cancellation::default();
+        assert_eq!(
+            transport_run_status(cancellation.is_cancelled()),
+            "Transport running"
+        );
+        cancellation.cancel();
+        assert_eq!(
+            transport_run_status(cancellation.is_cancelled()),
+            "Cancelling transport run…"
+        );
+    }
 
     // Verifies: GEO-025
     #[test]

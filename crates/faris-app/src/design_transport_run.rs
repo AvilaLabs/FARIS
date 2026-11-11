@@ -33,6 +33,24 @@ const THREADS: u32 = 4;
 /// The fewest batches the engine allows a run to stop at.
 const MIN_BATCHES: u64 = 30;
 pub const MIN_HISTORIES: u64 = MIN_BATCHES * PARTICLES_PER_BATCH;
+pub const PREVIEW_PARTICLES_PER_BATCH: u64 = 1_000;
+pub const PREVIEW_HISTORIES: u64 = MIN_BATCHES * PREVIEW_PARTICLES_PER_BATCH;
+pub const PREVIEW_SAMPLING_BUDGET_S: u64 = 45;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunTier {
+    Preview,
+    Production,
+}
+
+impl RunTier {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Preview => "Preview",
+            Self::Production => "Production",
+        }
+    }
+}
 const CACHE_NAME: &str = "faris-transport-cache";
 const RUN_NAME: &str = "faris-transport-run";
 pub const REPORT_NAME: &str = "design-transport-report.json";
@@ -189,8 +207,33 @@ fn missing_file(field: Field, what: &str, next: &str) -> Problem {
     Problem::new(field, format!("No {what} is chosen."), next)
 }
 
-/// Checks every input before a run starts. `Ok` carries the plan; `Err` every problem.
+/// Checks every input before a production run starts. `Ok` carries the plan; `Err` every problem.
 pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
+    validate_for_tier(inputs, RunTier::Production)
+}
+
+/// Applies only the selected run-tier budget to a temporary copy of the user's inputs.
+/// Design, data, component maps, targets, cache preferences and optional tools remain authored.
+pub fn validate_for_tier(inputs: &RunInputs, tier: RunTier) -> Result<RunPlan, Vec<Problem>> {
+    let mut effective = inputs.clone();
+    let particles_per_batch = match tier {
+        RunTier::Production => PARTICLES_PER_BATCH,
+        RunTier::Preview => {
+            effective.max_histories = PREVIEW_HISTORIES;
+            effective.max_seconds = PREVIEW_SAMPLING_BUDGET_S;
+            // Preview never generates or consumes weight windows. Keep the user's configured
+            // interpreter in `inputs` so Production remains one click away.
+            effective.window_python.clear();
+            PREVIEW_PARTICLES_PER_BATCH
+        }
+    };
+    validate_with_batch(&effective, particles_per_batch)
+}
+
+fn validate_with_batch(
+    inputs: &RunInputs,
+    particles_per_batch: u64,
+) -> Result<RunPlan, Vec<Problem>> {
     let mut problems = Vec::new();
 
     let design = trimmed(&inputs.design);
@@ -292,11 +335,12 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
             "enter a target such as 1 %.",
         ));
     }
-    if inputs.max_histories < MIN_HISTORIES {
+    let minimum_histories = MIN_BATCHES * particles_per_batch;
+    if inputs.max_histories < minimum_histories {
         problems.push(Problem::new(
             None,
             format!(
-                "The history limit must allow at least {MIN_BATCHES} batches of {PARTICLES_PER_BATCH} histories ({MIN_HISTORIES})."
+                "The history limit must allow at least {MIN_BATCHES} batches of {particles_per_batch} histories ({minimum_histories})."
             ),
             "raise the history limit.",
         ));
@@ -353,7 +397,7 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
         out_dir: out_dir.expect("checked above"),
         target_relative_error: target,
         h3_target_relative_error: history_configured.then_some(history_target),
-        particles_per_batch: PARTICLES_PER_BATCH,
+        particles_per_batch,
         max_histories: inputs.max_histories,
         max_seconds: inputs.max_seconds,
         seed: SEED,
@@ -884,6 +928,54 @@ mod tests {
             fields(&refused(&inputs)),
             [Field::OpenmcPackage],
             "a file is not a folder"
+        );
+    }
+
+    #[test]
+    fn preview_is_bounded_and_keeps_authored_inputs_for_production() {
+        let (dir, mut inputs) = tree();
+        let window_python = dir.path().join("window-python");
+        std::fs::write(&window_python, "").unwrap();
+        inputs.window_python = window_python.display().to_string();
+        inputs.history_components_json =
+            r#"{"blanket":["blanket-solid"],"magnets":["tf-solid"]}"#.into();
+        inputs.h3_component_id = "blanket".into();
+        inputs.max_histories = 8_000_000;
+        inputs.max_seconds = 900;
+        inputs.target_percent = 7.5;
+        let original = inputs.clone();
+
+        let preview = validate_for_tier(&inputs, RunTier::Preview).unwrap();
+        assert_eq!(
+            preview.options.particles_per_batch,
+            PREVIEW_PARTICLES_PER_BATCH
+        );
+        assert_eq!(preview.options.max_histories, PREVIEW_HISTORIES);
+        assert_eq!(preview.options.max_seconds, PREVIEW_SAMPLING_BUDGET_S);
+        assert_eq!(preview.options.target_relative_error, 0.075);
+        assert_eq!(preview.options.h3_target_relative_error, Some(0.01));
+        assert!(preview.options.window_python.is_none());
+        assert_eq!(
+            preview.options.history_components,
+            Some(std::collections::BTreeMap::from([
+                ("blanket".into(), vec!["blanket-solid".into()]),
+                ("magnets".into(), vec!["tf-solid".into()]),
+            ]))
+        );
+        assert!(inputs.window_python == original.window_python);
+        assert_eq!(inputs.max_histories, original.max_histories);
+        assert_eq!(inputs.max_seconds, original.max_seconds);
+        assert_eq!(inputs.keep_cache, original.keep_cache);
+
+        let mut production_inputs = inputs.clone();
+        production_inputs.history_components_json.clear();
+        let production = validate_for_tier(&production_inputs, RunTier::Production).unwrap();
+        assert_eq!(production.options.particles_per_batch, PARTICLES_PER_BATCH);
+        assert_eq!(production.options.max_histories, original.max_histories);
+        assert_eq!(production.options.max_seconds, original.max_seconds);
+        assert_eq!(
+            production.options.window_python.as_deref(),
+            Some(window_python.as_path())
         );
     }
 

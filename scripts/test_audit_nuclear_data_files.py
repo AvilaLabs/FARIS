@@ -125,7 +125,14 @@ class NuclearDataAudit(unittest.TestCase):
             copy = Path(temp) / "tampered.faris"
             with zipfile.ZipFile(package) as source, zipfile.ZipFile(copy, "w") as target:
                 for info in source.infolist():
-                    target.writestr(info, source.read(info))
+                    content = AUDIT.read_member(source, info, info.file_size)
+                    if info.compress_type == 93:
+                        # Older Python can list zstd members but cannot read them through
+                        # ZipFile.read or write them back. Use the production bounded
+                        # recovery path, then standardize only the copied fixture entry.
+                        target.writestr(info.filename, content, compress_type=zipfile.ZIP_DEFLATED)
+                    else:
+                        target.writestr(info, content)
                 target.writestr("evidence/library/Fe56.h5", HDF5)
             self.assertEqual(len(AUDIT.audit_package(copy)), 1)
             completed = subprocess.run(["python3", str(HERE / "audit_nuclear_data_files.py"), "--root", str(HERE.parent),
