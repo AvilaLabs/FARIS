@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # R3 activation data gate: not evaluated
 
 Recorded 2026-11-09. This is a read-only preflight of the prospective full-emission

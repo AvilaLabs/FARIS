@@ -4,6 +4,7 @@
 """Pure data-contract tests; no OpenMC or ACTINV solver is imported or launched."""
 from __future__ import annotations
 
+import math
 import sys
 import tempfile
 import unittest
@@ -63,8 +64,8 @@ class ActinvBackendContracts(unittest.TestCase):
         batch = self.build()["batches"][0]
         req = batch["activation_request"]
         zone = req["zones"][0]
-        self.assertEqual(zone["mass_g"], 4000.0)
-        self.assertEqual(zone["volume_m3"], 0.0005)
+        self.assertTrue(math.isclose(zone["mass_g"], 4000.0, rel_tol=1e-12, abs_tol=1e-15))
+        self.assertTrue(math.isclose(zone["volume_m3"], 0.0005, rel_tol=1e-12, abs_tol=1e-15))
         self.assertEqual(zone["spectrum"]["flux_per_cm2_s"], [0.04] * 709)
         self.assertEqual(req["steps"], [{"duration_s": 4.0, "flux_scale": 1.0},
                                         {"duration_s": 6.0, "flux_scale": 1.0}])
@@ -103,7 +104,9 @@ class ActinvBackendContracts(unittest.TestCase):
                 "groups": [{"centroid_ev": 50.0, "low_ev": 0.0, "high_ev": 100.0,
                             "photons_per_s": 10.0}]}}]}]}
         meta = {"e0_m101": {"mesh_element": 0, "material_id": 101}}
-        self.assertEqual(backend.photon_emitters_from_activation(base, meta, 1.0)[0]["photons_per_s"], 10.0)
+        self.assertTrue(math.isclose(
+            backend.photon_emitters_from_activation(base, meta, 1.0)[0]["photons_per_s"],
+            10.0, rel_tol=1e-12, abs_tol=1e-15))
         base["zones"][0]["gaps"] = [{"category": "decay", "count": 1}]
         with self.assertRaisesRegex(ValueError, "data gaps"):
             backend.photon_emitters_from_activation(base, meta, 1.0)

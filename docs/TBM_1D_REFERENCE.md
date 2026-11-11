@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # JADE ITER 1D TBM candidate references
 
 FARIS registers response-table candidates for `HCPB_TBM_1D` and `WCLL_TBM_1D` from JADE's pinned [JADE-RAW-RESULTS revision](https://github.com/JADE-V-V/JADE-RAW-RESULTS/tree/e3b442cf8e5eb3f41c500535931ddb8a6b0919e7). The source's declared licence is EUPL-1.2. The CSVs and JADE metadata are not included in Git. FARIS stores only their pinned SHA-256 identities, byte counts, response mapping, and attribution; fetch them into an external directory using `validation/cases/iter-tbm-jade-v1/build_manifest.py`.

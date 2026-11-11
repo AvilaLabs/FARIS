@@ -7,8 +7,8 @@
 
 Looks at every file in a release folder (the one a platform build collects, or a recorded-demo package) or archive
 (.zip, .tar, .tar.gz, .tgz) and fails on
-- a program of a tool FARIS must not bundle (OpenMC, Avila Core, ACTINV, MCNP, Serpent, SCALE, Cubit and the like),
-  by file name;
+- a program of a tool FARIS must not bundle (OpenMC, ACTINV, MCNP, Serpent, SCALE, Cubit and the like), by file name;
+- Avila Core outside its explicitly licensed `bin/avila-core` package slot;
 - a nuclear data file (HDF5 or ACE libraries, ENDF evaluations, an OpenMC cross_sections.xml, xsdir files) that is not
   in the data manifest scripts/nuclear_data_in_git.json with its SHA-256, provider, source, terms, evidence for the
   terms and attribution (the fields scripts/nuclear_data_policy.py demands). Data fetched by hash is never in a package.
@@ -33,6 +33,7 @@ RESTRICTED_TOOLS = re.compile(
     r"fluka|geant4|tripoli[\w-]*|ansys[\w-]*|comsol[\w-]*)(\.exe|\.bin)?$", re.I)
 DATA_FILE = re.compile(r"(\.(h5|hdf5|ace|acer|endf|endf6|xsdir|xsdata)$|^cross_sections(_[\w-]+)?\.xml$|^xsdir$|\.endf\.[\w]+$)", re.I)
 INDEX_FILE = re.compile(r"^cross_sections(_[\w-]+)?\.xml$", re.I)
+ALLOWED_CORE_PATHS = {"bin/avila-core", "bin/avila-core.exe"}
 
 
 def walk_folder(folder: Path):
@@ -64,11 +65,15 @@ def manifest_digests(registry: Path = nuclear_data_policy.REGISTRY) -> dict[str,
     return out
 
 
-def scan_entries(entries, label: str, allowed: dict[str, str]) -> list[str]:
+def scan_entries(entries, label: str, allowed: dict[str, str], *, archive: bool = False) -> list[str]:
     problems = []
     for name, read in entries:
         base = name.rsplit("/", 1)[-1]
-        if RESTRICTED_TOOLS.match(base):
+        relative_name = name
+        if archive and name.startswith("FARIS-"):
+            relative_name = name.partition("/")[2]
+        core_slot = relative_name in ALLOWED_CORE_PATHS
+        if RESTRICTED_TOOLS.match(base) and not core_slot:
             problems.append(f"{label}: {name} is a program of a restricted or separately licensed tool and is not bundled")
         elif DATA_FILE.search(base):
             if INDEX_FILE.match(base):
@@ -84,7 +89,7 @@ def scan(target: Path, allowed: dict[str, str] | None = None) -> list[str]:
     if target.is_dir():
         return scan_entries(walk_folder(target), str(target), allowed)
     if target.is_file():
-        return scan_entries(walk_archive(target), str(target), allowed)
+        return scan_entries(walk_archive(target), str(target), allowed, archive=True)
     return [f"{target} does not exist"]
 
 

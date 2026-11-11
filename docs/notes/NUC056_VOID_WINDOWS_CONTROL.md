@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Bounded void-window control (NUC-056 support)
 
 `integrations/openmc/risk_tests/void_windows_control.py` runs the existing

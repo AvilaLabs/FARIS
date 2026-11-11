@@ -115,6 +115,10 @@ FRAGMENTS = {
     ("docs/RELEASING.md", '{"waivers": [{"condition": "QA-033", "owner": "Connor Avila", "reason": "fuzz farm down; run on the next tag", "expiry": "2026-12-01"}]}'): (
         "example of the release waivers file", ["waivers", "condition", "owner", "reason", "expiry"], ["scripts/release_gate.py"]),
     ("docs/ARCHITECTURE.md", "scenario JSON"): ("diagram", [], []),
+    ("docs/VALIDATION.md", "{"): (
+        "typed current-identities example with placeholder hashes",
+        ["schema", "cases", "library_sha256", "code_version", "adapter_sha256"],
+        ["validation/report.py"]),
     ("docs/COLD_REFERENCE.md", "python reactor_transport.py --input input.json --output-dir solver"): (
         "command of a generated script, written into each run folder by `faris reactor run`", [], []),
     ("docs/OPERATING_HISTORY.md", "available + in_process"): (
@@ -137,6 +141,8 @@ JSON_TESTS = {
     "docs/guide/activation.md": ["activation_zones_example_parses"],
     "docs/guide/waste.md": ["waste_lifetime_plan_example_parses"],
     "docs/guide/shutdown-dose.md": ["shutdown_dose_request_and_estimate_examples_parse"],
+    "docs/guide/maintenance-spatial-dose.md": ["spatial_dose_assumptions_example_has_a_valid_threshold"],
+    "docs/MAINTENANCE_SPATIAL_DOSE_WORKER.md": ["spatial_dose_worker_examples_name_their_schemas"],
 }
 RUST_JSON_TEST = ("faris-engine", "doc_json_samples")
 DOCTESTED = {"faris-model", "faris-engine", "faris-study", "faris-report", "faris-occt-client"}

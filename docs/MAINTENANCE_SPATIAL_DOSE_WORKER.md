@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Spatial shutdown-dose worker inputs
 
 The native dose-maintenance path can ask the bounded OpenMC worker for a curve when an exact

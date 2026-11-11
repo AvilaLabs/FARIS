@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # DAGMC faceting tolerance metadata
 
 The installed DAGMC reader looks up the sparse double tag `FACETING_TOL` on

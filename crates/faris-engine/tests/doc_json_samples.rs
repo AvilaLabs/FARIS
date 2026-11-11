@@ -239,3 +239,50 @@ fn shutdown_dose_request_and_estimate_examples_parse() {
         assert_eq!(reference.sha256, "0".repeat(64));
     }
 }
+
+// Verifies: QA-016
+#[test]
+fn spatial_dose_assumptions_example_has_a_valid_threshold() {
+    let blocks = json_blocks("docs/guide/maintenance-spatial-dose.md");
+    assert_eq!(blocks.len(), 1, "a new JSON example needs a check here");
+    let assumptions: MaintenanceAssumptions =
+        serde_json::from_str(&blocks[0]).expect("the dose assumptions example parses");
+    assumptions
+        .validate()
+        .expect("the dose assumptions example validates");
+    let class = assumptions.classes.get("magnet").expect("the magnet class");
+    match &class.threshold {
+        faris_model::maintenance::Threshold::DoseRateLimit {
+            quantity,
+            value_sv_h,
+            location_id,
+            location_sha256,
+            ..
+        } => {
+            assert_eq!(quantity, "icrp116_ap_effective_dose_rate");
+            assert!(*value_sv_h > 0.0);
+            assert!(!location_id.is_empty() && !location_sha256.is_empty());
+        }
+        other => panic!("unexpected threshold: {other:?}"),
+    }
+}
+
+// Verifies: QA-016
+#[test]
+fn spatial_dose_worker_examples_name_their_schemas() {
+    let blocks = json_blocks("docs/MAINTENANCE_SPATIAL_DOSE_WORKER.md");
+    assert_eq!(blocks.len(), 3, "a new JSON example needs a check here");
+    let expected = [
+        "faris-maintenance-dose-physics/v0.1",
+        "faris-cad-component-material-map/v0.1",
+        "faris-maintenance-dose-cad-config/v0.2",
+    ];
+    for (block, schema) in blocks.iter().zip(expected) {
+        let value: serde_json::Value =
+            serde_json::from_str(block).expect("the worker example is valid JSON");
+        let actual = value["schema_version"]
+            .as_str()
+            .or_else(|| value["schema"].as_str());
+        assert_eq!(actual, Some(schema));
+    }
+}

@@ -16,6 +16,7 @@
 - [Simulate: transport results](simulate.md)
 - [Operate: the 30-year history](operate.md)
 - [Computed maintenance durations](maintenance.md)
+- [Dose-governed replacement duration](maintenance-spatial-dose.md)
 - [Activation and decay heat](activation.md)
 - [D1S/R2S shutdown-dose comparison](shutdown-dose.md)
 - [Uncertainty ensembles](uncertainty.md)

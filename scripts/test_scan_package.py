@@ -32,16 +32,29 @@ class PackageScanTests(unittest.TestCase):
 
     def test_a_clean_package_passes(self):
         # Verifies: SEC-072, LEG-016
-        for name in ("bin/faris", "bin/faris-app", "licenses/notices.md", "scripts/actinv.py", "README.md"):
+        for name in ("bin/faris", "bin/faris-app", "bin/avila-core", "licenses/notices.md",
+                     "scripts/actinv.py", "README.md"):
             put(self.root, name)
+        self.assertEqual(sp.scan(self.root), [])
+
+    def test_the_licensed_core_slot_is_allowed_but_other_core_paths_are_refused(self):
+        # The release package explicitly carries Avila Core and its licence notices.
+        put(self.root, "bin/avila-core")
+        self.assertEqual(sp.scan(self.root), [])
+        put(self.root, "tools/avila-core.exe")
+        problems = sp.scan(self.root)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("restricted or separately licensed tool", problems[0])
+        (self.root / "tools" / "avila-core.exe").unlink()
+        put(self.root, "bin/avila-core.exe")
         self.assertEqual(sp.scan(self.root), [])
 
     def test_a_restricted_tool_program_is_found_by_name(self):
         # Verifies: SEC-072, LEG-016
-        for name in ("bin/openmc", "bin/avila-core", "tools/ACTINV.exe", "x/mcnp6"):
+        for name in ("bin/openmc", "tools/ACTINV.exe", "x/mcnp6"):
             put(self.root, name)
         problems = sp.scan(self.root)
-        self.assertEqual(len(problems), 4, problems)
+        self.assertEqual(len(problems), 3, problems)
         self.assertTrue(all("restricted or separately licensed tool" in p for p in problems))
 
     def test_nuclear_data_is_refused_unless_it_is_in_the_manifest_by_hash(self):
@@ -83,6 +96,11 @@ class PackageScanTests(unittest.TestCase):
         problems = sp.scan(tarball)
         self.assertEqual(len(problems), 1)
         self.assertIn("Fe56.h5", problems[0])
+
+        core_archive = self.root / "core.zip"
+        with zipfile.ZipFile(core_archive, "w") as z:
+            z.writestr("FARIS-1.0.0/bin/avila-core.exe", "licensed Core binary")
+        self.assertEqual(sp.scan(core_archive), [])
 
     def test_a_missing_target_fails_and_the_command_exit_status_follows_the_findings(self):
         # Verifies: SEC-072

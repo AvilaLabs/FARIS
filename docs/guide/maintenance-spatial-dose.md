@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Dose-governed replacement duration
 
 FARIS can couple replacement durations to **ICRP-116 AP photon effective dose rate** at a named remote-handling task location. The metric is `icrp116_ap_effective_dose_rate`, reported in `Sv/h`. Ambient dose equivalent, contact dose, ACTINV's Gamma-air proxy, and other quantities are not interchangeable with this criterion.
@@ -20,7 +21,7 @@ The user authors a dose threshold and a task-location identity in `faris-mainten
         "method": "d1s",
         "source": "<remote handling limit and citation>",
         "location_id": "<authored worker task location>",
-        "location_sha256": "<SHA-256 of the exact task-location definition>"
+        "location_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
       }
     }
   },
@@ -30,11 +31,11 @@ The user authors a dose threshold and a task-location identity in `faris-mainten
 }
 ```
 
-The `source` and location must be selected for the task being assessed. The dose curve is the total spatial field at that point; FARIS does not add component dose estimates or volume-average them. The dose threshold is an authored limit, not a measured duration.
+Choose the dose limit for the task and cite it in `source`. Set the task location and replace the example digest with the SHA-256 of its exact definition. The curve gives the total dose rate at that point. FARIS does not add component dose estimates or average them over a volume.
 
 ## Curve bundle
 
-Supply a `faris-maintenance-spatial-dose-curves/v0.2` JSON file (v0.1 is still readable) to the native **Dose-governed maintenance** tool or CLI. The bundle contains a `curves` array with one record per design, exact operating-history hash, replacement class/component/ordinal/shutdown, and task-location identity. Each record has ordered `points`; every point holds an R2S estimate and an optional D1S estimate. Each estimate records the method, metric, `Sv/h`, explicit source normalisation, cooling time, value and required pointwise standard error, physical input hashes and references to the actual hashed geometry, materials, source, irradiation, response, and task-location artefacts, plus a hashed run-record artefact and random-stream IDs. The provider verifies every artefact byte hash, requires D1S/R2S physical bases to match when both are supplied, and checks event and location hashes against the current maintenance event.
+Supply a `faris-maintenance-spatial-dose-curves/v0.2` JSON file (v0.1 is still readable) to the native **Dose-governed maintenance** tool or CLI. The bundle contains a `curves` array with one record per design, exact operating-history hash, replacement class/component/ordinal/shutdown, and task-location identity. Each record has ordered `points`; every point holds an R2S estimate and an optional D1S estimate. Each estimate records the method, metric, `Sv/h`, explicit source normalisation, cooling time, value and required pointwise standard error, physical input hashes and references to the actual hashed geometry, materials, source, irradiation, response, and task-location artefacts, plus a hashed run-record artefact and random-stream IDs. The provider checks every artefact hash. Each curve belongs to one event. FARIS checks that link before use. When both methods are supplied, their physical inputs must match. It also checks the event and location against the current maintenance event. Keep the source files with the bundle. This link matters. A curve for one shutdown cannot stand in for another.
 
 The native tool can prepare dose physics from a passing checked CAD Design and its ImportReport, then run a bounded, staged spatial dose calculation for each exact event history. Preparation builds a static full-geometry model and clones the checked numeric material once per solid, with a solid/material-to-history-component map. The neutron stage exports 709-group track length for each activation-mesh/material intersection. The Rust ACTINV engine applies the exact irradiation history for every currently installed component, then supplies all decay emitters to one full-geometry OpenMC photon run per cooling time. The response is the whole-geometry photon field at the authored ICRP-116 AP location. Missing activation channels, out-of-range photon rates, incomplete mesh/material coverage, or failed source/volume conservation refuse the curve; missing data are never assigned zero. The standard error covers photon batches conditional on the activation source and does not represent the full physical-model uncertainty.
 

@@ -51,7 +51,7 @@ activation, depletion, photon transport and shutdown dose were not run. The
 neutron-only control does not change the recorded Met count.
 The [native source-power control](../references/native-rm-m-source-power-control-20261110.json)
 records the original profile's 190.55 MW result against its declared 525 MW and
-an explicitly authored density normalization that closes at 525 MW. It does
+an explicitly authored density normalisation that closes at 525 MW. It does
 not evaluate CAD or transport. The [97-cell ITER diagnostic](../references/iter-1d-normal-source-control-20261110.json)
 completed one million histories; its normal-versus-Muir source-law mismatch
 prevents claiming agreement for matching sources or changing the validation status.

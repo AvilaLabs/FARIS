@@ -45,6 +45,8 @@ ENV_EXCEPTIONS = {
     "FARIS_CMAKE": ("build", "cmake program for build.rs"),
     "FARIS_OCCT_SHA256": ("build", "OCCT digest compiled into the program by build.rs"),
     "FARIS_OCCT_TAG": ("build", "OCCT tag compiled into the program by build.rs"),
+    "FARIS_OCCT_WINDOWS_HELPER": ("test-harness", "marks the isolated Windows cancellation-test helper child process"),
+    "FARIS_OCCT_WINDOWS_PID_FILE": ("test-harness", "PID file used by the Windows cancellation-test helper child process"),
 }
 KEY_LINE = re.compile(r'^\s{8}"([a-z][a-z_]*\.[a-z][a-z_]*)",\s*$', re.M)
 ENV_LITERAL = re.compile(r'"(FARIS_[A-Z0-9_]+)"')

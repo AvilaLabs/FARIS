@@ -4,6 +4,7 @@
 """Focused tests for the bounded OpenMC 709-group and ACTINV photon adapter."""
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 import tempfile
@@ -136,7 +137,8 @@ class ResponseMathTests(unittest.TestCase):
                 "emitters_by_cooling": emitter_ref}
             self.assertEqual(worker._validate_stage_request(request, worker.PHOTON_REQUEST_SCHEMA), request)
             calculated = worker._emitters_from_results(request)
-            self.assertEqual(calculated[20.0][0]["photons_per_s"], 5.0)
+            self.assertTrue(math.isclose(calculated[20.0][0]["photons_per_s"], 5.0,
+                                         rel_tol=1e-12, abs_tol=1e-15))
             wrong_event = {**request, "event": {**event, "location_id": "other"}}
             with self.assertRaisesRegex(ValueError, "location_id"):
                 worker._emitters_from_results(wrong_event)
@@ -170,7 +172,8 @@ class ResponseMathTests(unittest.TestCase):
         settings.run_mode = "fixed source"
         settings.photon_transport = True
         constraint_info = worker.configure_material_source_sampling(settings)
-        self.assertEqual(settings.source_rejection_fraction, 1e-6)
+        self.assertTrue(math.isclose(settings.source_rejection_fraction, 1e-6,
+                                     rel_tol=1e-12, abs_tol=1e-15))
         self.assertEqual(constraint_info["strategy"], "resample")
         sources, total = worker._photon_sources(openmc, [{"material_id": 42,
             "photons_per_s": 5.0, "energy_groups": [
@@ -178,8 +181,8 @@ class ResponseMathTests(unittest.TestCase):
                 {"energy_ev": 2e6, "photons_per_s": 3.0}],
             "lower_left_cm": [-0.2, -0.2, -0.2], "upper_right_cm": [0.2, 0.2, 0.2]}], {42: material})
         self.assertEqual(len(sources), 1)
-        self.assertEqual(sources[0].strength, 5.0)
-        self.assertEqual(total, 5.0)
+        self.assertTrue(math.isclose(sources[0].strength, 5.0, rel_tol=1e-12, abs_tol=1e-15))
+        self.assertTrue(math.isclose(total, 5.0, rel_tol=1e-12, abs_tol=1e-15))
         settings.source = sources
         model = openmc.Model(openmc.Geometry([cell]), materials=[material], settings=settings)
         _, dose_tally = worker._dose_tally(openmc, {"lower_left_cm": [-0.5, -0.5, -0.5],
@@ -189,7 +192,8 @@ class ResponseMathTests(unittest.TestCase):
             model.export_to_model_xml(temp)
             self.assertTrue((Path(temp) / "model.xml").is_file())
             root = ET.parse(Path(temp) / "model.xml").getroot()
-            self.assertEqual(float(root.findtext("./settings/source_rejection_fraction")), 1e-6)
+            self.assertTrue(math.isclose(float(root.findtext("./settings/source_rejection_fraction")), 1e-6,
+                                         rel_tol=1e-12, abs_tol=1e-15))
             neutron_settings = openmc.Settings()
             neutron_settings.run_mode = "fixed source"
             source_mesh = openmc.RegularMesh(mesh_id=21)
@@ -204,7 +208,8 @@ class ResponseMathTests(unittest.TestCase):
             neutron_dir.mkdir()
             neutron_model.export_to_model_xml(neutron_dir)
             identity = worker.source_kernel_identity(neutron_dir / "model.xml")
-            self.assertEqual(identity["unit_strength"], 1.0)
+            self.assertTrue(math.isclose(identity["unit_strength"], 1.0,
+                                         rel_tol=1e-12, abs_tol=1e-15))
             self.assertEqual(identity["source_types"], ["mesh"])
             self.assertEqual(len(identity["kernel_sha256"]), 64)
 

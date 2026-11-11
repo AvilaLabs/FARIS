@@ -95,7 +95,7 @@ class AdapterContractTests(unittest.TestCase):
         good = declarations()["openmc"]
         for change in (lambda d: d.pop("cancellation"), lambda d: d.update(contract="faris-adapter-contract/v2"),
                        lambda d: d["tool_versions"].update(check="ignores"), lambda d: d["outputs"][0].update(label="measured"),
-                       lambda d: d["receipt"].append("tool_sha256"), lambda d: d.update(extra=1), lambda d: d.update(failures=[])):
+                       lambda d: d["receipt"].append("unsupported_receipt_field"), lambda d: d.update(extra=1), lambda d: d.update(failures=[])):
             broken = copy.deepcopy(good)
             change(broken)
             self.assertTrue(validate(broken, self.schema))
