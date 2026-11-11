@@ -1,0 +1,70 @@
+{
+  "schema": "faris-native-cancellation-controls/v1",
+  "date_utc": "2026-11-11",
+  "platform": "Linux x86_64 Ubuntu 26.04",
+  "scope": "Native CLI and selected OpenMC C API worker groups for one fixed reactor and one checked CAD transport. Signal only to the CLI. Linux /proc PID and PGID sampling at 50 ms polling intervals. No complete all-adapter audit.",
+  "binary": {
+    "path": "runs/continuation/nuc043-tiny-cad-recipe-v110/faris-v110",
+    "sha256": "78c22d2b32598ffc7d084a37ab7eb31fc853d8cae0e8a555d91ee20b3a26f05d"
+  },
+  "limits": {
+    "cli_exit_ms": 2000,
+    "solver_and_descendants_gone_ms": 5000
+  },
+  "controls": [
+    {
+      "path": "reactor",
+      "readiness": "OpenMC summary.h5 exists and worker is live",
+      "exit_code": 4,
+      "cli_exit_ms": 1328,
+      "all_captured_descendant_groups_gone_ms": 1523,
+      "remaining_captured_descendants": 0,
+      "captured_descendant_count": 2,
+      "evidence": {
+        "result.txt": {
+          "path": "runs/continuation/perf024-v110-cancellation-v2/live/reactor/result.txt",
+          "sha256": "56e4630e89d42c8e9a4c55a36992b63a6231ade1bf7ea914e11ea4043746d19b"
+        },
+        "cli.log": {
+          "path": "runs/continuation/perf024-v110-cancellation-v2/live/reactor/cli.log",
+          "sha256": "e60c6562f772e40c313fad321628105f9899fedae659f3a40f7b68bca2986f26"
+        },
+        "descendants-at-signal.tsv": {
+          "path": "runs/continuation/perf024-v110-cancellation-v2/live/reactor/descendants-at-signal.tsv",
+          "sha256": "6416c639361d0db837e0dc92c24fba2ffd592d00c76b3cf0fa8472aed08aa3a3"
+        },
+        "command.txt": {
+          "path": "runs/continuation/perf024-v110-cancellation-v2/live/reactor/command.txt",
+          "sha256": "88d3f3f43d827cb2f5d9560dbbe53af3d045e3898bccbf38e9a71838b9c80e98"
+        }
+      }
+    },
+    {
+      "path": "design-transport",
+      "readiness": "CAD solver batches.csv contains a completed batch and the bound worker is live",
+      "exit_code": 2,
+      "cli_exit_ms": 116,
+      "all_captured_descendant_groups_gone_ms": 211,
+      "remaining_captured_descendants": 0,
+      "captured_descendant_count": 1,
+      "evidence": {
+        "result.txt": {
+          "path": "runs/continuation/perf024-v110-cancellation-v4/live/design-transport/result.txt",
+          "sha256": "7119a4bb98fd06e557a6d51db55ef3267c1a23c515546febf9fb807d0f3e6d38"
+        },
+        "cli.log": {
+          "path": "runs/continuation/perf024-v110-cancellation-v4/live/design-transport/cli.log",
+          "sha256": "45dd803dda104a5e8abe47f22953a99dd36dce31129655802041a4dcd49a2aa4"
+        },
+        "descendants-at-signal.tsv": {
+          "path": "runs/continuation/perf024-v110-cancellation-v4/live/design-transport/descendants-at-signal.tsv",
+          "sha256": "5b7bdf13f024e99de90a3625892c7fd42af962abfa10e86e4063fd8636cc0fd5"
+        },
+        "command.txt": {
+          "path": "runs/continuation/perf024-v110-cancellation-v4/live/design-transport/command.txt",
+          "sha256": "456f8fb3f56b9f80ade5afe9ef99b6651a939afa0b1869617fac055ff9dee9d2"
+        }
+      }
+    }
+  ]
+}
