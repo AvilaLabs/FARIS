@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import argparse
 import io
+import struct
 import subprocess
 import sys
 import tarfile
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -35,6 +37,7 @@ HDF5_SIGNATURE = b"\x89HDF\r\n\x1a\n"
 # HDF5 containers that hold geometry, not nuclear data (MOAB meshes for DAGMC).
 GEOMETRY_SUFFIXES = {".h5m"}
 MAX_SCANNED_BYTES = 64 * 1024 * 1024
+MAX_COMPRESSED_MEMBER_BYTES = 64 * 1024 * 1024
 # Tracked on purpose: small data whose provider allows redistribution, with its provenance.
 ALLOWED_IN_GIT = nuclear_data_policy.allowed()
 
@@ -81,6 +84,49 @@ def audit_members(label: str, names_and_heads) -> list[str]:
     ]
 
 
+def read_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo, limit: int) -> bytes:
+    """Read a bounded member, using the system zstd decoder for method 93 on Python < 3.14."""
+    if info.compress_type != 93 or hasattr(zipfile, "ZIP_ZSTANDARD"):
+        with archive.open(info) as stream:
+            return stream.read(limit + 1)
+    if info.compress_size > MAX_COMPRESSED_MEMBER_BYTES:
+        raise ValueError(f"{info.filename}: compressed zstd member exceeds the audit read limit")
+    # zipfile can list method-93 members on older Python, but cannot open them. Read just
+    # the compressed payload using the local header offsets, then stop zstd after limit+1
+    # output bytes so a malformed archive cannot expand without bound.
+    fp = archive.fp
+    fp.seek(info.header_offset)
+    header = fp.read(zipfile.sizeFileHeader)
+    if len(header) != zipfile.sizeFileHeader:
+        raise ValueError(f"{info.filename}: truncated ZIP local header")
+    fields = struct.unpack(zipfile.structFileHeader, header)
+    if fields[0] != zipfile.stringFileHeader:
+        raise ValueError(f"{info.filename}: invalid ZIP local header")
+    name_length, extra_length = fields[-2:]
+    fp.seek(info.header_offset + zipfile.sizeFileHeader + name_length + extra_length)
+    compressed = fp.read(info.compress_size)
+    if len(compressed) != info.compress_size:
+        raise ValueError(f"{info.filename}: truncated zstd payload")
+    with tempfile.TemporaryFile() as source:
+        source.write(compressed)
+        source.seek(0)
+        process = subprocess.Popen(["zstd", "-dcq"], stdin=source, stdout=subprocess.PIPE)
+        try:
+            data = process.stdout.read(limit + 1)
+            if len(data) > limit:
+                process.terminate()
+                process.wait()
+                return data
+            if process.wait() != 0:
+                raise ValueError(f"{info.filename}: zstd could not decompress the member")
+            return data
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait()
+            process.stdout.close()
+
+
 def audit_package(path: Path) -> list[str]:
     """Findings inside a zip-format study package, including tar archives stored in it."""
     findings = []
@@ -89,12 +135,18 @@ def audit_package(path: Path) -> list[str]:
         for info in archive.infolist():
             if info.is_dir():
                 continue
-            with archive.open(info) as stream:
-                members.append((info.filename, stream.read(8)))
+            try:
+                members.append((info.filename, read_member(archive, info, 8)))
+            except (OSError, RuntimeError, NotImplementedError, ValueError) as error:
+                findings.append(f"{path.name}: {info.filename} cannot be audited: {error}")
+                continue
             if info.filename.endswith((".tar", ".tar.xz", ".tar.gz", ".txz", ".tgz")) and info.file_size <= MAX_SCANNED_BYTES:
                 try:
-                    inner = tarfile.open(fileobj=io.BytesIO(archive.read(info)))
-                except tarfile.TarError:
+                    content = read_member(archive, info, MAX_SCANNED_BYTES)
+                    if len(content) > MAX_SCANNED_BYTES:
+                        raise ValueError("tar archive exceeds the audit read limit")
+                    inner = tarfile.open(fileobj=io.BytesIO(content))
+                except (tarfile.TarError, OSError, RuntimeError, NotImplementedError, ValueError) as error:
                     findings.append(f"{path.name}: {info.filename} is a tar archive that cannot be read, so it is not audited")
                     continue
                 with inner:

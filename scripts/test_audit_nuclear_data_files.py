@@ -3,6 +3,7 @@
 import importlib.util
 import io
 from pathlib import Path
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -15,6 +16,11 @@ AUDIT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(AUDIT)
 
 HDF5 = AUDIT.HDF5_SIGNATURE + b"rest of a library file"
+
+
+def has_zstd_member(path):
+    with zipfile.ZipFile(path) as archive:
+        return any(info.compress_type == 93 for info in archive.infolist())
 
 
 def git_repo(files):
@@ -96,6 +102,21 @@ class NuclearDataAudit(unittest.TestCase):
         self.assertGreaterEqual(len(fixtures), 24)
         for package in fixtures:
             self.assertEqual(AUDIT.audit_package(package), [], package.name)
+
+    def test_real_zstd_packages_are_audited_when_python_zipfile_lacks_zstd(self):
+        if not shutil.which("zstd"):
+            self.skipTest("system zstd decoder is unavailable")
+        if not hasattr(zipfile, "ZIP_ZSTANDARD"):
+            return  # The normal fixture test above exercises this runtime's native reader.
+        fixtures = sorted((HERE.parent / "crates" / "faris-study" / "tests" / "fixtures").glob("*.faris"))
+        zstd_fixture = next((p for p in fixtures if has_zstd_member(p)), None)
+        self.assertIsNotNone(zstd_fixture)
+        zstd_constant = zipfile.ZIP_ZSTANDARD
+        del zipfile.ZIP_ZSTANDARD
+        try:
+            self.assertEqual(AUDIT.audit_package(zstd_fixture), [], zstd_fixture.name)
+        finally:
+            zipfile.ZIP_ZSTANDARD = zstd_constant
 
     # Verifies: NUC-069
     def test_a_data_file_added_to_a_real_package_is_found_by_the_command_line(self):

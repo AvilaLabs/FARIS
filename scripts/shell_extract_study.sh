@@ -27,7 +27,7 @@ done
 mkdir -p "$out/blobs"
 
 # 1. mimetype is the first entry, stored, and the type string sits right after its 30-byte header and 8-byte name.
-first=$(unzip -Z1 "$file" | head -n 1)
+first=$(unzip -Z1 "$file" | awk 'NR == 1 { first = $0 } END { print first }')
 [ "$first" = "mimetype" ] || fail "first entry is '$first', not mimetype"
 [ "$(head -c $((30 + 8 + ${#TYPE}))  "$file" | tail -c ${#TYPE})" = "$TYPE" ] || fail "the type string is not at byte offset 38"
 [ "$(unzip -p "$file" mimetype)" = "$TYPE" ] || fail "mimetype does not hold the type string"
