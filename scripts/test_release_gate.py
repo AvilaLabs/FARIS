@@ -336,6 +336,12 @@ class ReleaseGate(unittest.TestCase):
         self.assertIn("1 of 2 checks are not PASS: b", results(rg.Gate(self.d, **inputs))["all tests pass"][1])
         write(inputs["tests"], json.dumps({"commit": COMMIT, "checks": []}))
         self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
+        write(inputs["tests"], json.dumps({"commit": COMMIT, "checks": [{"verdict": "PASS"}]}))
+        passed, reason = results(rg.Gate(self.d, **inputs))["all tests pass"]
+        self.assertFalse(passed)
+        self.assertIn("checks have no non-empty name", reason)
+        write(inputs["tests"], json.dumps({"commit": COMMIT, "checks": [{"name": " ", "verdict": "PASS"}]}))
+        self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
         write(inputs["tests"], "not json")
         self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
 

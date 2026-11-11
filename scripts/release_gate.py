@@ -473,7 +473,10 @@ def _checks(name: str, what: str):
         checks = data.get("checks")
         if not isinstance(checks, list) or not checks:
             raise ValueError(f"{what} lists no checks")
-        bad = [str(c.get("name")) if isinstance(c, dict) else "?" for c in checks if not isinstance(c, dict) or c.get("verdict") != "PASS"]
+        unnamed = [c for c in checks if not isinstance(c, dict) or not isinstance(c.get("name"), str) or not c["name"].strip()]
+        if unnamed:
+            return False, f"{len(unnamed)} of {len(checks)} checks have no non-empty name"
+        bad = [c["name"] for c in checks if c.get("verdict") != "PASS"]
         if bad:
             return False, f"{len(bad)} of {len(checks)} checks are not PASS: " + ", ".join(bad[:5])
         return True, f"all {len(checks)} checks are PASS for commit {g.commit[:12]}"
